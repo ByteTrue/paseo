@@ -1,8 +1,6 @@
 name: Weekly upstream Pages deploy
 
 on:
-  schedule:
-    - cron: "0 3 * * 1"
   workflow_dispatch:
 
 permissions:

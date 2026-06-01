@@ -6,7 +6,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { createPaseoDaemon, parseListenString, type PaseoDaemonConfig } from "./bootstrap.js";
 import { generateLocalPairingOffer } from "./pairing-offer.js";
-import { createTestPaseoDaemon } from "./test-utils/paseo-daemon.js";
+import { createTestPaseoDaemon, DaemonClient } from "./test-utils/index.js";
 import { createTestAgentClients } from "./test-utils/fake-agent-client.js";
 import { isPlatform } from "../test-utils/platform.js";
 
@@ -251,4 +251,25 @@ describe("paseo daemon bootstrap", () => {
       }
     },
   );
+
+  test("daemon pairing offer respects custom app base URL", async () => {
+    const appBaseUrl = "https://paseo.zijieapi.de5.net/welcome";
+    const daemonHandle = await createTestPaseoDaemon({
+      relayEnabled: true,
+      appBaseUrl,
+    });
+    const client = new DaemonClient({
+      url: `ws://127.0.0.1:${daemonHandle.port}/ws`,
+    });
+
+    try {
+      await client.connect();
+      const pairing = await client.getDaemonPairingOffer();
+      expect(pairing.relayEnabled).toBe(true);
+      expect(pairing.url.startsWith(`${appBaseUrl}/#offer=`)).toBe(true);
+    } finally {
+      await client.close();
+      await daemonHandle.close();
+    }
+  });
 });
