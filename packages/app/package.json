@@ -27,7 +27,7 @@
     "build": "npm run build:web",
     "build:web": "npm --prefix ../.. run build:app-deps && expo export --platform web",
     "profile:workspace-tabs": "node ./scripts/profile-workspace-tabs.mjs",
-    "deploy:web": "npm run build:web && wrangler pages deploy dist --project-name paseo-app --branch main",
+    "deploy:web": "npm run build:web && wrangler pages deploy dist --project-name paseo-zijieapi-de5-net --branch main",
     "build:terminal-webview": "node ./scripts/build-terminal-webview-html.mjs"
   },
   "dependencies": {

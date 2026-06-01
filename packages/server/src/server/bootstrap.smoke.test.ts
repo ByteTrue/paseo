@@ -104,7 +104,7 @@ describe("paseo daemon bootstrap", () => {
       agentClients: createTestAgentClients(),
       agentStoragePath: path.join(paseoHome, "agents"),
       relayEnabled: false,
-      appBaseUrl: "https://app.paseo.sh",
+      appBaseUrl: "https://paseo.zijieapi.de5.net",
       openai: undefined,
       speech: {
         providers: {
@@ -224,7 +224,7 @@ describe("paseo daemon bootstrap", () => {
         relayEnabled: true,
         relayEndpoint: "127.0.0.1:9",
         relayPublicEndpoint: "127.0.0.1:9",
-        appBaseUrl: "https://app.paseo.sh",
+        appBaseUrl: "https://paseo.zijieapi.de5.net",
         openai: undefined,
         speech: undefined,
       };
@@ -238,11 +238,11 @@ describe("paseo daemon bootstrap", () => {
           relayEnabled: true,
           relayEndpoint: "127.0.0.1:9",
           relayPublicEndpoint: "127.0.0.1:9",
-          appBaseUrl: "https://app.paseo.sh",
+          appBaseUrl: "https://paseo.zijieapi.de5.net",
           includeQr: false,
         });
         expect(pairing.relayEnabled).toBe(true);
-        expect(pairing.url?.startsWith("https://app.paseo.sh/#offer=")).toBe(true);
+        expect(pairing.url?.startsWith("https://paseo.zijieapi.de5.net/#offer=")).toBe(true);
       } finally {
         await daemon.stop().catch(() => undefined);
         await daemon.agentManager.flush().catch(() => undefined);

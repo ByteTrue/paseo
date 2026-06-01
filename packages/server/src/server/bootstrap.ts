@@ -892,11 +892,12 @@ export async function createPaseoDaemon(
             agentManager.setAppendSystemPrompt(typeof value === "string" ? value : "");
           });
           const relayEnabled = config.relayEnabled ?? true;
-          const relayEndpoint = config.relayEndpoint ?? "relay.paseo.sh:443";
+          const relayEndpoint = config.relayEndpoint ?? "relay.paseo.zijieapi.de5.net:443";
           const relayPublicEndpoint = config.relayPublicEndpoint ?? relayEndpoint;
-          const relayUseTls = config.relayUseTls ?? relayEndpoint === "relay.paseo.sh:443";
+          const relayUseTls =
+            config.relayUseTls ?? relayEndpoint === "relay.paseo.zijieapi.de5.net:443";
           const relayPublicUseTls = config.relayPublicUseTls ?? relayUseTls;
-          const appBaseUrl = config.appBaseUrl ?? "https://app.paseo.sh";
+          const appBaseUrl = config.appBaseUrl ?? "https://paseo.zijieapi.de5.net";
 
           if (boundListenTarget.type === "tcp") {
             logger.info(

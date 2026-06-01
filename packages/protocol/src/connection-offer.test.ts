@@ -20,7 +20,7 @@ describe("connection offer", () => {
       v: 2,
       serverId: "server-123",
       daemonPublicKeyB64: "pubkey",
-      relay: { endpoint: "relay.paseo.sh:443" },
+      relay: { endpoint: "relay.paseo.zijieapi.de5.net:443" },
     };
 
     expect(decodeOfferFragmentPayload(encodeBase64UrlNoPadUtf8(JSON.stringify(payload)))).toEqual(
@@ -33,11 +33,13 @@ describe("connection offer", () => {
       v: 2,
       serverId: "server-123",
       daemonPublicKeyB64: "pubkey",
-      relay: { endpoint: "relay.paseo.sh:443" },
+      relay: { endpoint: "relay.paseo.zijieapi.de5.net:443" },
     });
     const encoded = encodeBase64UrlNoPadUtf8(JSON.stringify(offer));
 
-    expect(parseConnectionOfferFromUrl(`https://app.paseo.sh/#offer=${encoded}`)).toEqual(offer);
+    expect(parseConnectionOfferFromUrl(`https://paseo.zijieapi.de5.net/#offer=${encoded}`)).toEqual(
+      offer,
+    );
   });
 
   it("leaves relay TLS unset when absent", () => {
@@ -65,15 +67,17 @@ describe("connection offer", () => {
     });
     const encoded = encodeBase64UrlNoPadUtf8(JSON.stringify(offer));
 
-    expect(parseConnectionOfferFromUrl(`https://app.paseo.sh/#offer=${encoded}`)).toEqual({
-      v: 2,
-      serverId: "server-123",
-      daemonPublicKeyB64: "pubkey",
-      relay: { endpoint: "relay.example.com:443", useTls: true },
-    });
+    expect(parseConnectionOfferFromUrl(`https://paseo.zijieapi.de5.net/#offer=${encoded}`)).toEqual(
+      {
+        v: 2,
+        serverId: "server-123",
+        daemonPublicKeyB64: "pubkey",
+        relay: { endpoint: "relay.example.com:443", useTls: true },
+      },
+    );
   });
 
   it("returns null when the URL has no offer fragment", () => {
-    expect(parseConnectionOfferFromUrl("https://app.paseo.sh/pair")).toBeNull();
+    expect(parseConnectionOfferFromUrl("https://paseo.zijieapi.de5.net/pair")).toBeNull();
   });
 });

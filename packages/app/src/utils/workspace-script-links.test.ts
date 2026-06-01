@@ -56,7 +56,11 @@ describe("resolveWorkspaceScriptLink", () => {
 
   it("shows the local proxy URL but disables opening over relay", () => {
     expect(
-      resolveLink({ type: "relay", endpoint: "relay.paseo.sh:443", display: "relay" }),
+      resolveLink({
+        type: "relay",
+        endpoint: "relay.paseo.zijieapi.de5.net:443",
+        display: "relay",
+      }),
     ).toEqual({
       openUrl: null,
       labelUrl: "http://web.feature.paseo.localhost:6767",

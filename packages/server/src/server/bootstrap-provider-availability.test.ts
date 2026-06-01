@@ -75,7 +75,7 @@ describe("bootstrap provider availability", () => {
       agentClients: {},
       agentStoragePath,
       relayEnabled: false,
-      appBaseUrl: "https://app.paseo.sh",
+      appBaseUrl: "https://paseo.zijieapi.de5.net",
       openai: undefined,
       speech: undefined,
     };

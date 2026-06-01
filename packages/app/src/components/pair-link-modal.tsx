@@ -185,7 +185,7 @@ export function PairLinkModal({ visible, onClose, onCancel, onSaved }: PairLinkM
           nativeID="pair-link-input"
           accessibilityLabel="pair-link-input"
           onChangeText={handleChangeOfferUrl}
-          placeholder="https://app.paseo.sh/#offer=..."
+          placeholder="https://paseo.zijieapi.de5.net/#offer=..."
           placeholderTextColor={theme.colors.foregroundMuted}
           style={styles.input}
           autoFocus

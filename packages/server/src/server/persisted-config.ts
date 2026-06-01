@@ -281,14 +281,14 @@ const DEFAULT_PERSISTED_CONFIG = PersistedConfigSchema.parse({
   daemon: {
     listen: "127.0.0.1:6767",
     cors: {
-      allowedOrigins: ["https://app.paseo.sh"],
+      allowedOrigins: ["https://paseo.zijieapi.de5.net"],
     },
     relay: {
       enabled: true,
     },
   },
   app: {
-    baseUrl: "https://app.paseo.sh",
+    baseUrl: "https://paseo.zijieapi.de5.net",
   },
 }) as PersistedConfig;
 
