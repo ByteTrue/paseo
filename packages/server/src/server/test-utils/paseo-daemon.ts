@@ -33,6 +33,7 @@ interface TestPaseoDaemonOptions {
   dictationFinalTimeoutMs?: number;
   auth?: PaseoDaemonConfig["auth"];
   pushNotificationSender?: PushNotificationSender;
+  appBaseUrl?: string;
 }
 
 export interface TestPaseoDaemon {
@@ -158,7 +159,7 @@ async function prepareTestDaemonConfig(
     agentStoragePath: path.join(paseoHome, "agents"),
     relayEnabled: options.relayEnabled ?? false,
     relayEndpoint: options.relayEndpoint ?? "relay.paseo.sh:443",
-    appBaseUrl: "https://app.paseo.sh",
+    appBaseUrl: options.appBaseUrl ?? "https://app.paseo.sh",
     auth: options.auth,
     pushNotificationSender: options.pushNotificationSender,
     openai: options.openai,

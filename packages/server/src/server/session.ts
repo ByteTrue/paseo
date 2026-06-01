@@ -622,6 +622,7 @@ export interface SessionOptions {
       useTls: boolean;
       publicUseTls: boolean;
     } | null;
+    appBaseUrl?: string;
   };
 }
 
@@ -3819,6 +3820,7 @@ export class Session {
         relayPublicEndpoint: relay?.publicEndpoint,
         relayUseTls: relay?.useTls,
         relayPublicUseTls: relay?.publicUseTls,
+        appBaseUrl: this.daemonRuntimeConfig?.appBaseUrl,
         includeQr: true,
         logger: this.sessionLogger,
       });

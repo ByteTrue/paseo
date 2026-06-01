@@ -426,6 +426,7 @@ export class VoiceAssistantWebSocketServer {
         useTls: boolean;
         publicUseTls: boolean;
       };
+      appBaseUrl?: string;
     },
   ) {
     this.logger = logger.child({ module: "websocket-server" });
