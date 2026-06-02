@@ -454,7 +454,9 @@ describe("paseo daemon bootstrap", () => {
   test.skipIf(isPlatform("win32"))(
     "generates a relay pairing offer for unix socket listeners",
     async () => {
-      const paseoHomeRoot = await mkdtemp(path.join(os.tmpdir(), "paseo-socket-relay-"));
+      // Unix socket paths have a small platform limit, and test runners may set
+      // TMPDIR to a long nested path. Keep this fixture under a short root.
+      const paseoHomeRoot = await mkdtemp(path.join("/tmp", "paseo-socket-relay-"));
       const paseoHome = path.join(paseoHomeRoot, ".paseo");
       const staticDir = await mkdtemp(path.join(os.tmpdir(), "paseo-static-"));
       const socketPath = path.join(paseoHomeRoot, "run", "paseo.sock");
