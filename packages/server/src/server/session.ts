@@ -598,6 +598,7 @@ export interface SessionOptions {
   ) => void;
   getDaemonTcpPort?: () => number | null;
   getDaemonTcpHost?: () => string | null;
+  serviceProxyPublicBaseUrl?: string | null;
   resolveScriptHealth?: (hostname: string) => ScriptHealthState | null;
   voice?: {
     turnDetection?: Resolvable<TurnDetectionProvider | null>;
@@ -812,6 +813,7 @@ export class Session {
   ) => void;
   private readonly getDaemonTcpPort: (() => number | null) | null;
   private readonly getDaemonTcpHost: (() => string | null) | null;
+  private readonly serviceProxyPublicBaseUrl: string | null;
   private readonly resolveScriptHealth: ((hostname: string) => ScriptHealthState | null) | null;
   private readonly terminalController: TerminalSessionController;
   private inflightRequests = 0;
@@ -886,6 +888,7 @@ export class Session {
       onBranchChanged,
       getDaemonTcpPort,
       getDaemonTcpHost,
+      serviceProxyPublicBaseUrl,
       resolveScriptHealth,
       voice,
       voiceBridge,
@@ -970,6 +973,7 @@ export class Session {
     this.onBranchChanged = onBranchChanged;
     this.getDaemonTcpPort = getDaemonTcpPort ?? null;
     this.getDaemonTcpHost = getDaemonTcpHost ?? null;
+    this.serviceProxyPublicBaseUrl = serviceProxyPublicBaseUrl ?? null;
     this.resolveScriptHealth = resolveScriptHealth ?? null;
     this.sttLanguage = sttLanguage ?? "en";
     this.subscribeToOptionalManagers();
@@ -6301,6 +6305,7 @@ export class Session {
               routeStore: this.scriptRouteStore,
               runtimeStore: this.scriptRuntimeStore,
               daemonPort: this.getDaemonTcpPort?.() ?? null,
+              serviceProxyPublicBaseUrl: this.serviceProxyPublicBaseUrl,
               gitMetadata: this.resolveWorkspaceScriptGitMetadata(workspace.cwd),
               resolveHealth: this.resolveScriptHealth ?? undefined,
             })
@@ -7131,6 +7136,7 @@ export class Session {
       routeStore: this.scriptRouteStore,
       runtimeStore: this.scriptRuntimeStore,
       daemonPort: this.getDaemonTcpPort?.() ?? null,
+      serviceProxyPublicBaseUrl: this.serviceProxyPublicBaseUrl,
       gitMetadata: this.resolveWorkspaceScriptGitMetadata(workspaceDirectory),
       resolveHealth: this.resolveScriptHealth ?? undefined,
     });
@@ -7196,6 +7202,7 @@ export class Session {
         scriptName: request.scriptName,
         daemonPort: this.getDaemonTcpPort?.() ?? null,
         daemonListenHost: this.getDaemonTcpHost?.() ?? null,
+        serviceProxyPublicBaseUrl: this.serviceProxyPublicBaseUrl,
         routeStore: this.scriptRouteStore,
         runtimeStore: this.scriptRuntimeStore,
         terminalManager: this.terminalManager,
@@ -7347,6 +7354,7 @@ export class Session {
         scriptRuntimeStore: this.scriptRuntimeStore,
         getDaemonTcpPort: this.getDaemonTcpPort,
         getDaemonTcpHost: this.getDaemonTcpHost,
+        serviceProxyPublicBaseUrl: this.serviceProxyPublicBaseUrl,
         onScriptsChanged: (workspaceId, workspaceDirectory) => {
           this.emitWorkspaceScriptStatusUpdate(workspaceId, workspaceDirectory);
         },

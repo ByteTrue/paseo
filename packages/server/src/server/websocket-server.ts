@@ -361,6 +361,7 @@ export class VoiceAssistantWebSocketServer {
   private scriptRuntimeStore!: WorkspaceScriptRuntimeStore | null;
   private getDaemonTcpPort!: (() => number | null) | null;
   private getDaemonTcpHost!: (() => string | null) | null;
+  private serviceProxyPublicBaseUrl!: string | null;
   private resolveScriptHealth!: ((hostname: string) => ScriptHealthState | null) | null;
   private dictation!: {
     finalTimeoutMs?: number;
@@ -430,6 +431,7 @@ export class VoiceAssistantWebSocketServer {
       };
       appBaseUrl?: string;
     },
+    serviceProxyPublicBaseUrl?: string | null,
   ) {
     this.logger = logger.child({ module: "websocket-server" });
     this.serverId = serverId;
@@ -469,6 +471,7 @@ export class VoiceAssistantWebSocketServer {
       onBranchChanged,
       getDaemonTcpPort,
       getDaemonTcpHost,
+      serviceProxyPublicBaseUrl,
       resolveScriptHealth,
     });
     if (!providerSnapshotManager) {
@@ -519,6 +522,7 @@ export class VoiceAssistantWebSocketServer {
       | undefined;
     getDaemonTcpPort: (() => number | null) | undefined;
     getDaemonTcpHost: (() => string | null) | undefined;
+    serviceProxyPublicBaseUrl: string | null | undefined;
     resolveScriptHealth: ((hostname: string) => ScriptHealthState | null) | undefined;
   }): void {
     this.speech = params.speech ?? null;
@@ -530,6 +534,7 @@ export class VoiceAssistantWebSocketServer {
     this.onBranchChanged = params.onBranchChanged ?? null;
     this.getDaemonTcpPort = params.getDaemonTcpPort ?? null;
     this.getDaemonTcpHost = params.getDaemonTcpHost ?? null;
+    this.serviceProxyPublicBaseUrl = params.serviceProxyPublicBaseUrl ?? null;
     this.resolveScriptHealth = params.resolveScriptHealth ?? null;
   }
 
@@ -886,6 +891,7 @@ export class VoiceAssistantWebSocketServer {
       onBranchChanged: this.onBranchChanged ?? undefined,
       getDaemonTcpPort: this.getDaemonTcpPort ?? undefined,
       getDaemonTcpHost: this.getDaemonTcpHost ?? undefined,
+      serviceProxyPublicBaseUrl: this.serviceProxyPublicBaseUrl,
       resolveScriptHealth: this.resolveScriptHealth ?? undefined,
       voice: {
         turnDetection: () => this.speech?.resolveTurnDetection() ?? null,
