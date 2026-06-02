@@ -46,7 +46,7 @@
     "build:highlight": "npm run build --workspace=@bytetrue/highlight",
     "build:relay": "npm run build --workspace=@bytetrue/relay",
     "build:protocol": "npm run build --workspace=@bytetrue/protocol",
-    "build:client": "npm run build:protocol && npm run build --workspace=@bytetrue/client",
+    "build:client": "npm run build:protocol && npm run build:relay && npm run build --workspace=@bytetrue/client",
     "build:server-deps": "npm run build:highlight && npm run build:relay && npm run build:client",
     "build:server": "npm run build:server-deps && npm run build --workspace=@bytetrue/server && npm run build --workspace=@bytetrue/cli",
     "build:app-deps": "npm run build:highlight && npm run build:client && npm run build --workspace=@bytetrue/expo-two-way-audio",
