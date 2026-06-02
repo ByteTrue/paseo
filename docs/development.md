@@ -91,7 +91,7 @@ web, keep a daemon available, then run:
 PASEO_PROFILE_SERVER_ID=<server-id> \
 PASEO_PROFILE_WORKSPACE_ID=<workspace-path> \
 PASEO_PROFILE_AGENT_ID=<agent-id> \
-  npm run profile:workspace-tabs --workspace=@getpaseo/app
+  npm run profile:workspace-tabs --workspace=@bytetrue/app
 ```
 
 This script opens the app with `?renderProfile=1`, creates a temporary terminal
@@ -123,6 +123,12 @@ GPU process so Chromium rebuilds the display link. The probe is skipped while
 the screen is locked or the window is hidden or minimized, since a window
 legitimately stops producing frames then.
 
+The watchdog deliberately leaves background throttling **enabled**. Calling
+`webContents.setBackgroundThrottling(false)` would keep the compositor producing
+frames non-stop, pinning ProMotion displays at 120Hz forever and draining the
+battery while the app is idle — so do not re-add it. The probe's visibility
+guards already prevent throttling from causing a false stall.
+
 ### Daemon logs
 
 Check `$PASEO_HOME/daemon.log` for daemon logs. The default level is `info`; set
@@ -152,11 +158,13 @@ Every `scripts` entry with `"type": "service"` receives these environment variab
 
 | Variable                    | Value                                                                                                                     |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `PASEO_SERVICE_<NAME>_URL`  | Proxied daemon URL for a declared peer service. Prefer this for peer discovery; it survives peer restarts.                |
+| `PASEO_SERVICE_<NAME>_URL`  | Proxied URL for a declared peer service. Prefer this for peer discovery; it survives peer restarts.                       |
 | `PASEO_SERVICE_<NAME>_PORT` | Raw ephemeral port for a declared peer service. Use only as a bypass escape hatch; it can go stale if that peer restarts. |
 | `PASEO_URL`                 | Self alias for `PASEO_SERVICE_<SELF>_URL`.                                                                                |
 | `PASEO_PORT`                | Self alias for `PASEO_SERVICE_<SELF>_PORT`.                                                                               |
 | `HOST`                      | Bind host for the service process.                                                                                        |
+
+Service proxy hostnames use the double-dash shape: `web--feature-auth--project.localhost` or, on the default branch, `web--project.localhost`. Optional public aliases use the same leftmost label under the configured public base host.
 
 `<NAME>` is normalized from the script name by uppercasing it, replacing each run of non-`A-Z0-9` characters with `_`, and trimming leading or trailing `_`. For example, `app-server` and `app.server` both normalize to `APP_SERVER`; that collision fails at spawn time with an actionable error.
 
@@ -177,7 +185,7 @@ Every `scripts` entry with `"type": "service"` receives these environment variab
 
 Package imports resolve through package exports to compiled `dist/` output, not sibling `src/` files. This is true in local dev and in published packages: the app, daemon, CLI, and SDK consumers should all exercise the same runtime paths.
 
-`npm run dev`, `npm run dev:server`, and `npm run dev:app` build the workspace packages they need once, then keep `@getpaseo/protocol` and `@getpaseo/client` fresh with TypeScript watch builds while the daemon or Expo runs. If you change protocol schemas or client code outside those watch workflows, rebuild the producer before trusting runtime behavior.
+`npm run dev`, `npm run dev:server`, and `npm run dev:app` build the workspace packages they need once, then keep `@bytetrue/protocol` and `@bytetrue/client` fresh with TypeScript watch builds while the daemon or Expo runs. If you change protocol schemas or client code outside those watch workflows, rebuild the producer before trusting runtime behavior.
 
 Use the named root build targets instead of remembering workspace dependency chains:
 
@@ -259,7 +267,7 @@ Do NOT use browser history (back/forward). Always navigate by clicking UI elemen
 ## App web deploys
 
 `packages/app` exports a single-page Expo web app and deploys the `dist/`
-directory to Cloudflare Pages with `npm run deploy:web --workspace=@getpaseo/app`.
+directory to Cloudflare Pages with `npm run deploy:web --workspace=@bytetrue/app`.
 
 PWA install metadata lives in `packages/app/public/manifest.json` and is linked
 from `packages/app/public/index.html`. Keep the install icons in `public/` so

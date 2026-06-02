@@ -34,6 +34,7 @@ interface TestPaseoDaemonOptions {
   auth?: PaseoDaemonConfig["auth"];
   pushNotificationSender?: PushNotificationSender;
   appBaseUrl?: string;
+  serviceProxy?: PaseoDaemonConfig["serviceProxy"];
 }
 
 export interface TestPaseoDaemon {
@@ -162,6 +163,7 @@ async function prepareTestDaemonConfig(
     appBaseUrl: options.appBaseUrl ?? "https://paseo.zijieapi.de5.net",
     auth: options.auth,
     pushNotificationSender: options.pushNotificationSender,
+    serviceProxy: options.serviceProxy,
     openai: options.openai,
     speech: options.speech,
     voiceLlmProvider: options.voiceLlmProvider ?? null,

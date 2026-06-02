@@ -20,7 +20,7 @@ The desktop app bundles its own daemon and starts it automatically, no separate 
 For headless machines, dev boxes, or any setup where you want the daemon running without the desktop UI:
 
 ```bash
-npm install -g @getpaseo/cli
+npm install -g @bytetrue/cli
 paseo
 ```
 

@@ -63,6 +63,12 @@ const ProvidersSchema = z
   })
   .strict();
 
+const WorktreesConfigSchema = z
+  .object({
+    root: z.string().min(1).optional(),
+  })
+  .strict();
+
 const BcryptHashSchema = z.string().regex(/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/, {
   message: "Expected a bcrypt hash",
 });
@@ -231,6 +237,17 @@ export const PersistedConfigSchema = z
           })
           .strict()
           .optional(),
+        serviceProxy: z
+          .object({
+            // COMPAT(serviceProxyEnabled): added 2026-06-02, remove after 2026-12-02.
+            // Parsed only to suppress optional public/listen layers for old configs;
+            // localhost service proxying remains always enabled.
+            enabled: z.boolean().optional(),
+            listen: z.string().optional(),
+            publicBaseUrl: z.string().url().optional(),
+          })
+          .strict()
+          .optional(),
         auth: DaemonAuthSchema.optional(),
       })
       .strict()
@@ -248,6 +265,7 @@ export const PersistedConfigSchema = z
       .optional(),
 
     providers: ProvidersSchema.optional(),
+    worktrees: WorktreesConfigSchema.optional(),
     agents: z
       .object({
         providers: z.preprocess(normalizeAgentProviders, ProviderOverridesSchema).optional(),
