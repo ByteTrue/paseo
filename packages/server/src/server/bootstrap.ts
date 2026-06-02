@@ -1006,6 +1006,7 @@ export async function createPaseoDaemon(
                   useTls: relayUseTls,
                   publicUseTls: relayPublicUseTls,
                 },
+                appBaseUrl,
               },
               serviceProxyPublicBaseUrl,
             );
