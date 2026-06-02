@@ -2,6 +2,10 @@
   "name": "@bytetrue/server",
   "version": "0.1.88",
   "description": "Paseo backend server",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByteTrue/paseo.git"
+  },
   "files": [
     "dist/server",
     "dist/src",

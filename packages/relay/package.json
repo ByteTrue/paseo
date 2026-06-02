@@ -2,6 +2,10 @@
   "name": "@bytetrue/relay",
   "version": "0.1.88",
   "description": "Paseo relay for bridging daemon and client connections",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByteTrue/paseo.git"
+  },
   "files": [
     "dist",
     "!dist/**/*.map"

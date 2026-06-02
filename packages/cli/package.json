@@ -2,6 +2,10 @@
   "name": "@bytetrue/cli",
   "version": "0.1.88",
   "description": "Paseo CLI - control your AI coding agents from the command line",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByteTrue/paseo.git"
+  },
   "bin": {
     "paseo": "bin/paseo"
   },

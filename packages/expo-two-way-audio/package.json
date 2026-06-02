@@ -14,7 +14,10 @@
   },
   "license": "MIT",
   "author": "Speechmatics <devrel@speechmatics.com> (https://github.com/speechmatics)",
-  "repository": "https://github.com/boudra/expo-two-way-audio",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByteTrue/paseo.git"
+  },
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
