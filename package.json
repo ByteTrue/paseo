@@ -96,10 +96,10 @@
     "release:beta:minor": "npm run release:check && npm run version:all:beta:minor && npm run release:push",
     "release:beta:major": "npm run release:check && npm run version:all:beta:major && npm run release:push",
     "release:beta:next": "npm run release:check && npm run version:all:beta:next && npm run release:push",
-    "release:promote": "npm run release:check && npm run version:all:promote && npm run release:publish && npm run release:push",
-    "release:patch": "npm run release:check && npm run version:all:patch && npm run release:publish && npm run release:push",
-    "release:minor": "npm run release:check && npm run version:all:minor && npm run release:publish && npm run release:push",
-    "release:major": "npm run release:check && npm run version:all:major && npm run release:publish && npm run release:push"
+    "release:promote": "npm run release:check && npm run version:all:promote && npm run release:push",
+    "release:patch": "npm run release:check && npm run version:all:patch && npm run release:push",
+    "release:minor": "npm run release:check && npm run version:all:minor && npm run release:push",
+    "release:major": "npm run release:check && npm run version:all:major && npm run release:push"
   },
   "devDependencies": {
     "@types/ws": "^8.5.14",
