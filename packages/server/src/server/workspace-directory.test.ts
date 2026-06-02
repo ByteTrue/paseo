@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { PARENT_AGENT_ID_LABEL } from "@getpaseo/protocol/agent-labels";
+import { PARENT_AGENT_ID_LABEL } from "@bytetrue/protocol/agent-labels";
 import { createTestLogger } from "../test-utils/test-logger.js";
 import type { AgentSnapshotPayload, WorkspaceDescriptorPayload } from "./messages.js";
 import { WorkspaceDirectory } from "./workspace-directory.js";

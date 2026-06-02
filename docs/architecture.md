@@ -73,15 +73,15 @@ All paths are under `packages/server/src/`.
 
 The source of truth for WebSocket messages, binary frame codecs, endpoint parsing,
 agent timeline types, provider config schemas, and other values shared by daemon
-and clients. Server, app, CLI, and `@getpaseo/client` all depend on this package;
+and clients. Server, app, CLI, and `@bytetrue/client` all depend on this package;
 it does not depend on the server.
 
 ### `packages/client` — Daemon client library and SDK facade
 
 Owns the low-level daemon WebSocket driver plus the higher-level `PaseoClient`
 facade. App and CLI may import the low-level driver from
-`@getpaseo/client/internal/daemon-client` during migration, while new SDK-shaped
-code imports from `@getpaseo/client`.
+`@bytetrue/client/internal/daemon-client` during migration, while new SDK-shaped
+code imports from `@bytetrue/client`.
 
 ### `packages/app` — Mobile + web client (Expo)
 

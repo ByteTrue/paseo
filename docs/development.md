@@ -91,7 +91,7 @@ web, keep a daemon available, then run:
 PASEO_PROFILE_SERVER_ID=<server-id> \
 PASEO_PROFILE_WORKSPACE_ID=<workspace-path> \
 PASEO_PROFILE_AGENT_ID=<agent-id> \
-  npm run profile:workspace-tabs --workspace=@getpaseo/app
+  npm run profile:workspace-tabs --workspace=@bytetrue/app
 ```
 
 This script opens the app with `?renderProfile=1`, creates a temporary terminal
@@ -185,7 +185,7 @@ Service proxy hostnames use the double-dash shape: `web--feature-auth--project.l
 
 Package imports resolve through package exports to compiled `dist/` output, not sibling `src/` files. This is true in local dev and in published packages: the app, daemon, CLI, and SDK consumers should all exercise the same runtime paths.
 
-`npm run dev`, `npm run dev:server`, and `npm run dev:app` build the workspace packages they need once, then keep `@getpaseo/protocol` and `@getpaseo/client` fresh with TypeScript watch builds while the daemon or Expo runs. If you change protocol schemas or client code outside those watch workflows, rebuild the producer before trusting runtime behavior.
+`npm run dev`, `npm run dev:server`, and `npm run dev:app` build the workspace packages they need once, then keep `@bytetrue/protocol` and `@bytetrue/client` fresh with TypeScript watch builds while the daemon or Expo runs. If you change protocol schemas or client code outside those watch workflows, rebuild the producer before trusting runtime behavior.
 
 Use the named root build targets instead of remembering workspace dependency chains:
 
@@ -267,7 +267,7 @@ Do NOT use browser history (back/forward). Always navigate by clicking UI elemen
 ## App web deploys
 
 `packages/app` exports a single-page Expo web app and deploys the `dist/`
-directory to Cloudflare Pages with `npm run deploy:web --workspace=@getpaseo/app`.
+directory to Cloudflare Pages with `npm run deploy:web --workspace=@bytetrue/app`.
 
 PWA install metadata lives in `packages/app/public/manifest.json` and is linked
 from `packages/app/public/index.html`. Keep the install icons in `public/` so
