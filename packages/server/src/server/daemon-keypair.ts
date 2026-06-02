@@ -10,7 +10,7 @@ import {
   importPublicKey,
   importSecretKey,
   type KeyPair,
-} from "@getpaseo/relay/e2ee";
+} from "@bytetrue/relay/e2ee";
 import { ensurePrivateFile, writePrivateFileSync } from "./private-files.js";
 
 const KeyPairSchema = z.object({

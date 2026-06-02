@@ -19,7 +19,7 @@ import {
   decodeTerminalResizePayload,
   encodeTerminalStreamFrame,
   type TerminalStreamFrame,
-} from "@getpaseo/protocol/binary-frames/index";
+} from "@bytetrue/protocol/binary-frames/index";
 import { TerminalOutputCoalescer } from "./terminal-output-coalescer.js";
 import {
   MAX_TERMINAL_OUTPUT_FRAME_BYTES,

@@ -16,8 +16,8 @@ export {
   PaseoConfigSchema,
   type PaseoConfig,
   type PaseoConfigRaw,
-} from "@getpaseo/protocol/paseo-config-schema";
-import { PaseoConfigSchema, type PaseoConfig } from "@getpaseo/protocol/paseo-config-schema";
+} from "@bytetrue/protocol/paseo-config-schema";
+import { PaseoConfigSchema, type PaseoConfig } from "@bytetrue/protocol/paseo-config-schema";
 import {
   normalizeBaseRefName,
   readPaseoWorktreeMetadata,
@@ -30,9 +30,9 @@ import { spawnProcess } from "./spawn.js";
 import { resolvePaseoHome } from "../server/paseo-home.js";
 import { createExternalProcessEnv } from "../server/paseo-env.js";
 import { parseGitRevParsePath, resolveGitRevParsePath } from "./git-rev-parse-path.js";
-import { validateBranchSlug } from "@getpaseo/protocol/branch-slug";
+import { validateBranchSlug } from "@bytetrue/protocol/branch-slug";
 
-export { slugify, validateBranchSlug } from "@getpaseo/protocol/branch-slug";
+export { slugify, validateBranchSlug } from "@bytetrue/protocol/branch-slug";
 
 const execFileAsync = promisify(execFile);
 const READ_ONLY_GIT_ENV = {

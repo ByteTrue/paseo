@@ -7,9 +7,9 @@ export function addAttachOptions(cmd: Command): Command {
 }
 import { connectToDaemon, getDaemonHost } from "../../utils/client.js";
 import { fetchProjectedTimelineItems } from "../../utils/timeline.js";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import type { AgentTimelineItem } from "@getpaseo/protocol/agent-types";
-import type { AgentStreamEventPayload, AgentStreamMessage } from "@getpaseo/protocol/messages";
+import type { DaemonClient } from "@bytetrue/client/internal/daemon-client";
+import type { AgentTimelineItem } from "@bytetrue/protocol/agent-types";
+import type { AgentStreamEventPayload, AgentStreamMessage } from "@bytetrue/protocol/messages";
 
 export interface AgentAttachOptions {
   host?: string;

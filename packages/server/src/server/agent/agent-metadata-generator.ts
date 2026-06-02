@@ -11,7 +11,7 @@ import {
   resolveStructuredGenerationProviders,
   type StructuredGenerationDaemonConfig,
 } from "./structured-generation-providers.js";
-import { MAX_AUTO_AGENT_TITLE_CHARS } from "@getpaseo/protocol/agent-title-limits";
+import { MAX_AUTO_AGENT_TITLE_CHARS } from "@bytetrue/protocol/agent-title-limits";
 import { buildMetadataPrompt } from "../../utils/build-metadata-prompt.js";
 import type { WorkspaceGitService } from "../workspace-git-service.js";
 import type { ProviderSnapshotManager } from "./provider-snapshot-manager.js";

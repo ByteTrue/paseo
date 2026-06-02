@@ -25,8 +25,8 @@ import { settingsStyles } from "@/styles/settings";
 import { resolveProviderLabel } from "@/utils/provider-definitions";
 import { formatTimeAgo } from "@/utils/time";
 import { compareMatchScores, scoreTextFields } from "@/utils/score-match";
-import type { AgentModelDefinition, AgentProvider } from "@getpaseo/protocol/agent-types";
-import type { ProviderProfileModel } from "@getpaseo/protocol/provider-config";
+import type { AgentModelDefinition, AgentProvider } from "@bytetrue/protocol/agent-types";
+import type { ProviderProfileModel } from "@bytetrue/protocol/provider-config";
 
 interface ProviderDiagnosticSheetProps {
   provider: string;

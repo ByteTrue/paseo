@@ -10,10 +10,10 @@ describe("desktop packaging", () => {
     const config = readFileSync(join(packageRoot, "electron-builder.yml"), "utf8");
 
     expect(config).toContain(
-      "node_modules/@getpaseo/server/dist/server/terminal/shell-integration/**/*",
+      "node_modules/@bytetrue/server/dist/server/terminal/shell-integration/**/*",
     );
     expect(config).not.toContain(
-      "node_modules/@getpaseo/server/dist/src/terminal/shell-integration/**/*",
+      "node_modules/@bytetrue/server/dist/src/terminal/shell-integration/**/*",
     );
   });
 
@@ -21,9 +21,9 @@ describe("desktop packaging", () => {
     const config = readFileSync(join(packageRoot, "electron-builder.yml"), "utf8");
 
     expect(config).toContain("!**/*.map");
-    expect(config).toContain("!node_modules/@getpaseo/*/src/**");
-    expect(config).toContain("!node_modules/@getpaseo/**/*.test.*");
-    expect(config).toContain("!node_modules/@getpaseo/**/*.spec.*");
+    expect(config).toContain("!node_modules/@bytetrue/*/src/**");
+    expect(config).toContain("!node_modules/@bytetrue/**/*.test.*");
+    expect(config).toContain("!node_modules/@bytetrue/**/*.spec.*");
   });
 
   // electron-builder packs production dependencies declared in package.json into
@@ -38,7 +38,7 @@ describe("desktop packaging", () => {
     };
     const deps = pkg.dependencies ?? {};
 
-    for (const required of ["@getpaseo/cli", "@getpaseo/server"]) {
+    for (const required of ["@bytetrue/cli", "@bytetrue/server"]) {
       expect(deps[required], `${required} must be declared in dependencies`).toBe("*");
     }
   });

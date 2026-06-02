@@ -10,7 +10,7 @@ import {
   type ChatMessage,
   type ChatRoom,
   type ChatRoomDetail,
-} from "@getpaseo/protocol/chat/types";
+} from "@bytetrue/protocol/chat/types";
 
 const ChatStorePayloadSchema = z.object({
   rooms: z.array(ChatRoomSchema),

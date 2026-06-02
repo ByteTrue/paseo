@@ -1,8 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import type { ProviderSnapshotEntry } from "@getpaseo/protocol/agent-types";
+import type { DaemonClient } from "@bytetrue/client/internal/daemon-client";
+import type { ProviderSnapshotEntry } from "@bytetrue/protocol/agent-types";
 import {
   applyProvidersSnapshotUpdate,
   fetchProvidersSnapshot,

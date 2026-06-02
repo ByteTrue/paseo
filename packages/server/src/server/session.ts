@@ -8,7 +8,7 @@ import { basename, resolve, sep } from "path";
 import { homedir } from "node:os";
 import { z } from "zod";
 import type { ToolSet } from "ai";
-import { CLIENT_CAPS, type ClientCapability } from "@getpaseo/protocol/client-capabilities";
+import { CLIENT_CAPS, type ClientCapability } from "@bytetrue/protocol/client-capabilities";
 import {
   isLegacyEditorTargetId,
   serializeAgentStreamEvent,
@@ -38,7 +38,7 @@ import {
   encodeFileTransferFrame,
   FileTransferOpcode,
   type TerminalStreamFrame,
-} from "@getpaseo/protocol/binary-frames/index";
+} from "@bytetrue/protocol/binary-frames/index";
 import { CursorError } from "./pagination/cursor.js";
 import { SortablePager, type SortSpec } from "./pagination/sortable-pager.js";
 import { TTSManager } from "./agent/tts-manager.js";
@@ -85,8 +85,8 @@ import type { ScriptHealthState } from "./script-health-monitor.js";
 import { spawnWorkspaceScript } from "./worktree-bootstrap.js";
 import type { WorkspaceScriptRuntimeStore } from "./workspace-script-runtime-store.js";
 import type { DaemonConfigStore } from "./daemon-config-store.js";
-import { getErrorMessage, getErrorMessageOr } from "@getpaseo/protocol/error-utils";
-import { getAgentStatusPriority } from "@getpaseo/protocol/agent-state-bucket";
+import { getErrorMessage, getErrorMessageOr } from "@bytetrue/protocol/error-utils";
+import { getAgentStatusPriority } from "@bytetrue/protocol/agent-state-bucket";
 import type {
   WorkspaceGitRuntimeSnapshot,
   WorkspaceGitService,
@@ -202,7 +202,7 @@ import {
   createPullRequest,
   renameCurrentBranch,
 } from "../utils/checkout-git.js";
-import { validateBranchSlug } from "@getpaseo/protocol/branch-slug";
+import { validateBranchSlug } from "@bytetrue/protocol/branch-slug";
 import { getProjectIcon } from "../utils/project-icon.js";
 import { expandTilde } from "../utils/path.js";
 import { searchHomeDirectories, searchWorkspaceEntries } from "../utils/directory-suggestions.js";

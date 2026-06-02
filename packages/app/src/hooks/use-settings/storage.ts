@@ -1,4 +1,4 @@
-import { isSyntaxThemeId, type SyntaxThemeId } from "@getpaseo/highlight";
+import { isSyntaxThemeId, type SyntaxThemeId } from "@bytetrue/highlight";
 import type { QueryClient } from "@tanstack/react-query";
 import type { DesktopSettings } from "@/desktop/settings/desktop-settings";
 import { THEME_TO_UNISTYLES, type ThemeName } from "@/styles/theme";

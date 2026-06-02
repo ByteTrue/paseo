@@ -2,10 +2,10 @@ import { Command } from "commander";
 import { connectToDaemon, getDaemonHost } from "../../utils/client.js";
 import type { CommandOptions } from "../../output/index.js";
 import { fetchProjectedTimelineItems } from "../../utils/timeline.js";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import type { AgentTimelineItem } from "@getpaseo/protocol/agent-types";
-import type { AgentStreamMessage } from "@getpaseo/protocol/messages";
-import { curateAgentActivity } from "@getpaseo/server";
+import type { DaemonClient } from "@bytetrue/client/internal/daemon-client";
+import type { AgentTimelineItem } from "@bytetrue/protocol/agent-types";
+import type { AgentStreamMessage } from "@bytetrue/protocol/messages";
+import { curateAgentActivity } from "@bytetrue/server";
 
 export function addLogsOptions(cmd: Command): Command {
   return cmd

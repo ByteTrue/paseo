@@ -1,4 +1,4 @@
-import type { AgentAttachment } from "@getpaseo/protocol/messages";
+import type { AgentAttachment } from "@bytetrue/protocol/messages";
 
 const REVIEW_LINE_MARKERS = { add: "+", remove: "-", context: " " } as const;
 

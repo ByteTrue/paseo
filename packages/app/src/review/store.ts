@@ -19,7 +19,7 @@ import {
 } from "@/review/state";
 import { generateMessageId } from "@/types/stream";
 import { buildNumberedDiffHunks, type NumberedDiffLine } from "@/utils/diff-layout";
-import type { AgentAttachment } from "@getpaseo/protocol/messages";
+import type { AgentAttachment } from "@bytetrue/protocol/messages";
 
 export type { ReviewDraftComment, ReviewDraftMode, ReviewDraftSide } from "@/review/state";
 

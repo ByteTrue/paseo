@@ -1,5 +1,5 @@
 {
-  "name": "@getpaseo/app",
+  "name": "@bytetrue/app",
   "version": "0.1.87",
   "private": true,
   "main": "index.ts",
@@ -31,14 +31,14 @@
     "build:terminal-webview": "node ./scripts/build-terminal-webview-html.mjs"
   },
   "dependencies": {
+    "@bytetrue/client": "*",
+    "@bytetrue/expo-two-way-audio": "*",
+    "@bytetrue/highlight": "*",
+    "@bytetrue/protocol": "*",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@floating-ui/react-native": "^0.10.7",
-    "@getpaseo/client": "*",
-    "@getpaseo/expo-two-way-audio": "*",
-    "@getpaseo/highlight": "*",
-    "@getpaseo/protocol": "*",
     "@gorhom/bottom-sheet": "^5.2.14",
     "@gorhom/portal": "^1.0.14",
     "@react-native-async-storage/async-storage": "2.2.0",

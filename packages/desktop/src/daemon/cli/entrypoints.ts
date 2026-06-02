@@ -9,7 +9,7 @@ import {
   resolvePackagedAsarPath,
 } from "../package-paths.js";
 
-const CLI_PACKAGE_NAME = "@getpaseo/cli";
+const CLI_PACKAGE_NAME = "@bytetrue/cli";
 const CLI_BIN_ENTRY = `${CLI_PACKAGE_NAME}/bin/paseo`;
 const CLI_RUN_ENTRY = `${CLI_PACKAGE_NAME}/dist/run.js`;
 

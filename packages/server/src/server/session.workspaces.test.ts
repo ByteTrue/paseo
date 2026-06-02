@@ -9,7 +9,7 @@ import type {
   AgentSnapshotPayload,
   EditorTargetDescriptorPayload,
   SessionOutboundMessage,
-} from "@getpaseo/protocol/messages";
+} from "@bytetrue/protocol/messages";
 import { AgentManager } from "./agent/agent-manager.js";
 import { AgentStorage } from "./agent/agent-storage.js";
 import type {

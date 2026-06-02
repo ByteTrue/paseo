@@ -1,11 +1,11 @@
 import {
   normalizeHostPort,
   normalizeLoopbackToLocalhost,
-} from "@getpaseo/protocol/daemon-endpoints";
+} from "@bytetrue/protocol/daemon-endpoints";
 import {
   DirectTcpHostConnectionSchema,
   type DirectTcpHostConnection,
-} from "@getpaseo/protocol/host-connection-schema";
+} from "@bytetrue/protocol/host-connection-schema";
 
 export { DirectTcpHostConnectionSchema, type DirectTcpHostConnection };
 

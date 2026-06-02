@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
-import type { CheckoutStatusUpdate } from "@getpaseo/protocol/messages";
+import type { CheckoutStatusUpdate } from "@bytetrue/protocol/messages";
 import { checkoutStatusQueryKey } from "@/git/query-keys";
 import {
   applyCheckoutStatusUpdate,

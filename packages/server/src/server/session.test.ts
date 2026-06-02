@@ -6,11 +6,11 @@ import { join, resolve as resolvePath } from "path";
 import pino from "pino";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import type { WorkspaceDescriptorPayload } from "@getpaseo/protocol/messages";
+import type { WorkspaceDescriptorPayload } from "@bytetrue/protocol/messages";
 import {
   decodeFileTransferFrame,
   FileTransferOpcode,
-} from "@getpaseo/protocol/binary-frames/index";
+} from "@bytetrue/protocol/binary-frames/index";
 import { Session } from "./session.js";
 import { StructuredAgentFallbackError } from "./agent/agent-response-loop.js";
 import type { ProviderSnapshotManager } from "./agent/provider-snapshot-manager.js";

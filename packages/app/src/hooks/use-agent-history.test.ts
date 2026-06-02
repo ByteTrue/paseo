@@ -3,7 +3,7 @@ import type {
   DaemonClient,
   FetchAgentHistoryEntry,
   FetchAgentHistoryOptions,
-} from "@getpaseo/client/internal/daemon-client";
+} from "@bytetrue/client/internal/daemon-client";
 import { type AgentHistoryClient, fetchAgentHistoryPage } from "./use-agent-history";
 
 type FetchAgentHistory = DaemonClient["fetchAgentHistory"];

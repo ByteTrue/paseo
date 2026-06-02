@@ -1,5 +1,5 @@
 import type { QueryKey } from "@tanstack/react-query";
-import type { CheckoutPrMergeMethod } from "@getpaseo/protocol/messages";
+import type { CheckoutPrMergeMethod } from "@bytetrue/protocol/messages";
 import { create } from "zustand";
 import { queryClient as appQueryClient } from "@/query/query-client";
 import {

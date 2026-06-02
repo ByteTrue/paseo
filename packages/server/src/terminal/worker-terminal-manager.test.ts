@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { createWorkerTerminalManager } from "./worker-terminal-manager.js";
 import type { TerminalManager } from "./terminal-manager.js";
 import type { TerminalSession } from "./terminal.js";
-import type { TerminalState } from "@getpaseo/protocol/messages";
+import type { TerminalState } from "@bytetrue/protocol/messages";
 import type {
   TerminalWorkerRequest,
   TerminalWorkerToParentMessage,

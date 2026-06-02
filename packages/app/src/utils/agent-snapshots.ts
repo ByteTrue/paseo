@@ -1,6 +1,6 @@
-import type { AgentSnapshotPayload } from "@getpaseo/protocol/messages";
-import type { AgentPermissionRequest } from "@getpaseo/protocol/agent-types";
-import { PARENT_AGENT_ID_LABEL } from "@getpaseo/protocol/agent-labels";
+import type { AgentSnapshotPayload } from "@bytetrue/protocol/messages";
+import type { AgentPermissionRequest } from "@bytetrue/protocol/agent-types";
+import { PARENT_AGENT_ID_LABEL } from "@bytetrue/protocol/agent-labels";
 
 export function derivePendingPermissionKey(
   agentId: string,

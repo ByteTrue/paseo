@@ -46,7 +46,7 @@ import {
   StoredScheduleSchema,
   type ScheduleCadence,
   type UpdateScheduleInput,
-} from "@getpaseo/protocol/schedule/types";
+} from "@bytetrue/protocol/schedule/types";
 import { resolveSnapshotCwd, type ProviderSnapshotManager } from "./provider-snapshot-manager.js";
 import {
   AgentModelSchema,

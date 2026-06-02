@@ -1,4 +1,4 @@
-import type { AgentProvider } from "@getpaseo/protocol/agent-types";
+import type { AgentProvider } from "@bytetrue/protocol/agent-types";
 
 export const PROVIDERS_SNAPSHOT_QUERY_ROOT = "providersSnapshot";
 

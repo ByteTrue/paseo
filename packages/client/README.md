@@ -1,4 +1,4 @@
-# @getpaseo/client
+# @bytetrue/client
 
 Paseo's JavaScript/TypeScript client package.
 

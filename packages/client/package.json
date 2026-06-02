@@ -1,5 +1,5 @@
 {
-  "name": "@getpaseo/client",
+  "name": "@bytetrue/client",
   "version": "0.1.87",
   "description": "Paseo client SDK package",
   "files": [
@@ -33,8 +33,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@getpaseo/protocol": "0.1.87",
-    "@getpaseo/relay": "0.1.87",
+    "@bytetrue/protocol": "0.1.87",
+    "@bytetrue/relay": "0.1.87",
     "zod": "^3.23.8"
   },
   "devDependencies": {

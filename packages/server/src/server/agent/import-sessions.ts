@@ -19,7 +19,7 @@ import type {
   FetchRecentProviderSessionsRequestMessage,
   ImportAgentRequestMessageSchema,
   RecentProviderSessionDescriptorPayload,
-} from "@getpaseo/protocol/messages";
+} from "@bytetrue/protocol/messages";
 import type { WorkspaceGitService } from "../workspace-git-service.js";
 import { createRealpathAwarePathMatcher } from "../../utils/path.js";
 

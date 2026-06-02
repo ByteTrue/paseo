@@ -1,6 +1,6 @@
-import type { FetchRecentProviderSessionEntry } from "@getpaseo/client/internal/daemon-client";
-import type { AgentProvider } from "@getpaseo/protocol/agent-types";
-import { IMPORTABLE_PROVIDERS } from "@getpaseo/protocol/importable-providers";
+import type { FetchRecentProviderSessionEntry } from "@bytetrue/client/internal/daemon-client";
+import type { AgentProvider } from "@bytetrue/protocol/agent-types";
+import { IMPORTABLE_PROVIDERS } from "@bytetrue/protocol/importable-providers";
 
 export const IMPORTABLE_PROVIDER_IDS: Set<string> = new Set(IMPORTABLE_PROVIDERS);
 export const PER_PROVIDER_LIMIT = 15;

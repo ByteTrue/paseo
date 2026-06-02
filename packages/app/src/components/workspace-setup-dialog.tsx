@@ -19,7 +19,7 @@ import { splitComposerAttachmentsForSubmit } from "@/composer/attachments/submit
 import type {
   CreateAgentRequestOptions,
   DaemonClient,
-} from "@getpaseo/client/internal/daemon-client";
+} from "@bytetrue/client/internal/daemon-client";
 import { projectIconPlaceholderLabelFromDisplayName } from "@/utils/project-display-name";
 import { requireWorkspaceExecutionAuthority } from "@/utils/workspace-execution";
 import { navigateToAgent } from "@/utils/navigate-to-agent";

@@ -18,13 +18,13 @@ import { createProviderSnapshotManagerStub } from "../test-utils/session-stubs.j
 import {
   AgentListItemPayloadSchema,
   AgentSnapshotPayloadSchema,
-} from "@getpaseo/protocol/messages";
+} from "@bytetrue/protocol/messages";
 import type { PersistedProjectRecord, PersistedWorkspaceRecord } from "../workspace-registry.js";
 import type {
   CreateScheduleInput,
   StoredSchedule,
   UpdateScheduleInput,
-} from "@getpaseo/protocol/schedule/types";
+} from "@bytetrue/protocol/schedule/types";
 import type { ScheduleService } from "../schedule/service.js";
 import type { WorkspaceGitService } from "../workspace-git-service.js";
 import {
@@ -35,7 +35,7 @@ import type { CreatePaseoWorktreeWorkflowFn } from "../worktree-session.js";
 import { WorkspaceGitServiceImpl } from "../workspace-git-service.js";
 import type { GitHubService } from "../../services/github-service.js";
 import type { TerminalManager } from "../../terminal/terminal-manager.js";
-import { PARENT_AGENT_ID_LABEL } from "@getpaseo/protocol/agent-labels";
+import { PARENT_AGENT_ID_LABEL } from "@bytetrue/protocol/agent-labels";
 
 const REPO_CWD = resolvePath("/tmp/repo");
 const TARGET_CWD = resolvePath("/tmp/target");

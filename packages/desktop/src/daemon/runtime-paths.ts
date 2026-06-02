@@ -15,7 +15,7 @@ import {
   type PackageInfo,
 } from "./package-paths.js";
 
-const SERVER_PACKAGE_NAME = "@getpaseo/server";
+const SERVER_PACKAGE_NAME = "@bytetrue/server";
 
 const esmRequire = createRequire(__filename);
 

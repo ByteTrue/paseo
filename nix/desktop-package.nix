@@ -77,13 +77,13 @@ buildNpmPackage rec {
     npm run build:server
 
     # App workspace deps not covered by build:server
-    npm run build --workspace=@getpaseo/expo-two-way-audio
+    npm run build --workspace=@bytetrue/expo-two-way-audio
 
     # Expo web export for the Electron renderer
     ( cd packages/app && PASEO_WEB_PLATFORM=electron npx expo export --platform web )
 
     # Desktop main process (tsc only — NOT electron-builder)
-    npm run build:main --workspace=@getpaseo/desktop
+    npm run build:main --workspace=@bytetrue/desktop
 
     runHook postBuild
   '';
@@ -99,7 +99,7 @@ buildNpmPackage rec {
     # `app.isPackaged` is false, so these relative paths are used.
     #
     # Copy the entire packages/ tree (not just built artifacts) because npm
-    # creates workspace symlinks from node_modules/@getpaseo/* into packages/*.
+    # creates workspace symlinks from node_modules/@bytetrue/* into packages/*.
     # Missing any workspace package leaves dangling symlinks and fails the
     # noBrokenSymlinks output check. The cleanSourceWith filter above already
     # drops the big platform-specific things (android/ios, website, tests).

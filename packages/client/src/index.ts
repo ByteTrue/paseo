@@ -17,7 +17,7 @@ import type {
   SendAgentMessageRequest,
   SessionOutboundMessage,
   WorkspaceDescriptorPayload,
-} from "@getpaseo/protocol/messages";
+} from "@bytetrue/protocol/messages";
 import { DaemonClient } from "./daemon-client.js";
 import type {
   FetchAgentTimelineCursor,
