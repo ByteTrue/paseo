@@ -42,4 +42,21 @@ describe("desktop packaging", () => {
       expect(deps[required], `${required} must be declared in dependencies`).toBe("*");
     }
   });
+
+  it("uses fork package scope in packaged runtime entrypoints", () => {
+    const files = [
+      readFileSync(join(packageRoot, "bin", "paseo.cmd"), "utf8"),
+      readFileSync(join(packageRoot, "src", "daemon", "cli", "entrypoints.ts"), "utf8"),
+      readFileSync(join(packageRoot, "src", "daemon", "runtime-paths.ts"), "utf8"),
+      readFileSync(
+        join(packageRoot, "..", "server", "scripts", "supervisor-entrypoint.ts"),
+        "utf8",
+      ),
+    ];
+
+    for (const content of files) {
+      expect(content).toContain("@bytetrue");
+      expect(content).not.toContain("@getpaseo");
+    }
+  });
 });

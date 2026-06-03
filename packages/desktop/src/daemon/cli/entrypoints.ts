@@ -30,8 +30,7 @@ export function resolveExternalCliEntrypoint(): NodeEntrypointSpec {
         filePath: path.join(
           resolvePackagedAsarPath(),
           "node_modules",
-          "@getpaseo",
-          "cli",
+          ...CLI_PACKAGE_NAME.split("/"),
           "dist",
           "index.js",
         ),
@@ -65,8 +64,7 @@ export function resolvePassthroughCliEntrypoint(): string {
       filePath: path.join(
         resolvePackagedAsarPath(),
         "node_modules",
-        "@getpaseo",
-        "cli",
+        ...CLI_PACKAGE_NAME.split("/"),
         "dist",
         "run.js",
       ),
