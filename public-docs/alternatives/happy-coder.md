@@ -9,9 +9,9 @@ order: 104
 
 Happy Coder is a mobile and web client for Claude Code and Codex. It wraps the agent CLI on your laptop and syncs sessions to phone and browser over an end-to-end encrypted relay. Open source under MIT.
 
-Paseo is an app for orchestrating coding agents, with native clients on desktop, mobile, web, and the CLI. Open source (AGPL-3.0).
+Paseo is an app for orchestrating coding agents, with clients on desktop, web, mobile browser, and the CLI. Open source (AGPL-3.0).
 
-![Paseo desktop and mobile app](/hero-mockup.png)
+![Paseo desktop and web app](/hero-mockup.png)
 
 ## When to pick what
 
@@ -44,7 +44,7 @@ Paseo's app handles commit, push, opening PRs, watching checks and reviews, and 
 
 ## Mobile
 
-Both tools ship native iOS and Android apps.
+Happy Coder ships native iOS and Android apps. Paseo uses the web app in your phone browser.
 
 ## Providers
 
@@ -84,7 +84,7 @@ Paseo's speech-to-text and text-to-speech run locally on your device. Nothing le
 | ---------------------------- | --------------------------------------------------------------- | ---------------------- |
 | License                      | Open source (AGPL-3.0)                                          | Open source (MIT)      |
 | Desktop app                  | macOS, Linux, Windows                                           | —                      |
-| Native mobile                | iOS, Android                                                    | iOS, Android           |
+| Mobile access                | Browser                                                         | iOS, Android           |
 | Architecture                 | Daemon owns agent lifecycle                                     | Wraps the agent CLI    |
 | Providers                    | Claude Code, Codex, OpenCode, Pi + 30+ via ACP catalog + custom | Claude Code, Codex     |
 | Split panes and tabs         | Yes                                                             | —                      |

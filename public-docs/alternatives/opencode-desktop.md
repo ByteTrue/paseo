@@ -1,6 +1,6 @@
 ---
-title: OpenCode Desktop Alternative With Native Mobile and Multi-Provider Orchestration
-description: Paseo is an OpenCode Desktop alternative for developers who want native mobile apps, a self-hosted daemon, and OpenCode alongside Claude Code, Codex, Copilot, and more.
+title: OpenCode Desktop Alternative With Browser Access and Multi-Provider Orchestration
+description: Paseo is an OpenCode Desktop alternative for developers who want browser access from anywhere, a self-hosted daemon, and OpenCode alongside Claude Code, Codex, Copilot, and more.
 nav: OpenCode Desktop
 order: 107
 ---
@@ -9,9 +9,9 @@ order: 107
 
 OpenCode Desktop is the desktop app for OpenCode. It is available in beta for macOS, Windows, and Linux.
 
-Paseo is an app for orchestrating coding agents, with native clients on desktop, mobile, web, and the CLI. Open source (AGPL-3.0).
+Paseo is an app for orchestrating coding agents, with a desktop app, web app, and CLI. Open source (AGPL-3.0).
 
-![Paseo desktop and mobile app](/hero-mockup.png)
+![Paseo desktop and web app](/hero-mockup.png)
 
 ## When to pick what
 
@@ -19,7 +19,7 @@ Pick OpenCode Desktop if you want the OpenCode app, the OpenCode terminal workfl
 
 Pick Paseo if you want:
 
-- A native iOS and Android app
+- A web app you can use from your phone browser
 - OpenCode beside Claude Code, Codex, Copilot, Pi, and 30+ more agents
 - First-party harnesses for Claude Code and Codex instead of one agent runtime for everything
 - A self-hosted daemon you can run on a laptop, VM, or dev server
@@ -28,7 +28,7 @@ Pick Paseo if you want:
 
 ## Architecture
 
-Paseo runs a daemon on your machine. Desktop, web, mobile, and CLI clients connect to it over a websocket. The daemon launches OpenCode and other providers as local processes, using your installed CLIs and credentials.
+Paseo runs a daemon on your machine. Desktop, web, and CLI clients connect to it over a websocket. The daemon launches OpenCode and other providers as local processes, using your installed CLIs and credentials.
 
 OpenCode Desktop is the desktop app for OpenCode. OpenCode is available as a terminal interface, desktop app, IDE extension, web surface, and integrations.
 
@@ -42,11 +42,11 @@ Paseo is multi-provider at the agent harness layer. It runs OpenCode, Claude Cod
 
 Both tools ship on macOS, Linux, and Windows.
 
-## Mobile
+## Phone access
 
-Paseo ships native iOS and Android apps with the same agent workflow as the desktop app.
+Paseo gives you a web app you can use from your phone browser against the same daemon.
 
-OpenCode Desktop is a desktop app. OpenCode also has web and share-link workflows, but not a native mobile app.
+OpenCode Desktop is a desktop app. OpenCode also has web and share-link workflows, but not a dedicated phone client.
 
 ## Panes
 
@@ -99,7 +99,7 @@ Paseo supports dictation and realtime voice mode. Speech-to-text and text-to-spe
 | ---------------------------- | --------------------------------------------------------------- | ------------------------------- |
 | License                      | Open source (AGPL-3.0)                                          | Open source                     |
 | Desktop platforms            | macOS, Linux, Windows                                           | macOS, Linux, Windows           |
-| Native mobile                | iOS, Android                                                    | No                              |
+| Phone access                 | Web app in browser                                              | No                              |
 | Agent harnesses              | Claude Code, Codex, OpenCode, Pi + 30+ via ACP catalog + custom | OpenCode                        |
 | Multi-model support          | Through supported agent harnesses                               | Through OpenCode providers      |
 | Git worktrees                | Yes                                                             | No built-in worktree manager    |

@@ -1,7 +1,5 @@
 // This file exists for TypeScript resolution.
-// The actual implementations are in:
-// - sortable-inline-list.native.tsx (iOS/Android)
-// - sortable-inline-list.web.tsx (Web)
-// Metro's platform-specific extensions will pick the right one at runtime.
+// The project now targets web/Electron only, so the default implementation
+// maps to the web renderer variant.
 
-export * from "./sortable-inline-list.native";
+export * from "./sortable-inline-list.web";
