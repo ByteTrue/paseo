@@ -1,6 +1,6 @@
 {
   "name": "@bytetrue/desktop",
-  "version": "0.1.88",
+  "version": "0.1.89",
   "private": true,
   "description": "Paseo desktop app (Electron wrapper)",
   "homepage": "https://paseo.sh",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ByteTrue/paseo.git"
+    "url": "https://github.com/ByteTrue/paseo"
   },
   "main": "dist/main.js",
   "scripts": {

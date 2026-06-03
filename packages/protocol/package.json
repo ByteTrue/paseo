@@ -1,6 +1,6 @@
 {
   "name": "@bytetrue/protocol",
-  "version": "0.1.88",
+  "version": "0.1.89",
   "description": "Paseo shared protocol schemas and wire types",
   "repository": {
     "type": "git",
