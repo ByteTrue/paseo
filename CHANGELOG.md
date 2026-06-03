@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.89 - 2026-06-03
+
+### Added
+
+- Synced reusable upstream work into the ByteTrue fork, including service proxy support, unified workspace service URLs, configurable worktree roots, detached-agent heartbeat scheduling, timezone-aware schedules, desktop window restoration, terminal resize recovery, and app/website UI refinements.
+- Added a repo-local upstream sync skill that documents the cursor-branch workflow for reviewing `upstream-sync..upstream/main` and cherry-picking reusable commits into fork branches.
+
+### Fixed
+
+- Preserved fork-specific daemon pairing defaults for `https://paseo.zijieapi.de5.net` and `relay.paseo.zijieapi.de5.net:443` while applying upstream service URL changes.
+- Built the relay package before client tests so clean CI installs can resolve `@bytetrue/relay/e2ee` reliably.
+
 ## 0.1.87 - 2026-05-30
 
 ### Added
