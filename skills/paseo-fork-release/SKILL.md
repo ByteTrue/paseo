@@ -15,6 +15,7 @@ Use this skill for the ByteTrue fork at `/Users/byte/workspace/forks/paseo`.
 - App URL: `https://paseo.zijieapi.de5.net`.
 - Relay Worker host: `relay.paseo.zijieapi.de5.net:443`.
 - Website Worker: `paseo-website.bytetrue.workers.dev`.
+- This fork ships browser web + Electron desktop only. There is no native iOS/Android client, no EAS/App Store/Play Store flow, and no Android APK release path.
 
 ## Publishable Packages
 
@@ -28,6 +29,8 @@ Publish these workspace packages in dependency order:
 6. `@bytetrue/cli`
 
 Do not publish private packages such as app, website, or desktop.
+
+Do not recreate deleted native-mobile release surfaces while doing release work. In particular, do not reintroduce `packages/app/fastlane`, `packages/app/maestro`, EAS config, App Store / Play Store references, or Android APK release automation unless the user explicitly changes strategy.
 
 ## NPM Trusted Publishing
 
@@ -52,7 +55,7 @@ git status -sb
 npm run release:patch
 ```
 
-This runs release checks, bumps all workspace versions, commits the release, pushes `main`, and pushes a `vX.Y.Z` tag. The tag triggers `Publish NPM` in GitHub Actions.
+This runs release checks, bumps all workspace versions, commits the release, pushes `main`, and pushes a `vX.Y.Z` tag. The tag triggers `Publish NPM`, `Desktop Release`, and `Release Notes Sync` in GitHub Actions for this fork. It does not trigger any native-mobile-client release flow.
 
 Use `release:minor`, `release:major`, or `release:promote` only when that is the intended version move.
 
@@ -94,7 +97,7 @@ Common failures:
 
 Cloudflare deploys are separate workflows:
 
-- `deploy-app.yml` deploys `packages/app` to `paseo-zijieapi-de5-net`.
+- `deploy-app.yml` deploys the browser web app from `packages/app` to `paseo-zijieapi-de5-net`.
 - `deploy-relay.yml` deploys `packages/relay` to the ByteTrue account.
 - `deploy-website.yml` deploys `packages/website` to the ByteTrue account.
 

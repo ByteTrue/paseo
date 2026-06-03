@@ -749,7 +749,7 @@ function PairDeviceRow() {
         <View style={settingsStyles.rowContent}>
           <Text style={settingsStyles.rowTitle}>Pair a device</Text>
           <Text style={settingsStyles.rowHint}>
-            Scan a QR code or copy a link to connect your phone to this host
+            Scan the QR code or copy the link to connect another device to this host
           </Text>
         </View>
         <ChevronRight size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />

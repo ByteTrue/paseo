@@ -21,12 +21,9 @@ export function downloadUrls(release: ReleaseAssetInfo) {
     linuxRpm: `${base}/Paseo-${version}-x86_64.rpm`,
     windowsExeX64: `${base}/${windowsX64Asset ?? `Paseo-Setup-${version}.exe`}`,
     windowsExeArm64: windowsArm64Asset ? `${base}/${windowsArm64Asset}` : null,
-    androidApk: `${base}/paseo-v${version}-android.apk`,
   };
 }
 
-export const appStoreUrl = "https://apps.apple.com/app/paseo-pocket-engineer/id6758887924";
-export const playStoreUrl = "https://play.google.com/store/apps/details?id=sh.paseo";
 export const webAppUrl = "https://paseo.zijieapi.de5.net";
 
 type Platform = "mac-silicon" | "mac-intel" | "windows" | "linux";
@@ -102,40 +99,6 @@ export function AppleIcon(props: React.SVGProps<SVGSVGElement>) {
       {...props}
     >
       <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
-    </svg>
-  );
-}
-
-export function AndroidIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 512 512"
-      fill="currentColor"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M380.91,199l42.47-73.57a8.63,8.63,0,0,0-3.12-11.76,8.52,8.52,0,0,0-11.71,3.12l-43,74.52c-32.83-15-69.78-23.35-109.52-23.35s-76.69,8.36-109.52,23.35l-43-74.52a8.6,8.6,0,1,0-14.88,8.64L131,199C57.8,238.64,8.19,312.77,0,399.55H512C503.81,312.77,454.2,238.64,380.91,199ZM138.45,327.65a21.46,21.46,0,1,1,21.46-21.46A21.47,21.47,0,0,1,138.45,327.65Zm235,0A21.46,21.46,0,1,1,395,306.19,21.47,21.47,0,0,1,373.49,327.65Z" />
-    </svg>
-  );
-}
-
-export function PlayStoreIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M3.27 2.17c-.2.21-.32.55-.32 1v17.66c0 .45.12.79.33 1l9.87-9.84z" fill="#00F076" />
-      <path
-        d="m16.43 8.72-3.28 3.27 3.29 3.28 3.9-2.22c1.13-.64 1.13-1.42 0-2.06z"
-        fill="#FFCE00"
-      />
-      <path d="m13.15 11.99 3.28-3.27L4.63 2.01c-.56-.32-1.04-.28-1.36.16z" fill="#00D6FF" />
-      <path d="M3.28 21.83c.32.44.8.48 1.36.16l11.8-6.72-3.29-3.28z" fill="#FF3A44" />
     </svg>
   );
 }

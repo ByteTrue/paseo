@@ -2,7 +2,6 @@ import "@/styles/unistyles";
 import { PortalProvider } from "@gorhom/portal";
 import { QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
-import * as Notifications from "expo-notifications";
 import { Stack, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import {
   createContext,
@@ -113,7 +112,6 @@ const HostRuntimeBootstrapContext = createContext<HostRuntimeBootstrapState>({
 function PushNotificationRouter() {
   const router = useRouter();
   const pathname = usePathname();
-  const lastHandledIdRef = useRef<string | null>(null);
   const openNotification = useStableEvent((data: Record<string, unknown> | undefined) => {
     const target = resolveNotificationTarget(data);
     const serverId = target.serverId;
@@ -127,91 +125,59 @@ function PushNotificationRouter() {
   });
 
   useEffect(() => {
-    if (isWeb) {
-      let removeDesktopNotificationListener: (() => void) | null = null;
-      let cancelled = false;
+    let removeDesktopNotificationListener: (() => void) | null = null;
+    let cancelled = false;
 
-      if (getIsElectronRuntime()) {
-        void ensureOsNotificationPermission();
+    if (getIsElectronRuntime()) {
+      void ensureOsNotificationPermission();
 
-        const unlistenResult = getDesktopHost()?.events?.on?.(
-          "notification-click",
-          (payload: unknown) => {
-            const data =
-              typeof payload === "object" &&
-              payload !== null &&
-              "data" in payload &&
-              typeof (payload as { data?: unknown }).data === "object" &&
-              (payload as { data?: unknown }).data !== null
-                ? (payload as { data: Record<string, unknown> }).data
-                : undefined;
-            openNotification(data);
-          },
-        );
+      const unlistenResult = getDesktopHost()?.events?.on?.(
+        "notification-click",
+        (payload: unknown) => {
+          const data =
+            typeof payload === "object" &&
+            payload !== null &&
+            "data" in payload &&
+            typeof (payload as { data?: unknown }).data === "object" &&
+            (payload as { data?: unknown }).data !== null
+              ? (payload as { data: Record<string, unknown> }).data
+              : undefined;
+          openNotification(data);
+        },
+      );
 
-        void Promise.resolve(unlistenResult).then((unlisten) => {
-          if (typeof unlisten !== "function") {
-            return;
-          }
-          if (cancelled) {
-            unlisten();
-            return;
-          }
-          removeDesktopNotificationListener = unlisten;
-          return;
-        });
-      }
+      void Promise.resolve(unlistenResult).then((unlisten) => {
+        if (typeof unlisten !== "function") {
+          return null;
+        }
+        if (cancelled) {
+          unlisten();
+          return null;
+        }
+        removeDesktopNotificationListener = unlisten;
+        return null;
+      });
+    }
 
-      const openFromWebClick = (event: Event) => {
-        const customEvent = event as CustomEvent<WebNotificationClickDetail>;
-        event.preventDefault();
-        openNotification(customEvent.detail?.data);
-      };
-
-      window.addEventListener(WEB_NOTIFICATION_CLICK_EVENT, openFromWebClick as EventListener);
-
+    if (typeof window === "undefined") {
       return () => {
         cancelled = true;
         removeDesktopNotificationListener?.();
-        window.removeEventListener(WEB_NOTIFICATION_CLICK_EVENT, openFromWebClick as EventListener);
       };
     }
 
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        // When the app is open, don't show OS banners.
-        shouldShowAlert: false,
-        shouldShowBanner: false,
-        shouldShowList: false,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-      }),
-    });
-
-    const openFromResponse = (response: Notifications.NotificationResponse) => {
-      const identifier = response.notification.request.identifier;
-      if (lastHandledIdRef.current === identifier) {
-        return;
-      }
-      lastHandledIdRef.current = identifier;
-
-      const data = response.notification.request.content.data as
-        | Record<string, unknown>
-        | undefined;
-      openNotification(data);
+    const openFromWebClick = (event: Event) => {
+      const customEvent = event as CustomEvent<WebNotificationClickDetail>;
+      event.preventDefault();
+      openNotification(customEvent.detail?.data);
     };
 
-    const subscription = Notifications.addNotificationResponseReceivedListener(openFromResponse);
-
-    void Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response) {
-        openFromResponse(response);
-      }
-      return;
-    });
+    window.addEventListener(WEB_NOTIFICATION_CLICK_EVENT, openFromWebClick as EventListener);
 
     return () => {
-      subscription.remove();
+      cancelled = true;
+      removeDesktopNotificationListener?.();
+      window.removeEventListener(WEB_NOTIFICATION_CLICK_EVENT, openFromWebClick as EventListener);
     };
   }, [openNotification]);
 
@@ -874,7 +840,6 @@ function RootStack() {
         <Stack.Screen name="settings/[section]" />
         <Stack.Screen name="settings/projects/index" />
         <Stack.Screen name="settings/projects/[projectKey]" />
-        <Stack.Screen name="pair-scan" />
       </Stack.Protected>
       {/*
         Do not add getId or dangerouslySingular back to the workspace route.

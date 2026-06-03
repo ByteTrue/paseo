@@ -33,6 +33,7 @@ Preserve these unless the user explicitly changes strategy:
 - Keep npm publishing through `.github/workflows/publish-npm.yml` with GitHub OIDC Trusted Publishing.
 - Keep `scripts/publish-workspaces.mjs` resumable publishing behavior.
 - Keep published package repository metadata aligned with `https://github.com/ByteTrue/paseo` / `.git` as already used in the fork.
+- This fork does not ship native iOS/Android clients. Preserve browser web + Electron only; do not reintroduce App Store / Play Store / EAS release flows, `packages/app/fastlane`, `packages/app/maestro`, native Expo client modules, or mobile-only routes unless the user explicitly changes strategy.
 
 ## Procedure
 
@@ -57,8 +58,8 @@ Preserve these unless the user explicitly changes strategy:
    ```
 4. Classify upstream commits:
    - Reuse: feature commits, bug fixes, tests, docs that apply to the fork.
-   - Rewrite while reusing: commits that touch package names, domains, release scripts, daemon pairing, service URLs, or CI.
-   - Skip: upstream version bumps, upstream changelog-only commits, upstream Nix hash-only commits, and release tags.
+   - Rewrite while reusing: commits that touch package names, domains, release scripts, daemon pairing, service URLs, CI, or assumptions about native mobile vs browser web surfaces.
+   - Skip: upstream version bumps, upstream changelog-only commits, upstream Nix hash-only commits, release tags, and upstream native-mobile-client work that would reintroduce iOS/Android app codepaths or store/release tooling into this fork.
 5. Create a candidate branch from fork main:
    ```bash
    git switch -c reuse-upstream-YYYYMMDD main
@@ -71,6 +72,7 @@ Preserve these unless the user explicitly changes strategy:
    - Replace `@getpaseo/` imports with `@bytetrue/`.
    - Preserve `relay.paseo.zijieapi.de5.net:443` and `https://paseo.zijieapi.de5.net` in runtime defaults and daemon pairing tests.
    - Keep fork release scripts and `publish-npm.yml` intact.
+   - Keep browser-web pairing/device-copy flows, but do not restore deleted native mobile routes, native client dependencies, mobile test harnesses, or mobile store release automation.
    - If protocol types changed, run `npm run build --workspace=@bytetrue/protocol` before cross-workspace typecheck.
    - If client imports relay runtime code, ensure `build:client` builds relay before client.
 8. Refresh dependencies when package manifests changed:
@@ -81,8 +83,9 @@ Preserve these unless the user explicitly changes strategy:
    ```bash
    /usr/bin/grep -R "@getpaseo/" -n package.json package-lock.json packages/*/src scripts .github nix flake.nix || true
    /usr/bin/grep -R "relay\.paseo\.sh\|https://app\.paseo\.sh" -n packages/*/src scripts .github || true
+   /usr/bin/grep -R "packages/app/fastlane\|packages/app/maestro\|expo-notifications\|expo-camera\|expo-audio\|react-native-webview\|react-native-uitextview" -n package.json package-lock.json packages/app .github docs public-docs packages/website || true
    ```
-   Review hits; tests and docs may intentionally mention upstream GitHub URLs, but runtime package imports and app/relay defaults must stay forked.
+   Review hits; tests and docs may intentionally mention upstream GitHub URLs, but runtime package imports, app/relay defaults, and the no-native-mobile-client fork policy must stay intact.
 10. Run validation:
     ```bash
     npm run format:check

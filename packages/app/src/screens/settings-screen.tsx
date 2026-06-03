@@ -1242,14 +1242,6 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
     }
   }, [isCompactLayout, router]);
 
-  const handleScanQr = useCallback(() => {
-    closeAddConnectionFlow();
-    router.push({
-      pathname: "/pair-scan",
-      params: { source: "settings" },
-    });
-  }, [closeAddConnectionFlow, router]);
-
   const handleHostRemoved = useCallback(() => {
     const fallback = buildSettingsSectionRoute("general");
     if (isCompactLayout) {
@@ -1375,7 +1367,6 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
         onClose={closeAddConnectionFlow}
         onDirectConnection={handleSelectDirectConnection}
         onPasteLink={handleSelectPasteLink}
-        onScanQr={handleScanQr}
       />
       <AddHostModal
         visible={isDirectHostVisible}

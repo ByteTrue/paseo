@@ -154,7 +154,7 @@ The CLI picks up a password from, in order:
 
 A `password=` in the URI always wins over the env var, so you can keep `PASEO_PASSWORD` set globally and still target a different daemon by spelling its password into the URI.
 
-In the mobile app, enter the password in the direct connection setup screen.
+In the web app, enter the password in the direct connection setup screen.
 
 ## Common env vars
 

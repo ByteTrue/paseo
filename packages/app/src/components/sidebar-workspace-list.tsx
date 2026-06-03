@@ -10,7 +10,6 @@ import {
   type PressableStateCallbackType,
   type ViewStyle,
 } from "react-native";
-import * as Haptics from "expo-haptics";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { slugify, validateBranchSlug, MAX_SLUG_LENGTH } from "@bytetrue/protocol/branch-slug";
 import { ProjectIconView } from "@/components/project-icon-view";
@@ -1084,7 +1083,6 @@ function useLongPressDragInteraction(input: {
       dragArmedRef.current = true;
       dragActivatedRef.current = true;
       didLongPressRef.current = true;
-      void Haptics.selectionAsync().catch(() => {});
       input.drag();
     }, DRAG_ARM_DELAY_MS);
 
@@ -1107,7 +1105,6 @@ function useLongPressDragInteraction(input: {
       if (distance > CONTEXT_MENU_STATIONARY_SLOP_PX) {
         return;
       }
-      void Haptics.selectionAsync().catch(() => {});
       openContextMenuAtStartPoint();
     }, CONTEXT_MENU_DELAY_MS);
   }, [clearTimers, input, openContextMenuAtStartPoint]);
@@ -1120,7 +1117,6 @@ function useLongPressDragInteraction(input: {
       didStartDragRef.current = true;
       didLongPressRef.current = true;
       clearTimers();
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     },
     [clearTimers],
   );
