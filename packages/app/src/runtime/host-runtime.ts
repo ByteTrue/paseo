@@ -23,7 +23,12 @@ import {
   shouldUseTlsForDefaultHostedRelay,
 } from "@/utils/daemon-endpoints";
 import { resolveAppVersion } from "@/utils/app-version";
-import { ConnectionOfferSchema, type ConnectionOffer } from "@bytetrue/protocol/connection-offer";
+import {
+  ConnectionOfferBundleSchema,
+  ConnectionOfferSchema,
+  type ConnectionOffer,
+  type ConnectionOfferBundle,
+} from "@bytetrue/protocol/connection-offer";
 import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 import { connectToDaemon } from "@/utils/test-daemon-connection";
 import { getOrCreateClientId } from "@/utils/client-id";
@@ -1533,6 +1538,15 @@ export class HostRuntimeStore {
     });
   }
 
+  async upsertConnectionsFromOfferBundle(bundle: ConnectionOfferBundle): Promise<HostProfile[]> {
+    const parsed = ConnectionOfferBundleSchema.parse(bundle);
+    const profiles: HostProfile[] = [];
+    for (const entry of parsed.entries) {
+      profiles.push(await this.upsertConnectionFromOffer(entry.offer, entry.label));
+    }
+    return profiles;
+  }
+
   async upsertConnectionFromOfferUrl(
     offerUrlOrFragment: string,
     label?: string,
@@ -1549,6 +1563,21 @@ export class HostRuntimeStore {
     const payload = decodeOfferFragmentPayload(encoded);
     const offer = ConnectionOfferSchema.parse(payload);
     return this.upsertConnectionFromOffer(offer, label);
+  }
+
+  async upsertConnectionsFromOfferBundleUrl(offerUrlOrFragment: string): Promise<HostProfile[]> {
+    const marker = "#offers=";
+    const idx = offerUrlOrFragment.indexOf(marker);
+    if (idx === -1) {
+      throw new Error("Missing #offers= fragment");
+    }
+    const encoded = offerUrlOrFragment.slice(idx + marker.length).trim();
+    if (!encoded) {
+      throw new Error("Offer bundle payload is empty");
+    }
+    const payload = decodeOfferFragmentPayload(encoded);
+    const bundle = ConnectionOfferBundleSchema.parse(payload);
+    return this.upsertConnectionsFromOfferBundle(bundle);
   }
 
   async upsertConnectionFromListen(input: {
@@ -2092,6 +2121,8 @@ export interface HostMutations {
     offerUrlOrFragment: string,
     label?: string,
   ) => Promise<HostProfile>;
+  upsertConnectionsFromOfferBundle: (bundle: ConnectionOfferBundle) => Promise<HostProfile[]>;
+  upsertConnectionsFromOfferBundleUrl: (offerUrlOrFragment: string) => Promise<HostProfile[]>;
   renameHost: (serverId: string, label: string) => Promise<void>;
   removeHost: (serverId: string) => Promise<void>;
   removeConnection: (serverId: string, connectionId: string) => Promise<void>;
@@ -2106,6 +2137,8 @@ export function useHostMutations(): HostMutations {
       upsertRelayConnection: (input) => store.upsertRelayConnection(input),
       upsertConnectionFromOffer: (offer, label) => store.upsertConnectionFromOffer(offer, label),
       upsertConnectionFromOfferUrl: (url, label) => store.upsertConnectionFromOfferUrl(url, label),
+      upsertConnectionsFromOfferBundle: (bundle) => store.upsertConnectionsFromOfferBundle(bundle),
+      upsertConnectionsFromOfferBundleUrl: (url) => store.upsertConnectionsFromOfferBundleUrl(url),
       renameHost: (serverId, label) => store.renameHost(serverId, label),
       removeHost: (serverId) => store.removeHost(serverId),
       removeConnection: (serverId, connectionId) => store.removeConnection(serverId, connectionId),

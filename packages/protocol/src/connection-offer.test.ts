@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildConnectionOfferBundleUrl,
+  buildConnectionOfferUrl,
+  ConnectionOfferBundleSchema,
   ConnectionOfferSchema,
   decodeOfferFragmentPayload,
+  encodeOfferFragmentPayload,
+  parseConnectionOfferBundleFromUrl,
   parseConnectionOfferFromUrl,
 } from "./connection-offer.js";
 
@@ -28,6 +33,11 @@ describe("connection offer", () => {
     );
   });
 
+  it("encodes base64url JSON payloads", () => {
+    const payload = { v: 1, value: "hello" };
+    expect(decodeOfferFragmentPayload(encodeOfferFragmentPayload(payload))).toEqual(payload);
+  });
+
   it("parses connection offers from QR-style URLs", () => {
     const offer = ConnectionOfferSchema.parse({
       v: 2,
@@ -40,6 +50,39 @@ describe("connection offer", () => {
     expect(parseConnectionOfferFromUrl(`https://paseo.zijieapi.de5.net/#offer=${encoded}`)).toEqual(
       offer,
     );
+  });
+
+  it("builds connection offer URLs", () => {
+    const offer = ConnectionOfferSchema.parse({
+      v: 2,
+      serverId: "server-123",
+      daemonPublicKeyB64: "pubkey",
+      relay: { endpoint: "relay.paseo.zijieapi.de5.net:443" },
+    });
+
+    expect(parseConnectionOfferFromUrl(buildConnectionOfferUrl(offer))).toEqual(offer);
+  });
+
+  it("parses connection offer bundles from QR-style URLs", () => {
+    const bundle = ConnectionOfferBundleSchema.parse({
+      v: 1,
+      entries: [
+        {
+          label: "Laptop",
+          offer: {
+            v: 2,
+            serverId: "server-123",
+            daemonPublicKeyB64: "pubkey",
+            relay: { endpoint: "relay.paseo.zijieapi.de5.net:443" },
+          },
+        },
+      ],
+    });
+
+    expect(parseConnectionOfferBundleFromUrl(buildConnectionOfferBundleUrl(bundle))).toEqual(
+      bundle,
+    );
+    expect(parseConnectionOfferFromUrl(buildConnectionOfferBundleUrl(bundle))).toBeNull();
   });
 
   it("leaves relay TLS unset when absent", () => {
@@ -79,5 +122,9 @@ describe("connection offer", () => {
 
   it("returns null when the URL has no offer fragment", () => {
     expect(parseConnectionOfferFromUrl("https://paseo.zijieapi.de5.net/pair")).toBeNull();
+  });
+
+  it("returns null when the URL has no bundle fragment", () => {
+    expect(parseConnectionOfferBundleFromUrl("https://paseo.zijieapi.de5.net/pair")).toBeNull();
   });
 });

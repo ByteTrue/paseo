@@ -97,6 +97,7 @@ import {
   HostOrchestrationPage,
   HostProvidersPage,
 } from "@/screens/settings/host-page";
+import { PairingBundleSection } from "@/screens/settings/pairing-bundle-section";
 import ProjectsScreen from "@/screens/projects-screen";
 import ProjectSettingsScreen from "@/screens/project-settings-screen";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -261,67 +262,70 @@ function GeneralSection({
   }, [settings.terminalScrollbackLines]);
 
   return (
-    <SettingsSection title="General">
-      <View style={settingsStyles.card}>
-        <View style={settingsStyles.row}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>Default send</Text>
-            <Text style={settingsStyles.rowHint}>
-              What happens when you press Enter while the agent is running
-            </Text>
+    <>
+      <SettingsSection title="General">
+        <View style={settingsStyles.card}>
+          <View style={settingsStyles.row}>
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowTitle}>Default send</Text>
+              <Text style={settingsStyles.rowHint}>
+                What happens when you press Enter while the agent is running
+              </Text>
+            </View>
+            <SegmentedControl
+              size="sm"
+              value={settings.sendBehavior}
+              onValueChange={handleSendBehaviorChange}
+              options={SEND_BEHAVIOR_OPTIONS}
+            />
           </View>
-          <SegmentedControl
-            size="sm"
-            value={settings.sendBehavior}
-            onValueChange={handleSendBehaviorChange}
-            options={SEND_BEHAVIOR_OPTIONS}
-          />
-        </View>
-        {isDesktopApp ? (
+          {isDesktopApp ? (
+            <View style={ROW_WITH_BORDER_STYLE}>
+              <View style={settingsStyles.rowContent}>
+                <Text style={settingsStyles.rowTitle}>Service URLs</Text>
+                <Text style={settingsStyles.rowHint}>Where to open URLs from running scripts</Text>
+              </View>
+              <DropdownMenu>
+                <DropdownMenuTrigger style={themeTriggerStyle}>
+                  <Text style={styles.themeTriggerText}>
+                    {SERVICE_URL_BEHAVIOR_LABELS[settings.serviceUrlBehavior]}
+                  </Text>
+                  <ChevronDown size={theme.iconSize.sm} color={iconColor} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="bottom" align="end" width={200}>
+                  {SERVICE_URL_BEHAVIOR_VALUES.map((value) => (
+                    <ServiceUrlBehaviorMenuItem
+                      key={value}
+                      value={value}
+                      selected={settings.serviceUrlBehavior === value}
+                      onChange={handleServiceUrlBehaviorChange}
+                    />
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </View>
+          ) : null}
           <View style={ROW_WITH_BORDER_STYLE}>
             <View style={settingsStyles.rowContent}>
-              <Text style={settingsStyles.rowTitle}>Service URLs</Text>
-              <Text style={settingsStyles.rowHint}>Where to open URLs from running scripts</Text>
+              <Text style={settingsStyles.rowTitle}>Terminal scrollback</Text>
+              <Text style={settingsStyles.rowHint}>Lines kept in the built-in terminal buffer</Text>
             </View>
-            <DropdownMenu>
-              <DropdownMenuTrigger style={themeTriggerStyle}>
-                <Text style={styles.themeTriggerText}>
-                  {SERVICE_URL_BEHAVIOR_LABELS[settings.serviceUrlBehavior]}
-                </Text>
-                <ChevronDown size={theme.iconSize.sm} color={iconColor} />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="bottom" align="end" width={200}>
-                {SERVICE_URL_BEHAVIOR_VALUES.map((value) => (
-                  <ServiceUrlBehaviorMenuItem
-                    key={value}
-                    value={value}
-                    selected={settings.serviceUrlBehavior === value}
-                    onChange={handleServiceUrlBehaviorChange}
-                  />
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <TextInput
+              value={terminalScrollbackValue}
+              onChangeText={handleTerminalScrollbackChangeText}
+              onBlur={commitTerminalScrollback}
+              onSubmitEditing={commitTerminalScrollback}
+              keyboardType="number-pad"
+              inputMode="numeric"
+              selectTextOnFocus
+              style={styles.terminalScrollbackInput}
+              accessibilityLabel="Terminal scrollback lines"
+            />
           </View>
-        ) : null}
-        <View style={ROW_WITH_BORDER_STYLE}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>Terminal scrollback</Text>
-            <Text style={settingsStyles.rowHint}>Lines kept in the built-in terminal buffer</Text>
-          </View>
-          <TextInput
-            value={terminalScrollbackValue}
-            onChangeText={handleTerminalScrollbackChangeText}
-            onBlur={commitTerminalScrollback}
-            onSubmitEditing={commitTerminalScrollback}
-            keyboardType="number-pad"
-            inputMode="numeric"
-            selectTextOnFocus
-            style={styles.terminalScrollbackInput}
-            accessibilityLabel="Terminal scrollback lines"
-          />
         </View>
-      </View>
-    </SettingsSection>
+      </SettingsSection>
+      <PairingBundleSection />
+    </>
   );
 }
 

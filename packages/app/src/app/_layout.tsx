@@ -580,7 +580,7 @@ function MobileGestureWrapper({
 
 function ProvidersWrapper({ children }: { children: ReactNode }) {
   const { settings, isLoading: settingsLoading } = useAppSettings();
-  const { upsertConnectionFromOfferUrl } = useHostMutations();
+  const { upsertConnectionFromOfferUrl, upsertConnectionsFromOfferBundleUrl } = useHostMutations();
 
   // Apply theme setting on mount and when it changes
   useEffect(() => {
@@ -617,7 +617,10 @@ function ProvidersWrapper({ children }: { children: ReactNode }) {
   return (
     <VoiceProvider>
       <DesktopWindowControlsSync enabled={!settingsLoading} />
-      <OfferLinkListener upsertDaemonFromOfferUrl={upsertConnectionFromOfferUrl} />
+      <OfferLinkListener
+        upsertDaemonFromOfferUrl={upsertConnectionFromOfferUrl}
+        upsertDaemonsFromOfferBundleUrl={upsertConnectionsFromOfferBundleUrl}
+      />
       <HostSessionManager />
       <FaviconStatusSync />
       {children}
@@ -645,8 +648,10 @@ function DesktopWindowControlsSync({ enabled }: { enabled: boolean }) {
 
 function OfferLinkListener({
   upsertDaemonFromOfferUrl,
+  upsertDaemonsFromOfferBundleUrl,
 }: {
   upsertDaemonFromOfferUrl: (offerUrlOrFragment: string) => Promise<unknown>;
+  upsertDaemonsFromOfferBundleUrl: (offerUrlOrFragment: string) => Promise<unknown[]>;
 }) {
   const router = useRouter();
 
@@ -654,11 +659,15 @@ function OfferLinkListener({
     let cancelled = false;
     const handleUrl = (url: string | null) => {
       if (!url) return;
-      if (!url.includes("#offer=")) return;
-      void upsertDaemonFromOfferUrl(url)
-        .then((profile) => {
+      const isBundle = url.includes("#offers=");
+      const isSingleOffer = url.includes("#offer=");
+      if (!isBundle && !isSingleOffer) return;
+      const importOffer = isBundle ? upsertDaemonsFromOfferBundleUrl : upsertDaemonFromOfferUrl;
+      void importOffer(url)
+        .then((result) => {
           if (cancelled) return;
-          const serverId = (profile as { serverId?: unknown } | null)?.serverId;
+          const firstProfile = Array.isArray(result) ? result[0] : result;
+          const serverId = (firstProfile as { serverId?: unknown } | null)?.serverId;
           if (typeof serverId !== "string" || !serverId) return;
           router.replace(buildHostRootRoute(serverId));
           return;
@@ -681,7 +690,7 @@ function OfferLinkListener({
       cancelled = true;
       subscription.remove();
     };
-  }, [router, upsertDaemonFromOfferUrl]);
+  }, [router, upsertDaemonFromOfferUrl, upsertDaemonsFromOfferBundleUrl]);
 
   return null;
 }

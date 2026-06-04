@@ -5,7 +5,11 @@ import type {
   FetchAgentsEntry,
   FetchAgentsOptions,
 } from "@bytetrue/client/internal/daemon-client";
-import type { ConnectionOffer } from "@bytetrue/protocol/connection-offer";
+import {
+  buildConnectionOfferBundleUrl,
+  type ConnectionOffer,
+  type ConnectionOfferBundle,
+} from "@bytetrue/protocol/connection-offer";
 import type { HostConnection, HostProfile } from "@/types/host-connection";
 import { useSessionStore, type Agent } from "@/stores/session-store";
 import {
@@ -204,6 +208,23 @@ function makeOffer(input?: Partial<ConnectionOffer>): ConnectionOffer {
       endpoint: input?.relay?.endpoint ?? "relay.paseo.zijieapi.de5.net:443",
       useTls: input?.relay?.useTls ?? false,
     },
+  };
+}
+
+function makeOfferBundle(input?: Partial<ConnectionOfferBundle>): ConnectionOfferBundle {
+  return {
+    v: 1,
+    entries: input?.entries ?? [
+      { label: "offer one", offer: makeOffer({ serverId: "srv_offer_one" }) },
+      {
+        label: "offer two",
+        offer: makeOffer({
+          serverId: "srv_offer_two",
+          daemonPublicKeyB64: "pk_test_offer_two",
+          relay: { endpoint: "relay-two.example.com:443", useTls: true },
+        }),
+      },
+    ],
   };
 }
 
@@ -2020,6 +2041,53 @@ describe("HostRuntimeStore", () => {
     ]);
 
     store.syncHosts([]);
+  });
+
+  it("adds relay hosts from a pairing bundle URL", async () => {
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+    const bundle = makeOfferBundle();
+
+    const profiles = await store.upsertConnectionsFromOfferBundleUrl(
+      buildConnectionOfferBundleUrl(bundle),
+    );
+
+    expect(profiles.map((profile) => profile.serverId)).toEqual(["srv_offer_one", "srv_offer_two"]);
+    expect(store.getHosts()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ serverId: "srv_offer_one", label: "offer one" }),
+        expect.objectContaining({ serverId: "srv_offer_two", label: "offer two" }),
+      ]),
+    );
+
+    store.syncHosts([]);
+  });
+
+  it("rejects empty pairing bundle URLs", async () => {
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+
+    await expect(
+      store.upsertConnectionsFromOfferBundleUrl("https://paseo.zijieapi.de5.net/#offers="),
+    ).rejects.toThrow("Offer bundle payload is empty");
   });
 
   it("uses the latest advertised hostname when re-pairing an existing relay host", async () => {
