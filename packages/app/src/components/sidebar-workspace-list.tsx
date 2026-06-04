@@ -10,7 +10,7 @@ import {
   type PressableStateCallbackType,
   type ViewStyle,
 } from "react-native";
-import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { slugify, validateBranchSlug, MAX_SLUG_LENGTH } from "@bytetrue/protocol/branch-slug";
 import { ProjectIconView } from "@/components/project-icon-view";
 import { AdaptiveRenameModal } from "@/components/rename-modal";
@@ -56,9 +56,9 @@ import {
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import { DraggableList, type DraggableRenderItemInfo } from "./draggable-list";
 import type { DraggableListDragHandleProps } from "./draggable-list.types";
-import { getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
+import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { projectIconQueryKey, projectIconToDataUri } from "@/hooks/use-project-icon-query";
+import { useProjectIconDataByProjectKey } from "@/projects/project-icons";
 import {
   buildHostNewWorkspaceRoute,
   buildProjectSettingsRoute,
@@ -116,7 +116,7 @@ import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useClearWorkspaceAttention } from "@/hooks/use-clear-workspace-attention";
 import type { PrHint } from "@/git/use-pr-status-query";
 import { buildSidebarProjectRowModel } from "@/utils/sidebar-project-row-model";
-import { useSessionStore, type WorkspaceDescriptor } from "@/stores/session-store";
+import type { WorkspaceDescriptor } from "@/stores/session-store";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { openExternalUrl } from "@/utils/open-external-url";
@@ -178,17 +178,6 @@ function getPrIconUniMapping(state: PrHint["state"]) {
     case "closed":
       return redColorMapping;
   }
-}
-
-function useStableProjectIconData(
-  data: (string | null)[],
-  signature: string,
-): readonly (string | null)[] {
-  const stableRef = useRef<{ signature: string; data: (string | null)[] } | null>(null);
-  if (stableRef.current?.signature !== signature) {
-    stableRef.current = { signature, data };
-  }
-  return stableRef.current.data;
 }
 
 function isWorkspaceSelected(input: {
@@ -1197,8 +1186,6 @@ function ProjectHeaderRow({
     );
     onWorkspacePress?.();
   }, [displayName, onWorkspacePress, project.iconWorkingDir, project.projectKey, serverId]);
-  const _mergeWorkspaces = useSessionStore((state) => state.mergeWorkspaces);
-  const _toast = useToast();
 
   const interaction = useLongPressDragInteraction({
     drag,
@@ -1340,7 +1327,6 @@ function WorkspaceRowInner({
   onRename,
   archiveShortcutKeys,
 }: WorkspaceRowInnerProps) {
-  const _isCompact = useIsCompactFormFactor();
   const isTouchPlatform = platformIsNative;
   const interaction = useLongPressDragInteraction({
     drag,
@@ -2459,74 +2445,8 @@ function ProjectModeList({
         : undefined,
     [parentGestureRef],
   );
-  const projectIconRequests = useMemo(() => {
-    if (!serverId) {
-      return [];
-    }
-    const unique = new Map<string, { serverId: string; cwd: string }>();
-    for (const project of projects) {
-      const cwd = project.iconWorkingDir.trim();
-      if (!cwd) {
-        continue;
-      }
-      unique.set(`${serverId}:${cwd}`, { serverId, cwd });
-    }
-    return Array.from(unique.values());
-  }, [projects, serverId]);
 
-  const projectIconQueries = useQueries({
-    queries: projectIconRequests.map((request) => ({
-      queryKey: projectIconQueryKey(request.serverId, request.cwd),
-      queryFn: async () => {
-        const client = getHostRuntimeStore().getClient(request.serverId);
-        if (!client) {
-          return null;
-        }
-        const result = await client.requestProjectIcon(request.cwd);
-        return result.icon;
-      },
-      select: projectIconToDataUri,
-      enabled: Boolean(
-        getHostRuntimeStore().getClient(request.serverId) &&
-        isHostRuntimeConnected(getHostRuntimeStore().getSnapshot(request.serverId)) &&
-        request.cwd,
-      ),
-      staleTime: Infinity,
-      gcTime: 1000 * 60 * 60,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    })),
-  });
-
-  const projectIconSignature = projectIconQueries.map((query) => query.data ?? "").join("\u0000");
-  const projectIconData = useStableProjectIconData(
-    projectIconQueries.map((query) => query.data ?? null),
-    projectIconSignature,
-  );
-
-  const projectIconByProjectKey = useMemo(() => {
-    const iconByServerAndCwd = new Map<string, string | null>();
-    for (let index = 0; index < projectIconRequests.length; index += 1) {
-      const request = projectIconRequests[index];
-      if (!request) {
-        continue;
-      }
-      iconByServerAndCwd.set(`${request.serverId}:${request.cwd}`, projectIconData[index] ?? null);
-    }
-
-    const byProject = new Map<string, string | null>();
-    for (const project of projects) {
-      const cwd = project.iconWorkingDir.trim();
-      if (!cwd || !serverId) {
-        byProject.set(project.projectKey, null);
-        continue;
-      }
-      byProject.set(project.projectKey, iconByServerAndCwd.get(`${serverId}:${cwd}`) ?? null);
-    }
-
-    return byProject;
-  }, [projectIconData, projectIconRequests, projects, serverId]);
+  const projectIconByProjectKey = useProjectIconDataByProjectKey({ serverId, projects });
 
   useEffect(() => {
     const timeouts = creatingWorkspaceTimeoutsRef.current;
