@@ -65,7 +65,7 @@ import {
   parseHostWorkspaceRouteFromPathname,
 } from "@/utils/host-routes";
 import {
-  createSidebarWorkspaceEntry,
+  useSidebarWorkspaceEntry,
   type SidebarProjectEntry,
   type SidebarWorkspaceEntry,
 } from "@/hooks/use-sidebar-workspaces-list";
@@ -104,8 +104,8 @@ import {
   SidebarWorkspaceTrailingActionSlot,
 } from "@/components/sidebar/sidebar-workspace-row-content";
 import {
-  useHydratedWorkspaceEntries,
   useProjectNamesMap,
+  useStatusModeWorkspaceEntries,
 } from "@/hooks/use-status-mode-workspaces";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -116,8 +116,6 @@ import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useClearWorkspaceAttention } from "@/hooks/use-clear-workspace-attention";
 import type { PrHint } from "@/git/use-pr-status-query";
 import { buildSidebarProjectRowModel } from "@/utils/sidebar-project-row-model";
-import type { WorkspaceDescriptor } from "@/stores/session-store";
-import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { openExternalUrl } from "@/utils/open-external-url";
 import {
@@ -290,19 +288,6 @@ function getWorkspaceArchiveStatus(
   if (isWorktree) return archiveStatus;
   if (isArchivingWorkspace) return "pending";
   return "idle";
-}
-
-export function useSidebarWorkspaceEntry(
-  serverId: string | null,
-  workspaceId: string | null,
-): SidebarWorkspaceEntry | null {
-  const projectWorkspaceEntry = useCallback(
-    (workspace: WorkspaceDescriptor): SidebarWorkspaceEntry =>
-      createSidebarWorkspaceEntry({ serverId: serverId ?? "", workspace }),
-    [serverId],
-  );
-
-  return useWorkspaceFields(serverId, workspaceId, projectWorkspaceEntry);
 }
 
 export function PrBadge({ hint }: { hint: PrHint }) {
@@ -2375,6 +2360,7 @@ export function SidebarWorkspaceList({
     return (
       <SidebarStatusModeWrapper
         serverId={serverId}
+        projects={projects}
         shortcutIndexByWorkspaceKey={shortcutIndexByWorkspaceKey}
         onWorkspacePress={onWorkspacePress}
       />
@@ -2399,14 +2385,16 @@ export function SidebarWorkspaceList({
 
 function SidebarStatusModeWrapper({
   serverId,
+  projects,
   shortcutIndexByWorkspaceKey: _projectShortcutIndex,
   onWorkspacePress,
 }: {
   serverId: string | null;
+  projects: SidebarProjectEntry[];
   shortcutIndexByWorkspaceKey: Map<string, number>;
   onWorkspacePress?: () => void;
 }) {
-  const hydratedWorkspaces = useHydratedWorkspaceEntries(serverId);
+  const hydratedWorkspaces = useStatusModeWorkspaceEntries({ serverId, projects });
   const projectNamesByKey = useProjectNamesMap(serverId);
   const showShortcutBadges = useShowShortcutBadges();
 
