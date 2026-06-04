@@ -59,6 +59,33 @@ export function extractHttpBearerToken(value: string | undefined): string | null
   return tokenParts[0] ?? null;
 }
 
+export function extractWsBearerProtocol(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  for (const protocol of value.split(",")) {
+    const trimmed = protocol.trim();
+    const segments = trimmed.split(".");
+    if (segments[0] === "paseo" && segments[1] === "bearer" && segments.length >= 3) {
+      return trimmed;
+    }
+  }
+
+  return null;
+}
+
+export function extractWsBearerToken(protocol: string | null): string | null {
+  if (!protocol) {
+    return null;
+  }
+  const segments = protocol.split(".");
+  if (segments[0] !== "paseo" || segments[1] !== "bearer" || segments.length < 3) {
+    return null;
+  }
+  return segments.slice(2).join(".");
+}
+
 export function createRequireBearerMiddleware(
   auth: DaemonAuthConfig | undefined,
   onReject?: (context: BearerAuthRejectContext) => void,

@@ -469,11 +469,15 @@ interface TestAuthAdministration {
     clients: Array<{ id: string; publicKeyB64: string }>;
     passwordConfigured: boolean;
   };
-  revokeClient(input: { clientId: string; adminPassword: string }): Promise<{ ok: boolean }>;
+  revokeClient(input: { clientId: string; adminPassword: string }): Promise<{
+    ok: boolean;
+    code?: string;
+    retryAfterMs?: number;
+  }>;
   changePassword(input: {
     currentPassword?: string | null;
     newPassword: string;
-  }): Promise<{ ok: boolean; revokedClientCount?: number }>;
+  }): Promise<{ ok: boolean; code?: string; retryAfterMs?: number; revokedClientCount?: number }>;
 }
 
 function getAuthAdministration(session: InstanceType<typeof sessionMock.MockSession>) {
@@ -767,6 +771,42 @@ describe("relay external socket reconnect behavior", () => {
     await server.close();
   });
 
+  test("rate limits failed revoke administrator password attempts", async () => {
+    const server = createServer();
+    const socket = new MockSocket();
+    await attachRelayAndHello({
+      server,
+      socket,
+      clientId: "cid-revoke-rate-limit",
+    });
+    const session = sessionMock.instances[0];
+    const authAdministration = getAuthAdministration(session);
+    const clients = authAdministration.listClients().clients;
+    expect(clients).toHaveLength(1);
+
+    const first = await authAdministration.revokeClient({
+      clientId: clients[0]!.id,
+      adminPassword: "wrong-password",
+    });
+    expect(first).toMatchObject({
+      ok: false,
+      code: "incorrect_password",
+      retryAfterMs: expect.any(Number),
+    });
+
+    const second = await authAdministration.revokeClient({
+      clientId: clients[0]!.id,
+      adminPassword: "wrong-password",
+    });
+    expect(second).toMatchObject({
+      ok: false,
+      code: "rate_limited",
+      retryAfterMs: expect.any(Number),
+    });
+
+    await server.close();
+  });
+
   test("changing the daemon password revokes and disconnects all authorized relay clients", async () => {
     const server = createServer();
     const socket1 = new MockSocket();
@@ -799,6 +839,40 @@ describe("relay external socket reconnect behavior", () => {
     expect(socket2.readyState).toBe(3);
     expect(session1.cleanup).toHaveBeenCalledTimes(1);
     expect(session2.cleanup).toHaveBeenCalledTimes(1);
+
+    await server.close();
+  });
+
+  test("rate limits failed change-password administrator password attempts", async () => {
+    const server = createServer();
+    const socket = new MockSocket();
+    await attachRelayAndHello({
+      server,
+      socket,
+      clientId: "cid-password-change-rate-limit",
+    });
+    const session = sessionMock.instances[0];
+    const authAdministration = getAuthAdministration(session);
+
+    const first = await authAdministration.changePassword({
+      currentPassword: "wrong-password",
+      newPassword: "new-correct-password",
+    });
+    expect(first).toMatchObject({
+      ok: false,
+      code: "incorrect_password",
+      retryAfterMs: expect.any(Number),
+    });
+
+    const second = await authAdministration.changePassword({
+      currentPassword: "wrong-password",
+      newPassword: "new-correct-password",
+    });
+    expect(second).toMatchObject({
+      ok: false,
+      code: "rate_limited",
+      retryAfterMs: expect.any(Number),
+    });
 
     await server.close();
   });

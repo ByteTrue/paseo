@@ -84,11 +84,11 @@ test("DaemonClient connects to a password-protected daemon", async () => {
   }
 });
 
-test("DaemonClient surfaces password auth failures from WebSocket close reasons", async () => {
+test("DaemonClient allows local password-protected daemons and rejects wrong legacy passwords", async () => {
   const daemon = await createTestPaseoDaemon({
     auth: { password: "$2b$12$GMhF7pN4QnMlHOQXOqjd1OitKWPSmAO3FwB0PHzKtcZR/sAMryz76" },
   });
-  const missingPasswordClient = new DaemonClient({
+  const localClient = new DaemonClient({
     url: `ws://127.0.0.1:${daemon.port}/ws`,
     reconnect: { enabled: false },
   });
@@ -99,13 +99,14 @@ test("DaemonClient surfaces password auth failures from WebSocket close reasons"
   });
 
   try {
-    await expect(missingPasswordClient.connect()).rejects.toThrow("Password required");
-    expect(missingPasswordClient.lastError).toBe("Password required");
+    await localClient.connect();
+    const agents = await localClient.fetchAgents();
+    expect(agents.entries).toEqual([]);
 
     await expect(wrongPasswordClient.connect()).rejects.toThrow("Incorrect password");
     expect(wrongPasswordClient.lastError).toBe("Incorrect password");
   } finally {
-    await missingPasswordClient.close();
+    await localClient.close();
     await wrongPasswordClient.close();
     await daemon.close();
   }

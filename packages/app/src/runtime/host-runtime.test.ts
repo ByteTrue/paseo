@@ -1808,6 +1808,48 @@ describe("HostRuntimeStore", () => {
     store.syncHosts([]);
   });
 
+  it("probeAndUpsertDirectConnection drops legacy passwords before probing and storing", async () => {
+    const probeClient = makeConnectedProbeClient(5);
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ connection }) => {
+          expect(connection).toEqual({
+            id: "direct:example.paseo.test:7443",
+            type: "directTcp",
+            endpoint: "example.paseo.test:7443",
+            useTls: true,
+          });
+          return {
+            client: probeClient as unknown as DaemonClient,
+            serverId: "srv_probe_tls_password",
+            hostname: "tls-probe",
+          };
+        },
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+
+    await store.probeAndUpsertDirectConnection({
+      endpoint: "example.paseo.test:7443",
+      useTls: true,
+      password: "shared-secret",
+      label: "tls probe",
+    });
+
+    const host = store.getHosts().find((entry) => entry.serverId === "srv_probe_tls_password");
+    expect(host?.connections).toEqual([
+      {
+        id: "direct:example.paseo.test:7443",
+        type: "directTcp",
+        endpoint: "example.paseo.test:7443",
+        useTls: true,
+      },
+    ]);
+
+    store.syncHosts([]);
+  });
+
   it("probeAndUpsertConnection learns the real server id before storing a direct host", async () => {
     const connection: HostConnection = {
       id: "direct:lan:6767",

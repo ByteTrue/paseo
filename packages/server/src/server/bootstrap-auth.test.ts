@@ -84,21 +84,21 @@ describe("daemon bearer auth", () => {
     }
   });
 
-  test("rejects legacy WebSocket bearer subprotocols as connection grants", async () => {
+  test("accepts valid legacy WebSocket bearer subprotocols during the compatibility window", async () => {
     const daemonHandle = await createTestPaseoDaemon({
       auth: { password: CORRECT_PASSWORD_HASH },
     });
     try {
-      await expect(
-        connectWebSocket({
-          port: daemonHandle.port,
-          protocol: "paseo.bearer.correct-password",
-        }),
-      ).rejects.toThrow("Server sent no subprotocol");
+      const legacy = await connectWebSocket({
+        port: daemonHandle.port,
+        protocol: "paseo.bearer.correct-password",
+      });
+      expect(legacy.protocol).toBe("paseo.bearer.correct-password");
+      legacy.ws.close();
 
-      const { ws, protocol } = await connectWebSocket({ port: daemonHandle.port });
-      expect(protocol).toBe("");
-      ws.close();
+      const local = await connectWebSocket({ port: daemonHandle.port });
+      expect(local.protocol).toBe("");
+      local.ws.close();
     } finally {
       await daemonHandle.close();
     }

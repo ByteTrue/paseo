@@ -38,6 +38,7 @@ function createMockLogger() {
 
 function createMockTransport() {
   const sent: Array<string | Uint8Array | ArrayBuffer> = [];
+  const closes: Array<{ code?: number; reason?: string }> = [];
 
   let onMessage: (data: unknown) => void = () => {};
   let onOpen: () => void = () => {};
@@ -47,7 +48,9 @@ function createMockTransport() {
 
   const transport: DaemonTransport = {
     send: (data) => sent.push(data),
-    close: () => {},
+    close: (code, reason) => {
+      closes.push({ code, reason });
+    },
     onMessage: (handler) => {
       onMessage = handler;
       return () => {};
@@ -69,6 +72,7 @@ function createMockTransport() {
   return {
     transport,
     sent,
+    closes,
     triggerOpen: (options?: { preserveSent?: boolean; serverInfo?: boolean }) => {
       onOpen();
       if (!options?.preserveSent) {
@@ -212,7 +216,7 @@ test("dedupes in-flight checkout status requests per agentId", async () => {
   });
 });
 
-test("does not pass password as a connection grant", async () => {
+test("passes legacy password credentials for old daemon compatibility", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();
   const transportFactory = vi.fn(() => mock.transport);
@@ -233,7 +237,8 @@ test("does not pass password as a connection grant", async () => {
 
   expect(transportFactory).toHaveBeenCalledWith({
     url: "ws://test",
-    headers: {},
+    headers: { Authorization: "Bearer shared-secret" },
+    protocols: ["paseo.bearer.shared-secret"],
   });
 });
 
@@ -331,6 +336,111 @@ test("enrolls with daemon authorization challenge before resolving connect", asy
   );
   await connectPromise;
   expect(connected).toBe(true);
+});
+
+test("does not apply connect timeout while waiting for daemon auth password", async () => {
+  vi.useFakeTimers();
+  try {
+    const logger = createMockLogger();
+    const mock = createMockTransport();
+    const credentialStore = new Map<string, DaemonClientAuthCredential>();
+    const keyStore: DaemonClientAuthKeyStore = {
+      get: vi.fn(async (serverId: string) => credentialStore.get(serverId) ?? null),
+      set: vi.fn(async (credential: DaemonClientAuthCredential) => {
+        credentialStore.set(credential.serverId, credential);
+      }),
+    };
+    const passwordResolver: { current?: (password: string | null) => void } = {};
+    const adminPasswordProvider = vi.fn(
+      () =>
+        new Promise<string | null>((resolve) => {
+          passwordResolver.current = resolve;
+        }),
+    );
+
+    const client = new DaemonClient({
+      url: "wss://relay.test/ws?role=client&serverId=srv_auth_timeout&v=2",
+      clientId: "clsk_auth_timeout",
+      logger,
+      reconnect: { enabled: false },
+      connectTimeoutMs: 25,
+      transportFactory: () => mock.transport,
+      clientAuth: {
+        keyStore,
+        adminPasswordProvider,
+      },
+    });
+    clients.push(client);
+
+    const connectPromise = client.connect();
+    mock.triggerOpen({ preserveSent: true, serverInfo: false });
+    mock.triggerMessage(
+      wrapSessionMessage({
+        type: "daemon.auth.challenge.response",
+        payload: {
+          requestId: "auth_challenge_timeout",
+          serverId: "srv_auth_timeout",
+          challengeId: "challenge-timeout",
+          challengeB64: "Y2hhbGxlbmdlLXRpbWVvdXQ=",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          adminPasswordConfigured: true,
+          enrollmentAllowed: true,
+          transport: "relay",
+          error: null,
+        },
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(adminPasswordProvider).toHaveBeenCalledTimes(1);
+    expect(mock.closes).toEqual([]);
+
+    if (!passwordResolver.current) {
+      throw new Error("Expected daemon auth password prompt to be pending");
+    }
+    passwordResolver.current("admin-secret");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mock.sent.length).toBeGreaterThan(1);
+    const enrollRequest = parseSentFrame(mock.sent[mock.sent.length - 1]);
+    expect(enrollRequest.type).toBe("daemon.auth.enroll.request");
+
+    mock.triggerMessage(
+      wrapSessionMessage({
+        type: "daemon.auth.enroll.response",
+        payload: {
+          requestId: enrollRequest.requestId,
+          ok: true,
+          client: {
+            id: "authorized-client-timeout",
+            publicKeyB64: "test-public-key-timeout",
+            clientName: null,
+            createdAt: new Date().toISOString(),
+            lastSeenAt: null,
+          },
+        },
+      }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(keyStore.set).toHaveBeenCalledTimes(1);
+
+    mock.triggerMessage(
+      wrapSessionMessage({
+        type: "status",
+        payload: {
+          status: "server_info",
+          serverId: "srv_auth_timeout",
+          hostname: null,
+          version: null,
+        },
+      }),
+    );
+    await connectPromise;
+    expect(mock.closes).toEqual([]);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("advertises client capabilities in hello", async () => {

@@ -2184,7 +2184,7 @@ export const ServerInfoStatusPayloadSchema = z
         rewind: z.boolean().optional(),
         // COMPAT(checkoutRefresh): added in v0.1.86, remove gate after 2026-11-29.
         checkoutRefresh: z.boolean().optional(),
-        // COMPAT(daemonClientAuthorization): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        // COMPAT(daemonClientAuthorization): added in v0.1.87, remove gate after 2026-12-04.
         daemonClientAuthorization: z.boolean().optional(),
       })
       .optional(),

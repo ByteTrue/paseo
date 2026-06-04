@@ -147,6 +147,13 @@ export type ImportAgentInput =
       sessionId: string;
     });
 
+function normalizePassword(value: string | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  return value.length > 0 ? value : null;
+}
+
 export type {
   DaemonTransport,
   DaemonTransportFactory,
@@ -1018,6 +1025,13 @@ export class DaemonClient {
     this.pendingAuthChallenge = null;
     this.pendingAuthEnrollmentCredential = null;
     const headers: Record<string, string> = {};
+    const password = normalizePassword(this.config.password);
+    if (password) {
+      headers.Authorization = `Bearer ${password}`;
+    } else if (this.config.authHeader) {
+      headers.Authorization = this.config.authHeader;
+    }
+    const protocols = password ? [`paseo.bearer.${password}`] : undefined;
 
     try {
       // Reconnect can overlap with browser close/error delivery ordering.
@@ -1045,6 +1059,7 @@ export class DaemonClient {
       const transport = transportFactory({
         url: transportUrl,
         headers,
+        ...(protocols ? { protocols } : {}),
       });
       this.transport = transport;
       this.lastServerInfoMessage = null;
@@ -1056,20 +1071,7 @@ export class DaemonClient {
         },
         { event: "CONNECT_REQUEST" },
       );
-      this.resetConnectTimeout();
-      const timeoutMs = Math.max(1, this.config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS);
-      this.connectTimeout = setTimeout(() => {
-        if (this.connectionState.status !== "connecting") {
-          return;
-        }
-        this.lastErrorValue = "Connection timed out";
-        this.disposeTransport(1001, "Connection timed out");
-        this.scheduleReconnect({
-          reason: "Connection timed out",
-          event: "CONNECT_TIMEOUT",
-          reasonCode: "connect_timeout",
-        });
-      }, timeoutMs);
+      this.startConnectTimeout();
 
       this.transportCleanup = [
         transport.onOpen(() => {
@@ -4361,6 +4363,7 @@ export class DaemonClient {
     payload: DaemonAuthChallengePayload,
   ): Promise<void> {
     this.pendingAuthChallenge = payload;
+    this.resetConnectTimeout();
     const keyStore = this.config.clientAuth?.keyStore;
     if (!keyStore) {
       await this.beginDaemonAuthEnrollment(payload);
@@ -4382,6 +4385,7 @@ export class DaemonClient {
       purpose: "authenticate",
       secretKeyB64: credential.secretKeyB64,
     });
+    this.startConnectTimeout();
     this.sendPreAuthSessionMessage({
       type: "daemon.auth.prove.request",
       requestId: this.createRequestId(),
@@ -4446,6 +4450,7 @@ export class DaemonClient {
       return;
     }
 
+    this.resetConnectTimeout();
     const adminPassword = await adminPasswordProvider({
       serverId: challenge.serverId,
       url: this.config.url,
@@ -4458,6 +4463,7 @@ export class DaemonClient {
       return;
     }
 
+    this.startConnectTimeout();
     const keyPair = generateDaemonAuthKeyPair();
     const credential: DaemonClientAuthCredential = {
       serverId: challenge.serverId,
@@ -4534,6 +4540,23 @@ export class DaemonClient {
       }
     }
     this.transportCleanup = [];
+  }
+
+  private startConnectTimeout(): void {
+    this.resetConnectTimeout();
+    const timeoutMs = Math.max(1, this.config.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS);
+    this.connectTimeout = setTimeout(() => {
+      if (this.connectionState.status !== "connecting") {
+        return;
+      }
+      this.lastErrorValue = "Connection timed out";
+      this.disposeTransport(1001, "Connection timed out");
+      this.scheduleReconnect({
+        reason: "Connection timed out",
+        event: "CONNECT_TIMEOUT",
+        reasonCode: "connect_timeout",
+      });
+    }, timeoutMs);
   }
 
   private resetConnectTimeout(): void {

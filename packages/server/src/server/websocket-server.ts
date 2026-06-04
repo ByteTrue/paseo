@@ -47,7 +47,14 @@ import {
   findLatestPermissionRequest,
 } from "@bytetrue/protocol/agent-attention-notification";
 import { createGitHubService, type GitHubService } from "../services/github-service.js";
-import { hashDaemonPassword, isBearerTokenValidAsync, type DaemonAuthConfig } from "./auth.js";
+import {
+  extractWsBearerProtocol,
+  extractWsBearerToken,
+  hashDaemonPassword,
+  isBearerTokenValid,
+  isBearerTokenValidAsync,
+  type DaemonAuthConfig,
+} from "./auth.js";
 import {
   WebSocketRuntimeMetricsWindow,
   type WebSocketRuntimeCounters,
@@ -89,6 +96,7 @@ interface PendingConnection {
   requestMetadata: SocketRequestMetadata;
   transport: "direct" | "relay";
   trustedLocal: boolean;
+  legacyPasswordAuthorized: boolean;
   authAdminAllowed: boolean;
   hello: PendingHello | null;
   authChallenge: PendingAuthChallenge | null;
@@ -587,7 +595,8 @@ export class VoiceAssistantWebSocketServer {
       verifyClient: ({ req }, callback) => {
         this.verifyWsUpgrade(req, allowedOrigins, hostnames, callback);
       },
-      handleProtocols: () => false,
+      // COMPAT(legacyWsBearerAuth): retained in v0.1.87 for pre-auth old clients; remove after 2026-12-04.
+      handleProtocols: (protocols) => selectWebSocketProtocol(protocols, this.authPasswordHash),
     });
     wss.on("connection", (ws, request) => {
       void this.attachSocket(ws, request);
@@ -812,7 +821,31 @@ export class VoiceAssistantWebSocketServer {
     const connectionLogger = this.logger.child(connectionLoggerFields);
     const transport = metadata?.transport === "relay" ? "relay" : "direct";
     const trustedLocal = transport === "direct" && isLocalSocketRequest(requestMetadata);
-    const authAdminAllowed = trustedLocal || transport === "relay" || isTlsSocketRequest(request);
+    const legacyProtocol = extractLegacyWsBearerProtocolFromRequest(request);
+    const legacyPasswordAuthorized =
+      transport === "direct" &&
+      legacyProtocol !== null &&
+      isBearerTokenValid({
+        password: this.authPasswordHash,
+        token: extractWsBearerToken(legacyProtocol),
+      });
+    if (transport === "direct" && legacyProtocol !== null && !legacyPasswordAuthorized) {
+      connectionLogger.warn(
+        { hasToken: extractWsBearerToken(legacyProtocol) !== null },
+        "Rejected WebSocket connection with invalid legacy daemon password",
+      );
+      try {
+        ws.close(WS_CLOSE_DAEMON_AUTH_FAILED, "Incorrect password");
+      } catch {
+        // ignore close errors
+      }
+      return;
+    }
+    const authAdminAllowed =
+      trustedLocal ||
+      legacyPasswordAuthorized ||
+      transport === "relay" ||
+      isTlsSocketRequest(request);
 
     const pending: PendingConnection = {
       connectionLogger,
@@ -820,6 +853,7 @@ export class VoiceAssistantWebSocketServer {
       requestMetadata,
       transport,
       trustedLocal,
+      legacyPasswordAuthorized,
       authAdminAllowed,
       hello: null,
       authChallenge: null,
@@ -864,6 +898,7 @@ export class VoiceAssistantWebSocketServer {
     sessionKey: string;
     authorizedClient: AuthorizedClient | null;
     authAdminAllowed: boolean;
+    authAdministrationThrottleKey: string | null;
   }): SessionConnection {
     const {
       ws,
@@ -874,6 +909,7 @@ export class VoiceAssistantWebSocketServer {
       sessionKey,
       authorizedClient,
       authAdminAllowed,
+      authAdministrationThrottleKey,
     } = params;
     let connection: SessionConnection | null = null;
 
@@ -912,7 +948,10 @@ export class VoiceAssistantWebSocketServer {
       github: this.github,
       workspaceGitService: this.workspaceGitService,
       daemonConfigStore: this.daemonConfigStore,
-      authAdministration: this.createSessionAuthAdministration(authAdminAllowed),
+      authAdministration: this.createSessionAuthAdministration(
+        authAdminAllowed,
+        authAdministrationThrottleKey,
+      ),
       mcpBaseUrl: this.mcpBaseUrl,
       stt: () => this.speech?.resolveStt() ?? null,
       sttLanguage: this.speech?.resolveSttLanguage() ?? "en",
@@ -1028,7 +1067,7 @@ export class VoiceAssistantWebSocketServer {
       clientCapabilities: message.capabilities ?? null,
     };
 
-    if (pending.trustedLocal) {
+    if (pending.trustedLocal || pending.legacyPasswordAuthorized) {
       this.attachSessionForHello({
         ws,
         pending,
@@ -1098,6 +1137,11 @@ export class VoiceAssistantWebSocketServer {
       sessionKey,
       authorizedClient,
       authAdminAllowed: pending.authAdminAllowed,
+      authAdministrationThrottleKey: this.getAuthAdministrationThrottleKey(
+        pending,
+        hello,
+        authorizedClient,
+      ),
     });
     this.sessions.set(ws, connection);
     this.externalSessionsByKey.set(sessionKey, connection);
@@ -1408,7 +1452,58 @@ export class VoiceAssistantWebSocketServer {
     return isBearerTokenValidAsync({ password: this.authPasswordHash, token: password ?? null });
   }
 
-  private createSessionAuthAdministration(authAdminAllowed: boolean) {
+  private getAuthAdministrationThrottleKey(
+    pending: PendingConnection,
+    hello: PendingHello,
+    authorizedClient: AuthorizedClient | null,
+  ): string | null {
+    if (pending.trustedLocal) {
+      return null;
+    }
+    const source = pending.requestMetadata.remoteAddress ?? hello.clientId ?? "unknown";
+    const identity = authorizedClient?.publicKeyB64 ?? `client:${hello.clientId}`;
+    return `admin:${pending.transport}:${source}:${identity}`;
+  }
+
+  private createAuthAdministrationRateLimitFailure(throttleKey: string | null): {
+    ok: false;
+    code: "rate_limited";
+    error: string;
+    retryAfterMs: number;
+  } | null {
+    if (!throttleKey) {
+      return null;
+    }
+    const throttle = this.authAttemptThrottler.check(throttleKey);
+    if (throttle.allowed) {
+      return null;
+    }
+    return {
+      ok: false,
+      code: "rate_limited",
+      error: "Too many failed administrator password attempts",
+      retryAfterMs: throttle.retryAfterMs ?? 1,
+    };
+  }
+
+  private recordAuthAdministrationFailure(throttleKey: string | null): { retryAfterMs?: number } {
+    if (!throttleKey) {
+      return {};
+    }
+    const throttle = this.authAttemptThrottler.recordFailure(throttleKey);
+    return { retryAfterMs: throttle.retryAfterMs };
+  }
+
+  private recordAuthAdministrationSuccess(throttleKey: string | null): void {
+    if (throttleKey) {
+      this.authAttemptThrottler.recordSuccess(throttleKey);
+    }
+  }
+
+  private createSessionAuthAdministration(
+    authAdminAllowed: boolean,
+    authAdministrationThrottleKey: string | null,
+  ) {
     return {
       listClients: () => ({
         clients: this.authorizedClientStore.list(),
@@ -1430,13 +1525,21 @@ export class VoiceAssistantWebSocketServer {
             error: "Daemon administrator password is not configured",
           };
         }
+        const rateLimitFailure = this.createAuthAdministrationRateLimitFailure(
+          authAdministrationThrottleKey,
+        );
+        if (rateLimitFailure) {
+          return rateLimitFailure;
+        }
         if (!(await this.isAdminPasswordValid(input.adminPassword))) {
           return {
             ok: false as const,
             code: "incorrect_password" as const,
             error: "Incorrect daemon administrator password",
+            ...this.recordAuthAdministrationFailure(authAdministrationThrottleKey),
           };
         }
+        this.recordAuthAdministrationSuccess(authAdministrationThrottleKey);
         const revoked = this.authorizedClientStore.revoke(input.clientId);
         if (!revoked) {
           return {
@@ -1457,12 +1560,22 @@ export class VoiceAssistantWebSocketServer {
               "Auth administration requires relay E2EE, localhost, IPC, or trusted TLS direct transport",
           };
         }
-        if (this.authPasswordHash && !(await this.isAdminPasswordValid(input.currentPassword))) {
-          return {
-            ok: false as const,
-            code: "incorrect_password" as const,
-            error: "Incorrect daemon administrator password",
-          };
+        if (this.authPasswordHash) {
+          const rateLimitFailure = this.createAuthAdministrationRateLimitFailure(
+            authAdministrationThrottleKey,
+          );
+          if (rateLimitFailure) {
+            return rateLimitFailure;
+          }
+          if (!(await this.isAdminPasswordValid(input.currentPassword))) {
+            return {
+              ok: false as const,
+              code: "incorrect_password" as const,
+              error: "Incorrect daemon administrator password",
+              ...this.recordAuthAdministrationFailure(authAdministrationThrottleKey),
+            };
+          }
+          this.recordAuthAdministrationSuccess(authAdministrationThrottleKey);
         }
         const nextPasswordHash = hashDaemonPassword(input.newPassword);
         const persisted = loadPersistedConfig(this.paseoHome);
@@ -1534,7 +1647,7 @@ export class VoiceAssistantWebSocketServer {
         rewind: true,
         // COMPAT(checkoutRefresh): added in v0.1.86, remove gate after 2026-11-29.
         checkoutRefresh: true,
-        // COMPAT(daemonClientAuthorization): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        // COMPAT(daemonClientAuthorization): added in v0.1.87, remove gate after 2026-12-04.
         daemonClientAuthorization: true,
       },
     };
@@ -2259,6 +2372,25 @@ function isTlsSocketRequest(request: unknown): boolean {
   return Boolean(
     socket && typeof socket === "object" && (socket as { encrypted?: unknown }).encrypted === true,
   );
+}
+
+function selectWebSocketProtocol(
+  protocols: Set<string>,
+  password: string | undefined,
+): string | false {
+  if (!password) {
+    return false;
+  }
+  return extractWsBearerProtocol([...protocols].join(",")) ?? false;
+}
+
+function extractLegacyWsBearerProtocolFromRequest(request: unknown): string | null {
+  if (!request || typeof request !== "object") {
+    return null;
+  }
+  const headers = (request as { headers?: { "sec-websocket-protocol"?: unknown } }).headers;
+  const rawProtocol = headers?.["sec-websocket-protocol"];
+  return extractWsBearerProtocol(typeof rawProtocol === "string" ? rawProtocol : undefined);
 }
 
 function stringifyCloseReason(reason: unknown): string | null {

@@ -1483,7 +1483,6 @@ export class HostRuntimeStore {
     label?: string;
   }): Promise<{ profile: HostProfile; serverId: string; hostname: string | null }> {
     const endpoint = normalizeHostPort(input.endpoint);
-    const password = input.password?.trim();
     return this.probeAndUpsertConnection({
       label: input.label,
       connection: {
@@ -1491,7 +1490,6 @@ export class HostRuntimeStore {
         type: "directTcp",
         endpoint,
         useTls: input.useTls ?? false,
-        ...(password ? { password } : {}),
       },
     });
   }
