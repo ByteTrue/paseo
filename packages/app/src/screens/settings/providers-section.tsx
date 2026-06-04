@@ -188,6 +188,7 @@ function StatusIndicator({ status }: { status: ProviderStatus }) {
 }
 
 interface GeneratedTitlesSectionProps {
+  serverId: string;
   entries: ProviderEntry[] | undefined;
   isLoading: boolean;
   config: MutableDaemonConfig | null;
@@ -208,6 +209,7 @@ function buildAgentTitleEnabledPatch(
 }
 
 function GeneratedTitlesSection({
+  serverId,
   entries,
   isLoading,
   config,
@@ -321,6 +323,7 @@ function GeneratedTitlesSection({
                 </Pressable>
               ) : null}
               <CombinedModelSelector
+                serverId={serverId}
                 providers={providers}
                 selectedProvider={selectedProvider}
                 selectedModel={selectedModel}
@@ -413,6 +416,7 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
     <>
       {hasServer && isConnected ? (
         <GeneratedTitlesSection
+          serverId={serverId}
           entries={entries}
           isLoading={isLoading}
           config={config}
