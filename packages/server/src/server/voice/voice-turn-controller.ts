@@ -61,7 +61,11 @@ export interface VoiceTurnControllerCallbacks {
 export interface VoiceTurnController {
   start(): Promise<void>;
   stop(): Promise<void>;
-  appendClientChunk(input: { audioBase64: string; format: string }): Promise<void>;
+  appendClientChunk(input: {
+    audioBase64: string;
+    format: string;
+    isLast?: boolean;
+  }): Promise<void>;
 }
 
 interface TranscriptSegmentMeta {
@@ -535,6 +539,13 @@ export function createVoiceTurnController(params: {
             currentSttSession?.appendPcm16(sttPcm16);
           } catch (error) {
             handleSttError(error);
+          }
+        }
+        if (input.isLast) {
+          try {
+            detector.flush();
+          } catch (error) {
+            fail(error);
           }
         }
       });

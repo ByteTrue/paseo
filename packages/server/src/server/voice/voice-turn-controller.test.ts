@@ -17,6 +17,8 @@ import { createVoiceTurnController } from "./voice-turn-controller.js";
 class FakeTurnDetectionSession extends EventEmitter implements TurnDetectionSession {
   public readonly requiredSampleRate = 16000;
   public readonly appendedChunks: Buffer[] = [];
+  public flushCount = 0;
+  public onFlush: (() => void) | null = null;
 
   async connect(): Promise<void> {}
 
@@ -24,7 +26,10 @@ class FakeTurnDetectionSession extends EventEmitter implements TurnDetectionSess
     this.appendedChunks.push(chunk);
   }
 
-  flush(): void {}
+  flush(): void {
+    this.flushCount += 1;
+    this.onFlush?.();
+  }
   reset(): void {}
   close(): void {}
 }
@@ -192,6 +197,29 @@ describe("voice turn controller", () => {
     expect(harness.onSpeechStarted).toHaveBeenCalledTimes(1);
     expect(harness.onSpeechStopped).toHaveBeenCalledTimes(1);
     expect(harness.onFinalTranscript).not.toHaveBeenCalled();
+    expect(harness.onError).not.toHaveBeenCalled();
+  });
+
+  it("flushes turn detection when the final client chunk arrives", async () => {
+    const harness = createControllerHarness();
+
+    await harness.controller.start();
+    harness.detector.emit("speech_started");
+    await settleSerialQueue();
+    harness.detector.onFlush = () => {
+      harness.detector.emit("speech_stopped");
+    };
+
+    await harness.controller.appendClientChunk({
+      audioBase64: Buffer.from([1, 2, 3, 4]).toString("base64"),
+      format: "audio/pcm;rate=16000;bits=16",
+      isLast: true,
+    });
+    await settleSerialQueue();
+
+    expect(harness.detector.flushCount).toBe(1);
+    expect(harness.sttSessions[0]?.commitCount).toBe(1);
+    expect(harness.onSpeechStopped).toHaveBeenCalledTimes(1);
     expect(harness.onError).not.toHaveBeenCalled();
   });
 

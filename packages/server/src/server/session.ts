@@ -8026,6 +8026,7 @@ export class Session {
     await this.voiceTurnController.appendClientChunk({
       audioBase64: msg.audio,
       format: chunkFormat,
+      isLast: msg.isLast,
     });
   }
 
