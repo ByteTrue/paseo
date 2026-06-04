@@ -7,41 +7,49 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderSnapshotEntry } from "@bytetrue/protocol/agent-types";
 import type { MutableDaemonConfig } from "@bytetrue/protocol/messages";
 
-const { theme, snapshotState, configState, patchConfigMock, openProviderSettingsMock } = vi.hoisted(
-  () => ({
-    theme: {
-      spacing: { 1: 4, "1.5": 6, 2: 8, 3: 12, 4: 16, 6: 24 },
-      iconSize: { sm: 14, md: 20 },
-      fontSize: { xs: 11, sm: 13, base: 15 },
-      fontWeight: { normal: "400" },
-      borderRadius: { lg: 8 },
-      opacity: { 50: 0.5 },
-      colors: {
-        surface1: "#111",
-        surface2: "#222",
-        surface3: "#333",
-        foreground: "#fff",
-        foregroundMuted: "#aaa",
-        border: "#555",
-        accent: "#0a84ff",
-        statusSuccess: "#00ff00",
-        statusWarning: "#ff9500",
-        statusDanger: "#ff0000",
-        palette: { red: { 300: "#ff6b6b" }, white: "#fff" },
-      },
+const {
+  theme,
+  snapshotState,
+  configState,
+  sessionState,
+  patchConfigMock,
+  openProviderSettingsMock,
+} = vi.hoisted(() => ({
+  theme: {
+    spacing: { 1: 4, "1.5": 6, 2: 8, 3: 12, 4: 16, 6: 24 },
+    iconSize: { sm: 14, md: 20 },
+    fontSize: { xs: 11, sm: 13, base: 15 },
+    fontWeight: { normal: "400" },
+    borderRadius: { lg: 8 },
+    opacity: { 50: 0.5 },
+    colors: {
+      surface1: "#111",
+      surface2: "#222",
+      surface3: "#333",
+      foreground: "#fff",
+      foregroundMuted: "#aaa",
+      border: "#555",
+      accent: "#0a84ff",
+      statusSuccess: "#00ff00",
+      statusWarning: "#ff9500",
+      statusDanger: "#ff0000",
+      palette: { red: { 300: "#ff6b6b" }, white: "#fff" },
     },
-    snapshotState: {
-      entries: undefined as ProviderSnapshotEntry[] | undefined,
-      isLoading: false,
-      isRefreshing: false,
-    },
-    configState: {
-      config: null as MutableDaemonConfig | null,
-    },
-    patchConfigMock: vi.fn(async () => undefined),
-    openProviderSettingsMock: vi.fn(),
-  }),
-);
+  },
+  snapshotState: {
+    entries: undefined as ProviderSnapshotEntry[] | undefined,
+    isLoading: false,
+    isRefreshing: false,
+  },
+  configState: {
+    config: null as MutableDaemonConfig | null,
+  },
+  sessionState: {
+    titleGenerationSettings: false,
+  },
+  patchConfigMock: vi.fn(async () => undefined),
+  openProviderSettingsMock: vi.fn(),
+}));
 
 vi.mock("react-native", () => ({
   View: ({ children, testID }: { children?: React.ReactNode; testID?: string }) =>
@@ -147,6 +155,30 @@ vi.mock("@/components/add-provider-modal", () => ({
   AddProviderModal: () => null,
 }));
 
+vi.mock("@/components/combined-model-selector", () => ({
+  CombinedModelSelector: ({
+    selectedProvider,
+    selectedModel,
+    onSelect,
+    disabled,
+  }: {
+    selectedProvider: string;
+    selectedModel: string;
+    onSelect: (provider: string, modelId: string) => void;
+    disabled?: boolean;
+  }) =>
+    React.createElement(
+      "button",
+      {
+        type: "button",
+        "data-testid": "combined-model-selector",
+        disabled,
+        onClick: () => onSelect("claude", "claude-sonnet-4-6"),
+      },
+      selectedProvider ? `${selectedProvider}:${selectedModel || "default"}` : "Select model",
+    ),
+}));
+
 vi.mock("@/hooks/use-providers-snapshot", () => ({
   useProvidersSnapshot: () => ({
     entries: snapshotState.entries,
@@ -170,6 +202,19 @@ vi.mock("@/hooks/use-daemon-config", () => ({
 
 vi.mock("@/runtime/host-runtime", () => ({
   useHostRuntimeIsConnected: () => true,
+}));
+
+vi.mock("@/stores/session-store", () => ({
+  useSessionStore: (selector: (state: unknown) => unknown) =>
+    selector({
+      sessions: {
+        "server-1": {
+          serverInfo: {
+            features: sessionState.titleGenerationSettings ? { titleGenerationSettings: true } : {},
+          },
+        },
+      },
+    }),
 }));
 
 import { ProvidersSection } from "./providers-section";
@@ -199,11 +244,14 @@ const disabledCodexEntry: ProviderSnapshotEntry = {
   modes: [],
 };
 
-function makeConfig(providers: MutableDaemonConfig["providers"] = {}): MutableDaemonConfig {
+function makeConfig(
+  providers: MutableDaemonConfig["providers"] = {},
+  metadataGeneration: MutableDaemonConfig["metadataGeneration"] = { providers: [] },
+): MutableDaemonConfig {
   return {
     mcp: { injectIntoAgents: false },
     providers,
-    metadataGeneration: { providers: [] },
+    metadataGeneration,
     autoArchiveAfterMerge: false,
     appendSystemPrompt: "",
   };
@@ -240,6 +288,7 @@ describe("ProvidersSection", () => {
     patchConfigMock.mockReset();
     patchConfigMock.mockResolvedValue(undefined);
     openProviderSettingsMock.mockReset();
+    sessionState.titleGenerationSettings = false;
   });
 
   afterEach(() => {
@@ -351,6 +400,97 @@ describe("ProvidersSection", () => {
     expect(patchConfigMock).toHaveBeenCalledTimes(1);
     expect(patchConfigMock).toHaveBeenCalledWith({
       providers: { claude: { enabled: false } },
+    });
+  });
+
+  it("hides generated title settings when the host does not support them", () => {
+    sessionState.titleGenerationSettings = false;
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    expect(container?.querySelector('[data-testid="generated-titles-card"]')).toBeNull();
+  });
+
+  it("toggles generated title creation through daemon config", async () => {
+    sessionState.titleGenerationSettings = true;
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig({}, {
+      providers: [],
+      agentTitle: {
+        enabled: true,
+        provider: "claude",
+        model: "claude-haiku-4-5",
+      },
+    } as MutableDaemonConfig["metadataGeneration"]);
+
+    render();
+
+    const switchEl = container?.querySelector<HTMLElement>(
+      '[data-testid="generated-titles-switch"]',
+    );
+    expect(switchEl?.getAttribute("aria-checked")).toBe("true");
+
+    await act(async () => {
+      switchEl?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      metadataGeneration: {
+        agentTitle: {
+          enabled: false,
+          provider: "claude",
+          model: "claude-haiku-4-5",
+        },
+      },
+    });
+  });
+
+  it("selects a title model and can return to automatic selection", async () => {
+    sessionState.titleGenerationSettings = true;
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    const selector = container?.querySelector<HTMLElement>(
+      '[data-testid="combined-model-selector"]',
+    );
+    expect(selector).not.toBeNull();
+
+    await act(async () => {
+      selector?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      metadataGeneration: {
+        agentTitle: {
+          enabled: true,
+          provider: "claude",
+          model: "claude-sonnet-4-6",
+        },
+      },
+    });
+
+    patchConfigMock.mockClear();
+    configState.config = makeConfig({}, {
+      providers: [],
+      agentTitle: { provider: "claude", model: "claude-sonnet-4-6" },
+    } as MutableDaemonConfig["metadataGeneration"]);
+    render();
+
+    const automatic = container?.querySelector<HTMLElement>(
+      '[data-testid="generated-titles-automatic-button"]',
+    );
+    expect(automatic).not.toBeNull();
+
+    await act(async () => {
+      automatic?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      metadataGeneration: { agentTitle: { enabled: true } },
     });
   });
 });

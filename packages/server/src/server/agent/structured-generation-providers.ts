@@ -6,13 +6,18 @@ import type {
 import type { StructuredGenerationProvider } from "./agent-response-loop.js";
 import type { ProviderSnapshotManager } from "./provider-snapshot-manager.js";
 
+export interface StructuredGenerationProviderCandidate {
+  provider: string;
+  model?: string;
+  thinkingOptionId?: string;
+}
+
 export interface StructuredGenerationDaemonConfig {
   metadataGeneration?: {
-    providers?: Array<{
-      provider: string;
-      model?: string;
-      thinkingOptionId?: string;
-    }>;
+    providers?: StructuredGenerationProviderCandidate[];
+    agentTitle?: Partial<StructuredGenerationProviderCandidate> & {
+      enabled?: boolean;
+    };
   };
 }
 
@@ -38,6 +43,7 @@ export interface ResolveStructuredGenerationProvidersOptions {
     model?: string | null;
     thinkingOptionId?: string | null;
   };
+  preferredProviders?: StructuredGenerationProviderCandidate[];
 }
 
 export async function resolveStructuredGenerationProviders(
@@ -51,6 +57,18 @@ export async function resolveStructuredGenerationProviders(
   const modelEntries = enabledEntries.filter((entry) => (entry.models?.length ?? 0) > 0);
   const entriesByProvider = new Map(enabledEntries.map((entry) => [entry.provider, entry]));
   const providers: StructuredGenerationProvider[] = [];
+
+  for (const configured of options.preferredProviders ?? []) {
+    const resolvedConfigured = resolveConfiguredCandidate(
+      configured,
+      modelEntries,
+      entriesByProvider,
+    );
+    if (!resolvedConfigured) {
+      continue;
+    }
+    providers.push(resolvedConfigured);
+  }
 
   for (const configured of readConfiguredProviders(options.daemonConfig)) {
     const resolvedConfigured = resolveConfiguredCandidate(
@@ -243,7 +261,7 @@ function resolveByModelSubstring(
 
 function readConfiguredProviders(
   daemonConfig: ResolveStructuredGenerationProvidersOptions["daemonConfig"],
-): Array<{ provider: string; model?: string; thinkingOptionId?: string }> {
+): StructuredGenerationProviderCandidate[] {
   const metadataGeneration = daemonConfig?.metadataGeneration;
   if (!metadataGeneration || typeof metadataGeneration !== "object") {
     return [];
