@@ -1,21 +1,36 @@
 import { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { settingsStyles } from "@/styles/settings";
-import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
-import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
-import { useDaemonConfig } from "@/hooks/use-daemon-config";
-import { buildProviderDefinitions } from "@/utils/provider-definitions";
-import { AddProviderModal } from "@/components/add-provider-modal";
+import type { AgentProvider } from "@bytetrue/protocol/agent-types";
+import type { MutableDaemonConfig, MutableDaemonConfigPatch } from "@bytetrue/protocol/messages";
+import { CombinedModelSelector } from "@/components/combined-model-selector";
 import { getProviderIcon } from "@/components/provider-icons";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Switch } from "@/components/ui/switch";
+import { useDaemonConfig } from "@/hooks/use-daemon-config";
+import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
+import {
+  buildSelectableProviderSelectorProviders,
+  resolveSelectedModelLabel,
+} from "@/provider-selection/provider-selection";
+import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { SettingsSection } from "@/screens/settings/settings-section";
 import { useProviderSettingsStore } from "@/stores/provider-settings-store";
+import { useSessionStore } from "@/stores/session-store";
+import { settingsStyles } from "@/styles/settings";
+import { buildProviderDefinitions } from "@/utils/provider-definitions";
+import { AddProviderModal } from "@/components/add-provider-modal";
 import { ChevronRight, Plus } from "lucide-react-native";
 
 type ProviderDefinition = ReturnType<typeof buildProviderDefinitions>[number];
 type ProviderEntry = NonNullable<ReturnType<typeof useProvidersSnapshot>["entries"]>[number];
+interface AgentTitleGenerationConfig {
+  enabled?: boolean;
+  provider?: string;
+  model?: string;
+  thinkingOptionId?: string;
+  [key: string]: unknown;
+}
 
 type StatusTone = "success" | "warning" | "danger" | "muted" | "loading";
 
@@ -172,6 +187,158 @@ function StatusIndicator({ status }: { status: ProviderStatus }) {
   );
 }
 
+interface GeneratedTitlesSectionProps {
+  serverId: string;
+  entries: ProviderEntry[] | undefined;
+  isLoading: boolean;
+  config: MutableDaemonConfig | null;
+  patchConfig: (patch: MutableDaemonConfigPatch) => Promise<MutableDaemonConfig | undefined>;
+  supportsTitleGenerationSettings: boolean;
+}
+
+function buildAgentTitleEnabledPatch(
+  config: AgentTitleGenerationConfig | undefined,
+  enabled: boolean,
+): AgentTitleGenerationConfig {
+  return {
+    enabled,
+    ...(config?.provider ? { provider: config.provider } : {}),
+    ...(config?.model ? { model: config.model } : {}),
+    ...(config?.thinkingOptionId ? { thinkingOptionId: config.thinkingOptionId } : {}),
+  };
+}
+
+function GeneratedTitlesSection({
+  serverId,
+  entries,
+  isLoading,
+  config,
+  patchConfig,
+  supportsTitleGenerationSettings,
+}: GeneratedTitlesSectionProps) {
+  const [isPending, setIsPending] = useState(false);
+  const providers = useMemo(() => buildSelectableProviderSelectorProviders(entries), [entries]);
+  const agentTitleConfig = config?.metadataGeneration?.agentTitle as
+    | AgentTitleGenerationConfig
+    | undefined;
+  const enabled = agentTitleConfig?.enabled !== false;
+  const selectedProvider = agentTitleConfig?.provider ?? "";
+  const selectedModel = agentTitleConfig?.model ?? "";
+  const selectedLabel = selectedProvider
+    ? resolveSelectedModelLabel({
+        providers,
+        selectedProvider,
+        selectedModel,
+        isLoading,
+      })
+    : "Automatic";
+
+  const patchAgentTitle = useCallback(
+    async (agentTitle: AgentTitleGenerationConfig) => {
+      setIsPending(true);
+      try {
+        await patchConfig({ metadataGeneration: { agentTitle } });
+      } catch (error) {
+        Alert.alert(
+          "Unable to update generated title settings",
+          error instanceof Error ? error.message : String(error),
+        );
+      } finally {
+        setIsPending(false);
+      }
+    },
+    [patchConfig],
+  );
+
+  const handleToggleEnabled = useCallback(
+    (nextEnabled: boolean) => {
+      void patchAgentTitle(buildAgentTitleEnabledPatch(agentTitleConfig, nextEnabled));
+    },
+    [agentTitleConfig, patchAgentTitle],
+  );
+
+  const handleSelectModel = useCallback(
+    (provider: AgentProvider, modelId: string) => {
+      void patchAgentTitle({
+        enabled: true,
+        provider,
+        ...(modelId ? { model: modelId } : {}),
+      });
+    },
+    [patchAgentTitle],
+  );
+
+  const handleUseAutomatic = useCallback(() => {
+    void patchAgentTitle({ enabled: true });
+  }, [patchAgentTitle]);
+
+  if (!supportsTitleGenerationSettings) {
+    return null;
+  }
+
+  return (
+    <SettingsSection
+      title="Generated titles"
+      testID="generated-titles-card"
+      style={styles.sectionSpacing}
+    >
+      <View style={settingsStyles.card}>
+        <View style={GENERATED_TITLE_ROW_STYLE}>
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>Generate agent titles</Text>
+            <Text style={settingsStyles.rowHint}>
+              Automatically replace prompt-derived provisional titles for agents without explicit
+              names.
+            </Text>
+          </View>
+          <Switch
+            value={enabled}
+            onValueChange={handleToggleEnabled}
+            disabled={isPending}
+            accessibilityLabel="Generate agent titles"
+            testID="generated-titles-switch"
+          />
+        </View>
+        {enabled ? (
+          <View style={GENERATED_TITLE_MODEL_ROW_STYLE}>
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowTitle}>Title model</Text>
+              <Text style={settingsStyles.rowHint}>
+                {selectedProvider
+                  ? `${selectedLabel} is tried first, then Paseo falls back automatically.`
+                  : "Automatic uses the existing metadata generation fallback order."}
+              </Text>
+            </View>
+            <View style={styles.titleModelActions}>
+              {selectedProvider ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Use automatic title model selection"
+                  testID="generated-titles-automatic-button"
+                  disabled={isPending}
+                  onPress={handleUseAutomatic}
+                  style={styles.automaticButton}
+                >
+                  <Text style={styles.automaticButtonText}>Automatic</Text>
+                </Pressable>
+              ) : null}
+              <CombinedModelSelector
+                serverId={serverId}
+                providers={providers}
+                selectedProvider={selectedProvider}
+                selectedModel={selectedModel}
+                onSelect={handleSelectModel}
+                isLoading={isLoading}
+                disabled={isPending}
+              />
+            </View>
+          </View>
+        ) : null}
+      </View>
+    </SettingsSection>
+  );
+}
+
 export interface ProvidersSectionProps {
   serverId: string;
 }
@@ -180,7 +347,13 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   const { theme } = useUnistyles();
   const isConnected = useHostRuntimeIsConnected(serverId);
   const { entries, isLoading } = useProvidersSnapshot(serverId);
-  const { patchConfig } = useDaemonConfig(serverId);
+  const { config, patchConfig } = useDaemonConfig(serverId);
+  const supportsTitleGenerationSettings = useSessionStore((state) => {
+    const features = state.sessions[serverId]?.serverInfo?.features as
+      | Record<string, unknown>
+      | undefined;
+    return features?.titleGenerationSettings === true;
+  });
   const openProviderSettings = useProviderSettingsStore((state) => state.open);
   const [isAddProviderOpen, setIsAddProviderOpen] = useState(false);
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
@@ -241,6 +414,17 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
 
   return (
     <>
+      {hasServer && isConnected ? (
+        <GeneratedTitlesSection
+          serverId={serverId}
+          entries={entries}
+          isLoading={isLoading}
+          config={config}
+          patchConfig={patchConfig}
+          supportsTitleGenerationSettings={supportsTitleGenerationSettings}
+        />
+      ) : null}
+
       <SettingsSection
         title="Providers"
         trailing={headerActions}
@@ -351,6 +535,27 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.xs,
     marginTop: theme.spacing[1],
   },
+  generatedTitleRow: {
+    minHeight: 64,
+  },
+  titleModelActions: {
+    alignItems: "flex-end",
+    gap: theme.spacing[2],
+  },
+  automaticButton: {
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[2],
+  },
+  automaticButtonText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.xs,
+  },
 }));
 
 const EMPTY_CARD_STYLE = [settingsStyles.card, styles.emptyCard];
+const GENERATED_TITLE_ROW_STYLE = [settingsStyles.row, styles.generatedTitleRow];
+const GENERATED_TITLE_MODEL_ROW_STYLE = [
+  settingsStyles.row,
+  settingsStyles.rowBorder,
+  styles.generatedTitleRow,
+];

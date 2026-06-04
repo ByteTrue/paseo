@@ -110,9 +110,19 @@ const MutableStructuredGenerationProviderSchema = z
   })
   .passthrough();
 
+const MutableAgentTitleGenerationConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    provider: z.string().min(1).optional(),
+    model: z.string().min(1).optional(),
+    thinkingOptionId: z.string().min(1).optional(),
+  })
+  .passthrough();
+
 const MutableMetadataGenerationConfigSchema = z
   .object({
     providers: z.array(MutableStructuredGenerationProviderSchema).default([]),
+    agentTitle: MutableAgentTitleGenerationConfigSchema.optional(),
   })
   .passthrough();
 
@@ -2186,6 +2196,8 @@ export const ServerInfoStatusPayloadSchema = z
         checkoutRefresh: z.boolean().optional(),
         // COMPAT(daemonClientAuthorization): added in v0.1.87, remove gate after 2026-12-04.
         daemonClientAuthorization: z.boolean().optional(),
+        // COMPAT(titleGenerationSettings): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        titleGenerationSettings: z.boolean().optional(),
       })
       .optional(),
   })

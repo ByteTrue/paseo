@@ -199,4 +199,51 @@ describe("resolveStructuredGenerationProviders", () => {
       { provider: "current-provider", model: "selected-model", thinkingOptionId: "medium" },
     ]);
   });
+
+  test("tries preferred providers before global metadata generation providers", async () => {
+    const providers = await resolveStructuredGenerationProviders({
+      cwd: "/tmp/repo",
+      providerSnapshotManager: {
+        listProviders: vi.fn(async () => [
+          {
+            provider: "title-provider",
+            status: READY,
+            enabled: true,
+            models: [
+              {
+                provider: "title-provider",
+                id: "title-model",
+                label: "Title Model",
+                isDefault: true,
+              },
+            ],
+          },
+          {
+            provider: "global-provider",
+            status: READY,
+            enabled: true,
+            models: [
+              {
+                provider: "global-provider",
+                id: "global-model",
+                label: "Global Model",
+                isDefault: true,
+              },
+            ],
+          },
+        ]),
+      },
+      preferredProviders: [{ provider: "title-provider", model: "title-model" }],
+      daemonConfig: {
+        metadataGeneration: {
+          providers: [{ provider: "global-provider", model: "global-model" }],
+        },
+      },
+    });
+
+    expect(providers.slice(0, 2)).toEqual([
+      { provider: "title-provider", model: "title-model" },
+      { provider: "global-provider", model: "global-model" },
+    ]);
+  });
 });

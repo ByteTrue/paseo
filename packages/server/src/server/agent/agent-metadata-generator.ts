@@ -10,6 +10,7 @@ import {
 import {
   resolveStructuredGenerationProviders,
   type StructuredGenerationDaemonConfig,
+  type StructuredGenerationProviderCandidate,
 } from "./structured-generation-providers.js";
 import { MAX_AUTO_AGENT_TITLE_CHARS } from "@bytetrue/protocol/agent-title-limits";
 import { buildMetadataPrompt } from "../../utils/build-metadata-prompt.js";
@@ -43,6 +44,10 @@ interface AgentMetadataNeeds {
   prompt: string | null;
   needsTitle: boolean;
 }
+
+type AgentTitleGenerationConfig = NonNullable<
+  NonNullable<StructuredGenerationDaemonConfig["metadataGeneration"]>["agentTitle"]
+>;
 
 function hasExplicitTitle(title?: string | null): boolean {
   return Boolean(title && title.trim().length > 0);
@@ -111,6 +116,24 @@ async function buildPrompt(
   });
 }
 
+function buildAgentTitlePreferredProviders(
+  agentTitleConfig: AgentTitleGenerationConfig | undefined,
+): StructuredGenerationProviderCandidate[] | undefined {
+  if (!agentTitleConfig?.provider) {
+    return undefined;
+  }
+
+  return [
+    {
+      provider: agentTitleConfig.provider,
+      ...(agentTitleConfig.model ? { model: agentTitleConfig.model } : {}),
+      ...(agentTitleConfig.thinkingOptionId
+        ? { thinkingOptionId: agentTitleConfig.thinkingOptionId }
+        : {}),
+    },
+  ];
+}
+
 export async function generateAndApplyAgentMetadata(
   options: AgentMetadataGenerationOptions,
 ): Promise<void> {
@@ -121,6 +144,11 @@ export async function generateAndApplyAgentMetadata(
 
   const schema = buildMetadataSchema(needs);
   if (!schema) {
+    return;
+  }
+
+  const agentTitleConfig = options.daemonConfig?.metadataGeneration?.agentTitle;
+  if (needs.needsTitle && agentTitleConfig?.enabled === false) {
     return;
   }
 
@@ -137,6 +165,7 @@ export async function generateAndApplyAgentMetadata(
           providerSnapshotManager: options.providerSnapshotManager,
           daemonConfig: options.daemonConfig,
           currentSelection: options.currentSelection,
+          preferredProviders: buildAgentTitlePreferredProviders(agentTitleConfig),
         })
       : [];
     result = await generator({

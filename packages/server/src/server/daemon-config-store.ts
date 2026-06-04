@@ -34,6 +34,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function deepMerge<T extends Record<string, unknown>>(
   current: T,
   patch: Record<string, unknown>,
+  path: readonly string[] = [],
 ): T {
   const next: Record<string, unknown> = { ...current };
 
@@ -42,8 +43,10 @@ function deepMerge<T extends Record<string, unknown>>(
       continue;
     }
     const currentValue = next[key];
-    if (isRecord(currentValue) && isRecord(patchValue)) {
-      next[key] = deepMerge(currentValue, patchValue);
+    const nextPath = [...path, key];
+    const shouldReplaceObject = nextPath.join(".") === "metadataGeneration.agentTitle";
+    if (isRecord(currentValue) && isRecord(patchValue) && !shouldReplaceObject) {
+      next[key] = deepMerge(currentValue, patchValue, nextPath);
       continue;
     }
     next[key] = patchValue;
@@ -172,31 +175,28 @@ function mergeMutableConfigIntoPersistedConfig(params: {
   mutable: MutableDaemonConfig;
 }): PersistedConfig {
   const { persisted, mutable } = params;
-  const metadataGenerationProviders = readMetadataGenerationProviders(mutable);
+  const metadataGeneration = readMetadataGenerationConfig(mutable);
   const providerOverrides = applyMutableProviderConfigToOverrides(
     persisted.agents?.providers as Record<string, ProviderOverride> | undefined,
     mutable.providers,
   );
   const persistedAgents = persisted.agents as Record<string, unknown> | undefined;
-  const persistedMetadataGeneration = {
-    providers: metadataGenerationProviders,
-  };
   const shouldPersistMetadataGeneration =
-    metadataGenerationProviders.length > 0 || persisted.agents?.metadataGeneration !== undefined;
+    metadataGeneration.providers.length > 0 ||
+    metadataGeneration.agentTitle !== undefined ||
+    persisted.agents?.metadataGeneration !== undefined;
 
   let nextAgents = persisted.agents as PersistedConfig["agents"];
   if (providerOverrides && Object.keys(providerOverrides).length > 0) {
     nextAgents = {
       ...persistedAgents,
       providers: providerOverrides,
-      ...(shouldPersistMetadataGeneration
-        ? { metadataGeneration: persistedMetadataGeneration }
-        : {}),
+      ...(shouldPersistMetadataGeneration ? { metadataGeneration } : {}),
     } as PersistedConfig["agents"];
   } else if (shouldPersistMetadataGeneration) {
     nextAgents = {
       ...persistedAgents,
-      metadataGeneration: persistedMetadataGeneration,
+      metadataGeneration,
     } as PersistedConfig["agents"];
   }
 
@@ -215,13 +215,31 @@ function mergeMutableConfigIntoPersistedConfig(params: {
   } as PersistedConfig;
 }
 
-function readMetadataGenerationProviders(
-  mutable: MutableDaemonConfig,
-): Array<{ provider: string; model?: string; thinkingOptionId?: string }> {
+function readMetadataGenerationConfig(mutable: MutableDaemonConfig): {
+  providers: Array<{ provider: string; model?: string; thinkingOptionId?: string }>;
+  agentTitle?: {
+    enabled?: boolean;
+    provider?: string;
+    model?: string;
+    thinkingOptionId?: string;
+  };
+} {
   const metadataGeneration = mutable.metadataGeneration;
   if (!isRecord(metadataGeneration)) {
-    return [];
+    return { providers: [] };
   }
+
+  const providers = readMetadataGenerationProviders(metadataGeneration);
+  const agentTitle = readAgentTitleMetadataGenerationConfig(metadataGeneration);
+  return {
+    providers,
+    ...(agentTitle ? { agentTitle } : {}),
+  };
+}
+
+function readMetadataGenerationProviders(
+  metadataGeneration: Record<string, unknown>,
+): Array<{ provider: string; model?: string; thinkingOptionId?: string }> {
   const providers = metadataGeneration["providers"];
   if (!Array.isArray(providers)) {
     return [];
@@ -240,4 +258,21 @@ function readMetadataGenerationProviders(
       },
     ];
   });
+}
+
+function readAgentTitleMetadataGenerationConfig(
+  metadataGeneration: Record<string, unknown>,
+): { enabled?: boolean; provider?: string; model?: string; thinkingOptionId?: string } | undefined {
+  const agentTitle = metadataGeneration["agentTitle"];
+  if (!isRecord(agentTitle)) {
+    return undefined;
+  }
+  return {
+    ...(typeof agentTitle["enabled"] === "boolean" ? { enabled: agentTitle["enabled"] } : {}),
+    ...(typeof agentTitle["provider"] === "string" ? { provider: agentTitle["provider"] } : {}),
+    ...(typeof agentTitle["model"] === "string" ? { model: agentTitle["model"] } : {}),
+    ...(typeof agentTitle["thinkingOptionId"] === "string"
+      ? { thinkingOptionId: agentTitle["thinkingOptionId"] }
+      : {}),
+  };
 }

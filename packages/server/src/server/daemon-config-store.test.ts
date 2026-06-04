@@ -278,6 +278,78 @@ describe("DaemonConfigStore", () => {
     expect(persisted.agents?.metadataGeneration).toEqual({ providers: [] });
   });
 
+  test("patch persists generated title settings into config.json", () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+    tempDirs.push(paseoHome);
+
+    const store = new DaemonConfigStore(
+      paseoHome,
+      {
+        mcp: { injectIntoAgents: false },
+        providers: {},
+        metadataGeneration: { providers: [] },
+        autoArchiveAfterMerge: false,
+        appendSystemPrompt: "",
+      },
+      undefined,
+    );
+
+    store.patch({
+      metadataGeneration: {
+        agentTitle: {
+          enabled: true,
+          provider: "claude",
+          model: "claude-haiku",
+          thinkingOptionId: "low",
+        },
+      },
+    });
+
+    const persisted = loadPersistedConfig(paseoHome);
+    expect(persisted.agents?.metadataGeneration).toEqual({
+      providers: [],
+      agentTitle: {
+        enabled: true,
+        provider: "claude",
+        model: "claude-haiku",
+        thinkingOptionId: "low",
+      },
+    });
+  });
+
+  test("patch replaces generated title settings when returning to automatic", () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+    tempDirs.push(paseoHome);
+
+    const store = new DaemonConfigStore(
+      paseoHome,
+      {
+        mcp: { injectIntoAgents: false },
+        providers: {},
+        metadataGeneration: {
+          providers: [],
+          agentTitle: {
+            enabled: true,
+            provider: "claude",
+            model: "claude-haiku",
+          },
+        },
+        autoArchiveAfterMerge: false,
+        appendSystemPrompt: "",
+      },
+      undefined,
+    );
+
+    store.patch({ metadataGeneration: { agentTitle: { enabled: true } } });
+
+    expect(store.get().metadataGeneration.agentTitle).toEqual({ enabled: true });
+    const persisted = loadPersistedConfig(paseoHome);
+    expect(persisted.agents?.metadataGeneration).toEqual({
+      providers: [],
+      agentTitle: { enabled: true },
+    });
+  });
+
   test("patch persists custom ACP provider overrides into config.json", () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);

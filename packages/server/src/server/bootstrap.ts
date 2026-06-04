@@ -178,8 +178,8 @@ function summarizeAgentMcpDebugMessage(body: unknown): Record<string, unknown> {
     type: "object",
     ...(typeof record.jsonrpc === "string" ? { jsonrpc: record.jsonrpc } : {}),
     ...(method ? { method } : {}),
-    hasId: Object.prototype.hasOwnProperty.call(record, "id"),
-    hasParams: Object.prototype.hasOwnProperty.call(record, "params"),
+    hasId: Object.hasOwn(record, "id"),
+    hasParams: Object.hasOwn(record, "params"),
   };
 }
 
@@ -265,6 +265,12 @@ export interface PaseoDaemonConfig {
       model?: string;
       thinkingOptionId?: string;
     }>;
+    agentTitle?: {
+      enabled?: boolean;
+      provider?: string;
+      model?: string;
+      thinkingOptionId?: string;
+    };
   };
   providerOverrides?: Record<string, ProviderOverride>;
   log?: PersistedConfig["log"];
@@ -307,6 +313,9 @@ export async function createPaseoDaemon(
       ),
       metadataGeneration: {
         providers: config.metadataGeneration?.providers ?? [],
+        ...(config.metadataGeneration?.agentTitle
+          ? { agentTitle: config.metadataGeneration.agentTitle }
+          : {}),
       },
       autoArchiveAfterMerge: config.autoArchiveAfterMerge ?? false,
       appendSystemPrompt: config.appendSystemPrompt ?? "",

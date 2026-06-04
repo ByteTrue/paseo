@@ -84,6 +84,32 @@ describe("agent metadata generator auto-title", () => {
     expect(setGeneratedTitle).not.toHaveBeenCalled();
   });
 
+  it("keeps the provisional title by skipping generation when host title generation is disabled", async () => {
+    const setGeneratedTitle = vi.fn().mockResolvedValue(undefined);
+    const manager = { setGeneratedTitle } as unknown as AgentManager;
+    const generateStructured = vi.fn().mockResolvedValue({ title: "Generated" }) as NonNullable<
+      AgentMetadataGeneratorDeps["generateStructuredAgentResponseWithFallback"]
+    >;
+
+    await generateAndApplyAgentMetadata({
+      agentManager: manager,
+      agentId: "agent-title-disabled",
+      cwd: "/tmp/repo",
+      initialPrompt: "Implement this feature",
+      explicitTitle: null,
+      daemonConfig: {
+        metadataGeneration: {
+          agentTitle: { enabled: false },
+        },
+      },
+      logger,
+      deps: createDeps(generateStructured),
+    });
+
+    expect(generateStructured).not.toHaveBeenCalled();
+    expect(setGeneratedTitle).not.toHaveBeenCalled();
+  });
+
   it("generates titles independently from workspace branch naming", async () => {
     const setGeneratedTitle = vi.fn().mockResolvedValue(undefined);
     const manager = { setGeneratedTitle } as unknown as AgentManager;
@@ -175,9 +201,7 @@ async function generateTitlePromptWithConfig(config: unknown): Promise<{ prompt:
 
   const setGeneratedTitle = vi.fn().mockResolvedValue(undefined);
   const manager = { setGeneratedTitle } as unknown as AgentManager;
-  const generateStructured = vi.fn().mockResolvedValue({ title: "Generated title" }) as NonNullable<
-    AgentMetadataGeneratorDeps["generateStructuredAgentResponseWithFallback"]
-  >;
+  const generateStructured = vi.fn().mockResolvedValue({ title: "Generated title" });
 
   await generateAndApplyAgentMetadata({
     agentManager: manager,
@@ -189,7 +213,11 @@ async function generateTitlePromptWithConfig(config: unknown): Promise<{ prompt:
     initialPrompt: "Implement this feature",
     explicitTitle: null,
     logger,
-    deps: createDeps(generateStructured),
+    deps: createDeps(
+      generateStructured as NonNullable<
+        AgentMetadataGeneratorDeps["generateStructuredAgentResponseWithFallback"]
+      >,
+    ),
   });
 
   return {

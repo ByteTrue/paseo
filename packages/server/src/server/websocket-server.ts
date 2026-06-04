@@ -1649,6 +1649,8 @@ export class VoiceAssistantWebSocketServer {
         checkoutRefresh: true,
         // COMPAT(daemonClientAuthorization): added in v0.1.87, remove gate after 2026-12-04.
         daemonClientAuthorization: true,
+        // COMPAT(titleGenerationSettings): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        titleGenerationSettings: true,
       },
     };
   }

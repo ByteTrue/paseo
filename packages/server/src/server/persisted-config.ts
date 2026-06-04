@@ -145,9 +145,19 @@ const StructuredGenerationProviderConfigSchema = z
   })
   .strict();
 
+const AgentTitleMetadataGenerationSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    provider: z.string().min(1).optional(),
+    model: z.string().min(1).optional(),
+    thinkingOptionId: z.string().min(1).optional(),
+  })
+  .strict();
+
 const AgentMetadataGenerationSchema = z
   .object({
     providers: z.array(StructuredGenerationProviderConfigSchema).optional(),
+    agentTitle: AgentTitleMetadataGenerationSchema.optional(),
   })
   .strict();
 
