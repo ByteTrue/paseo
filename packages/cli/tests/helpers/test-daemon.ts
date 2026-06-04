@@ -16,7 +16,7 @@ import { mkdtemp, rm, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { ChildProcess, spawn } from "child_process";
+import { type ChildProcess, spawn } from "child_process";
 import { getAvailablePort } from "./network.ts";
 
 export interface TestDaemonContext {
@@ -115,15 +115,15 @@ function signalProcessTree(pid: number, signal: NodeJS.Signals): boolean {
 }
 
 async function terminateProcessTree(processRef: ChildProcess, timeoutMs: number): Promise<void> {
-  const pid = processRef.pid;
-  if (!Number.isInteger(pid) || pid <= 0) {
+  const processId = processRef.pid;
+  if (typeof processId !== "number" || processId <= 0) {
     return;
   }
   if (processRef.exitCode !== null || processRef.signalCode !== null) {
     return;
   }
 
-  signalProcessTree(pid, "SIGTERM");
+  signalProcessTree(processId, "SIGTERM");
 
   await new Promise<void>((resolve) => {
     const done = () => resolve();
@@ -132,7 +132,7 @@ async function terminateProcessTree(processRef: ChildProcess, timeoutMs: number)
       done();
     };
     const timeoutId = setTimeout(() => {
-      signalProcessTree(pid, "SIGKILL");
+      signalProcessTree(processId, "SIGKILL");
       processRef.removeListener("exit", onExit);
       done();
     }, timeoutMs);
@@ -401,6 +401,8 @@ export async function runPaseoCli(
 export async function createE2ETestContext(options?: {
   timeout?: number;
   env?: NodeJS.ProcessEnv;
+  paseoHome?: string;
+  workDir?: string;
 }): Promise<
   TestDaemonContext & {
     /** Run a paseo CLI command against this daemon */
@@ -414,7 +416,12 @@ export async function createE2ETestContext(options?: {
     }>;
   }
 > {
-  const ctx = await startTestDaemon({ timeout: options?.timeout, env: options?.env });
+  const ctx = await startTestDaemon({
+    timeout: options?.timeout,
+    env: options?.env,
+    paseoHome: options?.paseoHome,
+    workDir: options?.workDir,
+  });
 
   const paseo = (
     args: string[],

@@ -62,11 +62,7 @@ function hostConnectionEquals(left: HostConnection, right: HostConnection): bool
   }
 
   if (left.type === "directTcp" && right.type === "directTcp") {
-    return (
-      left.endpoint === right.endpoint &&
-      (left.useTls ?? false) === (right.useTls ?? false) &&
-      left.password === right.password
-    );
+    return left.endpoint === right.endpoint && (left.useTls ?? false) === (right.useTls ?? false);
   }
   if (left.type === "directSocket" && right.type === "directSocket") {
     return left.path === right.path;
@@ -259,7 +255,6 @@ function normalizeStoredConnection(connection: unknown): HostConnection | null {
         type: "directTcp",
         endpoint,
         useTls: record.useTls,
-        ...(typeof record.password === "string" ? { password: record.password } : {}),
       });
     } catch {
       return null;

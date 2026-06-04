@@ -93,8 +93,11 @@ import type {
   WorkspaceGitSnapshotOptions,
 } from "./workspace-git-service.js";
 
-import { AgentManager } from "./agent/agent-manager.js";
-import { ProviderSnapshotManager, resolveSnapshotCwd } from "./agent/provider-snapshot-manager.js";
+import type { AgentManager } from "./agent/agent-manager.js";
+import {
+  type ProviderSnapshotManager,
+  resolveSnapshotCwd,
+} from "./agent/provider-snapshot-manager.js";
 import type {
   AgentManagerEvent,
   AgentTimelineCursor,
@@ -182,8 +185,8 @@ import {
   readExplorerFileBytes,
   getDownloadableFileInfo,
 } from "./file-explorer/service.js";
-import { DownloadTokenStore } from "./file-download/token-store.js";
-import { PushTokenStore } from "./push/token-store.js";
+import type { DownloadTokenStore } from "./file-download/token-store.js";
+import type { PushTokenStore } from "./push/token-store.js";
 import {
   readPaseoConfigForEdit,
   writePaseoConfigForEdit,
@@ -209,7 +212,7 @@ import { getProjectIcon } from "../utils/project-icon.js";
 import { expandTilde } from "../utils/path.js";
 import { searchHomeDirectories, searchWorkspaceEntries } from "../utils/directory-suggestions.js";
 import { toCheckoutError } from "./checkout-git-utils.js";
-import { CheckoutDiffManager } from "./checkout-diff-manager.js";
+import type { CheckoutDiffManager } from "./checkout-diff-manager.js";
 import {
   buildCheckoutPrStatusPayloadFromSnapshot,
   buildCheckoutStatusPayloadFromSnapshot,
@@ -218,14 +221,15 @@ import type { LocalSpeechModelId } from "./speech/providers/local/models.js";
 import { toResolver, type Resolvable } from "./speech/provider-resolver.js";
 import type { SpeechReadinessSnapshot, SpeechReadinessState } from "./speech/speech-runtime.js";
 import type pino from "pino";
+import type { AuthorizedClientSummary } from "./authorized-client-store.js";
 import {
   ChatServiceError,
-  FileBackedChatService,
+  type FileBackedChatService,
   parseMentionAgentIds,
 } from "./chat/chat-service.js";
 import { notifyChatMentions, prepareChatMentionFanout } from "./chat/chat-mentions.js";
-import { LoopService } from "./loop-service.js";
-import { ScheduleService } from "./schedule/service.js";
+import type { LoopService } from "./loop-service.js";
+import type { ScheduleService } from "./schedule/service.js";
 import { execCommand } from "../utils/spawn.js";
 import {
   assertPullRequestAutoMergeDisableReady,
@@ -558,6 +562,33 @@ interface VoiceTranscriptionResultPayload {
   debugRecordingPath?: string;
 }
 
+export interface SessionAuthAdministration {
+  listClients(): { clients: AuthorizedClientSummary[]; passwordConfigured: boolean };
+  revokeClient(input: { clientId: string; adminPassword: string }): Promise<
+    | { ok: true; revokedClientId: string }
+    | {
+        ok: false;
+        code:
+          | "incorrect_password"
+          | "not_found"
+          | "password_not_configured"
+          | "rate_limited"
+          | "transport_not_allowed";
+        error: string;
+        retryAfterMs?: number;
+      }
+  >;
+  changePassword(input: { currentPassword?: string; newPassword: string }): Promise<
+    | { ok: true; revokedClientCount: number }
+    | {
+        ok: false;
+        code: "incorrect_password" | "transport_not_allowed" | "rate_limited";
+        error: string;
+        retryAfterMs?: number;
+      }
+  >;
+}
+
 export interface SessionOptions {
   clientId: string;
   appVersion?: string | null;
@@ -583,6 +614,7 @@ export interface SessionOptions {
   workspaceGitService: WorkspaceGitService;
   daemonConfigStore: DaemonConfigStore;
   mcpBaseUrl?: string | null;
+  authAdministration?: SessionAuthAdministration;
   stt: Resolvable<SpeechToTextProvider | null>;
   sttLanguage?: string;
   tts: Resolvable<TextToSpeechProvider | null>;
@@ -788,6 +820,7 @@ export class Session {
   private readonly github: GitHubService;
   private readonly workspaceGitService: WorkspaceGitService;
   private readonly daemonConfigStore: DaemonConfigStore;
+  private readonly authAdministration: SessionAuthAdministration | null;
   private readonly mcpBaseUrl: string | null;
   private readonly downloadTokenStore: DownloadTokenStore;
   private readonly pushTokenStore: PushTokenStore;
@@ -896,6 +929,7 @@ export class Session {
       serverId,
       daemonVersion,
       daemonRuntimeConfig,
+      authAdministration,
     } = options;
     this.clientId = clientId;
     this.appVersion = appVersion ?? null;
@@ -924,6 +958,7 @@ export class Session {
     this.github = github ?? createGitHubService();
     this.workspaceGitService = workspaceGitService;
     this.daemonConfigStore = daemonConfigStore;
+    this.authAdministration = authAdministration ?? null;
     this.mcpBaseUrl = mcpBaseUrl ?? null;
     this.terminalManager = terminalManager;
     this.terminalController = new TerminalSessionController({
@@ -1923,6 +1958,13 @@ export class Session {
         return this.handleDaemonGetStatusRequest(msg);
       case "daemon.get_pairing_offer.request":
         return this.handleDaemonGetPairingOfferRequest(msg);
+      case "daemon.auth.list_clients.request":
+        this.handleDaemonAuthListClientsRequest(msg);
+        return undefined;
+      case "daemon.auth.revoke_client.request":
+        return this.handleDaemonAuthRevokeClientRequest(msg);
+      case "daemon.auth.change_password.request":
+        return this.handleDaemonAuthChangePasswordRequest(msg);
       case "set_daemon_config_request":
         this.emit({
           type: "set_daemon_config_response",
@@ -1939,6 +1981,63 @@ export class Session {
       default:
         return undefined;
     }
+  }
+
+  private handleDaemonAuthListClientsRequest(
+    msg: Extract<SessionInboundMessage, { type: "daemon.auth.list_clients.request" }>,
+  ): void {
+    const result = this.authAdministration?.listClients() ?? {
+      clients: [],
+      passwordConfigured: false,
+    };
+    this.emit({
+      type: "daemon.auth.list_clients.response",
+      payload: {
+        requestId: msg.requestId,
+        clients: result.clients,
+        passwordConfigured: result.passwordConfigured,
+      },
+    });
+  }
+
+  private async handleDaemonAuthRevokeClientRequest(
+    msg: Extract<SessionInboundMessage, { type: "daemon.auth.revoke_client.request" }>,
+  ): Promise<void> {
+    const result = await this.authAdministration?.revokeClient({
+      clientId: msg.clientId,
+      adminPassword: msg.adminPassword,
+    });
+    this.emit({
+      type: "daemon.auth.revoke_client.response",
+      payload: {
+        requestId: msg.requestId,
+        ...(result ?? {
+          ok: false,
+          code: "password_not_configured" as const,
+          error: "Daemon auth administration is unavailable",
+        }),
+      },
+    });
+  }
+
+  private async handleDaemonAuthChangePasswordRequest(
+    msg: Extract<SessionInboundMessage, { type: "daemon.auth.change_password.request" }>,
+  ): Promise<void> {
+    const result = await this.authAdministration?.changePassword({
+      currentPassword: msg.currentPassword,
+      newPassword: msg.newPassword,
+    });
+    this.emit({
+      type: "daemon.auth.change_password.response",
+      payload: {
+        requestId: msg.requestId,
+        ...(result ?? {
+          ok: false,
+          code: "transport_not_allowed" as const,
+          error: "Daemon auth administration is unavailable",
+        }),
+      },
+    });
   }
 
   private async handleReadProjectConfigRequest(
@@ -7798,11 +7897,11 @@ export class Session {
       : null;
 
     try {
-      let result = await this.agentManager.waitForAgentEvent(agentId, {
+      const result = await this.agentManager.waitForAgentEvent(agentId, {
         signal: abortController.signal,
         waitForActive: true,
       });
-      let final = await this.getAgentPayloadById(agentId);
+      const final = await this.getAgentPayloadById(agentId);
       if (!final) {
         throw new Error(`Agent ${agentId} disappeared while waiting`);
       }
@@ -7927,6 +8026,7 @@ export class Session {
     await this.voiceTurnController.appendClientChunk({
       audioBase64: msg.audio,
       format: chunkFormat,
+      isLast: msg.isLast,
     });
   }
 

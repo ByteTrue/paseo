@@ -16,6 +16,62 @@ async function createPaseoHome(config: unknown): Promise<string> {
   return paseoHome;
 }
 
+describe("daemon CORS config", () => {
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  });
+
+  test("allows the configured app base origin for direct browser connections", async () => {
+    const home = await createPaseoHome({
+      version: 1,
+      daemon: {
+        listen: "0.0.0.0:6767",
+      },
+      app: {
+        baseUrl: "https://paseo.zijieapi.de5.net/welcome",
+      },
+    });
+
+    expect(loadConfig(home, { env: {} }).corsAllowedOrigins).toContain(
+      "https://paseo.zijieapi.de5.net",
+    );
+  });
+
+  test("does not derive CORS origins from non-HTTP app base URLs", async () => {
+    const home = await createPaseoHome({
+      version: 1,
+      app: {
+        baseUrl: "paseo://app",
+      },
+    });
+
+    expect(loadConfig(home, { env: {} }).corsAllowedOrigins).toEqual([]);
+  });
+
+  test("keeps explicit CORS origins and env origins alongside the app base origin", async () => {
+    const home = await createPaseoHome({
+      version: 1,
+      daemon: {
+        cors: {
+          allowedOrigins: ["https://persisted.example.com"],
+        },
+      },
+      app: {
+        baseUrl: "https://app.example.com/path",
+      },
+    });
+
+    expect(
+      loadConfig(home, { env: { PASEO_CORS_ORIGINS: "https://env.example.com" } })
+        .corsAllowedOrigins,
+    ).toEqual([
+      "https://persisted.example.com",
+      "https://env.example.com",
+      "https://app.example.com",
+    ]);
+  });
+});
+
 describe("daemon relay config", () => {
   afterEach(async () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));

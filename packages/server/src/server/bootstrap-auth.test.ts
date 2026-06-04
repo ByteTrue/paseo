@@ -20,25 +20,6 @@ function connectWebSocket(params: {
   });
 }
 
-async function expectWebSocketCloses(params: {
-  port: number;
-  protocol?: string;
-  code: number;
-  reason: string;
-}): Promise<void> {
-  const { ws } = await connectWebSocket(params);
-  await expect(
-    new Promise<{ code: number; reason: string }>((resolve) => {
-      ws.once("close", (code, reason) => {
-        resolve({ code, reason: reason.toString() });
-      });
-    }),
-  ).resolves.toEqual({
-    code: params.code,
-    reason: params.reason,
-  });
-}
-
 describe("daemon bearer auth", () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -103,29 +84,21 @@ describe("daemon bearer auth", () => {
     }
   });
 
-  test("closes WebSocket connections with readable auth failures when password is configured", async () => {
+  test("accepts valid legacy WebSocket bearer subprotocols during the compatibility window", async () => {
     const daemonHandle = await createTestPaseoDaemon({
       auth: { password: CORRECT_PASSWORD_HASH },
     });
     try {
-      await expectWebSocketCloses({
-        port: daemonHandle.port,
-        code: 4401,
-        reason: "Password required",
-      });
-      await expectWebSocketCloses({
-        port: daemonHandle.port,
-        protocol: "paseo.bearer.wrong-password",
-        code: 4401,
-        reason: "Incorrect password",
-      });
-
-      const { ws, protocol } = await connectWebSocket({
+      const legacy = await connectWebSocket({
         port: daemonHandle.port,
         protocol: "paseo.bearer.correct-password",
       });
-      expect(protocol).toBe("paseo.bearer.correct-password");
-      ws.close();
+      expect(legacy.protocol).toBe("paseo.bearer.correct-password");
+      legacy.ws.close();
+
+      const local = await connectWebSocket({ port: daemonHandle.port });
+      expect(local.protocol).toBe("");
+      local.ws.close();
     } finally {
       await daemonHandle.close();
     }

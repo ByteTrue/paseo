@@ -5,9 +5,12 @@ import { useIsCompactFormFactor } from "@/constants/layout";
 import { Link } from "lucide-react-native";
 import type { HostProfile } from "@/types/host-connection";
 import { useHosts, useHostMutations } from "@/runtime/host-runtime";
-import { decodeOfferFragmentPayload, normalizeHostPort } from "@/utils/daemon-endpoints";
+import { normalizeHostPort } from "@/utils/daemon-endpoints";
 import { connectToDaemon } from "@/utils/test-daemon-connection";
-import { ConnectionOfferSchema } from "@bytetrue/protocol/connection-offer";
+import {
+  parseConnectionOfferBundleFromUrl,
+  parseConnectionOfferFromUrl,
+} from "@bytetrue/protocol/connection-offer";
 import { AdaptiveModalSheet, AdaptiveTextInput, type SheetHeader } from "./adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
 
@@ -62,7 +65,10 @@ export interface PairLinkModalProps {
 export function PairLinkModal({ visible, onClose, onCancel, onSaved }: PairLinkModalProps) {
   const { theme } = useUnistyles();
   const daemons = useHosts();
-  const { upsertConnectionFromOfferUrl: upsertDaemonFromOfferUrl } = useHostMutations();
+  const {
+    upsertConnectionFromOfferUrl: upsertDaemonFromOfferUrl,
+    upsertConnectionsFromOfferBundleUrl: upsertDaemonsFromOfferBundleUrl,
+  } = useHostMutations();
   const isMobile = useIsCompactFormFactor();
 
   const offerUrlRef = useRef("");
@@ -98,23 +104,21 @@ export function PairLinkModal({ visible, onClose, onCancel, onSaved }: PairLinkM
     if (isSaving) return;
     const raw = offerUrlRef.current.trim();
     if (!raw) {
-      setErrorMessage("Paste a pairing link (…/#offer=...)");
+      setErrorMessage("Paste a pairing link (…/#offer=... or …/#offers=...)");
       return;
     }
-    if (!raw.includes("#offer=")) {
-      setErrorMessage("Link must include #offer=...");
+    if (!raw.includes("#offer=") && !raw.includes("#offers=")) {
+      setErrorMessage("Link must include #offer= or #offers=...");
       return;
     }
 
-    const parsedOffer = (() => {
+    const parsedLink = (() => {
       try {
-        const idx = raw.indexOf("#offer=");
-        const encoded = raw.slice(idx + "#offer=".length).trim();
-        if (!encoded) {
-          throw new Error("Offer payload is empty");
-        }
-        const payload = decodeOfferFragmentPayload(encoded);
-        return ConnectionOfferSchema.parse(payload);
+        const bundle = parseConnectionOfferBundleFromUrl(raw);
+        if (bundle) return { kind: "bundle" as const, bundle };
+        const offer = parseConnectionOfferFromUrl(raw);
+        if (offer) return { kind: "offer" as const, offer };
+        throw new Error("Link must include #offer= or #offers=...");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Invalid pairing link";
         setErrorMessage(message);
@@ -125,7 +129,7 @@ export function PairLinkModal({ visible, onClose, onCancel, onSaved }: PairLinkM
       }
     })();
 
-    if (!parsedOffer) {
+    if (!parsedLink) {
       return;
     }
 
@@ -133,21 +137,37 @@ export function PairLinkModal({ visible, onClose, onCancel, onSaved }: PairLinkM
       setIsSaving(true);
       setErrorMessage("");
 
+      if (parsedLink.kind === "bundle") {
+        const existingServerIds = new Set(daemons.map((daemon) => daemon.serverId));
+        const profiles = await upsertDaemonsFromOfferBundleUrl(raw);
+        const firstProfile = profiles[0];
+        if (firstProfile) {
+          onSaved?.({
+            profile: firstProfile,
+            serverId: firstProfile.serverId,
+            hostname: null,
+            isNewHost: !existingServerIds.has(firstProfile.serverId),
+          });
+        }
+        handleClose();
+        return;
+      }
+
       const { client, hostname } = await connectToDaemon(
         {
           id: "probe",
           type: "relay",
-          relayEndpoint: normalizeHostPort(parsedOffer.relay.endpoint),
-          useTls: parsedOffer.relay.useTls,
-          daemonPublicKeyB64: parsedOffer.daemonPublicKeyB64,
+          relayEndpoint: normalizeHostPort(parsedLink.offer.relay.endpoint),
+          useTls: parsedLink.offer.relay.useTls,
+          daemonPublicKeyB64: parsedLink.offer.daemonPublicKeyB64,
         },
-        { serverId: parsedOffer.serverId },
+        { serverId: parsedLink.offer.serverId },
       );
       await client.close().catch(() => undefined);
 
-      const isNewHost = !daemons.some((daemon) => daemon.serverId === parsedOffer.serverId);
+      const isNewHost = !daemons.some((daemon) => daemon.serverId === parsedLink.offer.serverId);
       const profile = await upsertDaemonFromOfferUrl(raw, hostname ?? undefined);
-      onSaved?.({ profile, serverId: parsedOffer.serverId, hostname, isNewHost });
+      onSaved?.({ profile, serverId: parsedLink.offer.serverId, hostname, isNewHost });
       handleClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to pair host";
@@ -158,7 +178,15 @@ export function PairLinkModal({ visible, onClose, onCancel, onSaved }: PairLinkM
     } finally {
       setIsSaving(false);
     }
-  }, [daemons, handleClose, isMobile, isSaving, onSaved, upsertDaemonFromOfferUrl]);
+  }, [
+    daemons,
+    handleClose,
+    isMobile,
+    isSaving,
+    onSaved,
+    upsertDaemonFromOfferUrl,
+    upsertDaemonsFromOfferBundleUrl,
+  ]);
 
   const handleChangeOfferUrl = useCallback((next: string) => {
     offerUrlRef.current = next;
@@ -175,7 +203,7 @@ export function PairLinkModal({ visible, onClose, onCancel, onSaved }: PairLinkM
       onClose={handleClose}
       testID="pair-link-modal"
     >
-      <Text style={styles.helper}>Paste the pairing link from your server.</Text>
+      <Text style={styles.helper}>Paste a pairing link or pairing bundle.</Text>
 
       <View style={styles.field}>
         <Text style={styles.label}>Pairing link</Text>

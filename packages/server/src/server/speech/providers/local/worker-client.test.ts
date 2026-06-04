@@ -22,10 +22,14 @@ class FakeLocalSpeechWorker extends EventEmitter {
   public disconnects = 0;
   public kills = 0;
 
+  constructor(private readonly sendReturnValues: boolean[] = []) {
+    super();
+  }
+
   send(message: LocalSpeechWorkerRequest, callback: (error: Error | null) => void): boolean {
     this.sent.push(message);
     queueMicrotask(() => callback(null));
-    return true;
+    return this.sendReturnValues.shift() ?? true;
   }
 
   disconnect(): void {
@@ -54,7 +58,7 @@ class FakeLocalSpeechWorker extends EventEmitter {
   }
 }
 
-function createClient(options?: { idleTtlMs?: number }) {
+function createClient(options?: { idleTtlMs?: number; sendReturnValues?: boolean[] }) {
   const workers: FakeLocalSpeechWorker[] = [];
   const client = new LocalSpeechWorkerClient({
     config: {
@@ -66,7 +70,7 @@ function createClient(options?: { idleTtlMs?: number }) {
     requestTimeoutMs: 1000,
     idleTtlMs: options?.idleTtlMs ?? 1000,
     forkWorker: () => {
-      const worker = new FakeLocalSpeechWorker();
+      const worker = new FakeLocalSpeechWorker(options?.sendReturnValues?.slice());
       workers.push(worker);
       return worker;
     },
@@ -76,6 +80,19 @@ function createClient(options?: { idleTtlMs?: number }) {
 
 async function waitForMicrotasks(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+type CreateSessionRequest = Extract<LocalSpeechWorkerRequest, { type: "session.create" }>;
+
+function expectCreateSessionRequest(
+  request: LocalSpeechWorkerRequest,
+  kind: CreateSessionRequest["kind"],
+): CreateSessionRequest {
+  expect(request).toMatchObject({ type: "session.create", kind });
+  if (request.type !== "session.create") {
+    throw new Error("Expected session.create request");
+  }
+  return request;
 }
 
 describe("LocalSpeechWorkerClient", () => {
@@ -115,17 +132,39 @@ describe("LocalSpeechWorkerClient", () => {
     expect(Buffer.concat(chunks)).toEqual(Buffer.from([1, 2, 3, 4]));
   });
 
+  it("keeps requests pending when worker send reports IPC backpressure", async () => {
+    const { client, workers } = createClient({ sendReturnValues: [false] });
+    const provider = new WorkerBackedTextToSpeechProvider(client);
+
+    const pending = provider.synthesizeSpeech("hello");
+    expect(workers).toHaveLength(1);
+    const request = workers[0].sent[0];
+    await waitForMicrotasks();
+
+    workers[0].respond(request, {
+      audio: bufferToWorkerBytes(Buffer.from([5, 6])),
+      format: "pcm;rate=24000",
+    });
+
+    const result = await pending;
+    const chunks: Buffer[] = [];
+    for await (const chunk of result.stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    expect(result.format).toBe("pcm;rate=24000");
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from([5, 6]));
+  });
+
   it("forwards STT session audio and transcript events through IPC", async () => {
     const { client, workers } = createClient();
     const provider = new WorkerBackedSpeechToTextProvider(client, "voiceStt");
     const session = provider.createSession({ logger: pino({ level: "silent" }) });
 
-    const transcriptPromise = once(session as EventEmitter, "transcript");
-    const committedPromise = once(session as EventEmitter, "committed");
+    const transcriptPromise = once(session as unknown as EventEmitter, "transcript");
+    const committedPromise = once(session as unknown as EventEmitter, "committed");
 
     const connect = session.connect();
-    const createRequest = workers[0].sent[0];
-    expect(createRequest).toMatchObject({ type: "session.create", kind: "voiceStt" });
+    const createRequest = expectCreateSessionRequest(workers[0].sent[0], "voiceStt");
     workers[0].respond(createRequest, { requiredSampleRate: 16000 });
     await connect;
 
@@ -172,12 +211,11 @@ describe("LocalSpeechWorkerClient", () => {
     const { client, workers } = createClient();
     const provider = new WorkerBackedTurnDetectionProvider(client);
     const session = provider.createSession({ logger: pino({ level: "silent" }) });
-    const startedPromise = once(session as EventEmitter, "speech_started");
-    const stoppedPromise = once(session as EventEmitter, "speech_stopped");
+    const startedPromise = once(session as unknown as EventEmitter, "speech_started");
+    const stoppedPromise = once(session as unknown as EventEmitter, "speech_stopped");
 
     const connect = session.connect();
-    const createRequest = workers[0].sent[0];
-    expect(createRequest).toMatchObject({ type: "session.create", kind: "vad" });
+    const createRequest = expectCreateSessionRequest(workers[0].sent[0], "vad");
     workers[0].respond(createRequest, { requiredSampleRate: 16000 });
     await connect;
 

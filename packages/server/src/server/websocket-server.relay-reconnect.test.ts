@@ -18,6 +18,7 @@ import {
   TerminalStreamOpcode,
 } from "@bytetrue/protocol/terminal-stream-protocol";
 import { CLIENT_CAPS } from "@bytetrue/protocol/client-capabilities";
+import { generateDaemonAuthKeyPair, signDaemonAuthChallenge } from "@bytetrue/protocol/daemon-auth";
 
 type SocketListener = (...args: unknown[]) => void;
 
@@ -50,7 +51,10 @@ const sessionMock = vi.hoisted(() => {
     cleanup = vi.fn(async () => {});
     handleMessage = vi.fn(async () => {});
     handleBinaryFrame = vi.fn((_frame: unknown) => {});
-    supports = vi.fn((capability: string) => this.args.clientCapabilities?.[capability] === true);
+    supports = vi.fn((capability: string) => {
+      const capabilities = this.args.clientCapabilities as Record<string, boolean> | undefined;
+      return capabilities?.[capability] === true;
+    });
     getClientActivity = vi.fn(() => null);
     resetPeakInflight = vi.fn(() => {});
     getRuntimeMetrics = vi.fn(() => ({
@@ -108,6 +112,8 @@ interface WebSocketServerInternals {
 }
 
 const TEST_DAEMON_VERSION = "1.2.3-test";
+const CORRECT_PASSWORD = "correct-password";
+const CORRECT_PASSWORD_HASH = "$2b$12$OLxyuuP9uLK30Uzc4wQX0O6liuU/Q1t5P2b0Ebf36mULvpVK3DRZW";
 
 const WireEnvelopeSchema = z.object({
   type: z.string().optional(),
@@ -119,9 +125,33 @@ const WireEnvelopeSchema = z.object({
     .optional(),
 });
 
+const DaemonAuthChallengePayloadSchema = z.object({
+  serverId: z.string(),
+  challengeId: z.string(),
+  challengeB64: z.string(),
+});
+
+const relayAuthKeys = new Map<string, ReturnType<typeof generateDaemonAuthKeyPair>>();
+
+function getRelayAuthKey(clientId: string) {
+  let keyPair = relayAuthKeys.get(clientId);
+  if (!keyPair) {
+    keyPair = generateDaemonAuthKeyPair();
+    relayAuthKeys.set(clientId, keyPair);
+  }
+  return keyPair;
+}
+
 function parseSentEnvelope(data: unknown): z.infer<typeof WireEnvelopeSchema> {
   if (typeof data !== "string") throw new Error("Expected string frame");
   return WireEnvelopeSchema.parse(JSON.parse(data));
+}
+
+function getServerInfoEnvelopes(sent: unknown[]) {
+  return sent
+    .map(parseSentEnvelope)
+    .filter((envelope) => envelope.message?.type === "status")
+    .filter((envelope) => parseServerInfoStatusPayload(envelope.message?.payload) !== null);
 }
 
 const BinaryFrameSchema = z.object({
@@ -209,11 +239,11 @@ function createServer(options?: { speechReadiness?: SpeechReadinessSnapshot | nu
     }),
     createStub<AgentStorage>({}),
     createStub<DownloadTokenStore>({}),
-    "/tmp/paseo-test",
+    `/tmp/paseo-test-${Math.random().toString(16).slice(2)}`,
     createStub<DaemonConfigStore>(daemonConfigStore),
     null,
     { allowedOrigins: new Set() },
-    undefined,
+    { password: CORRECT_PASSWORD_HASH },
     speechReadiness
       ? {
           resolveStt: () => null,
@@ -371,10 +401,45 @@ async function attachRelayAndHello(params: {
   params.socket.emit("message", JSON.stringify(createHelloMessage(params.clientId)));
   await Promise.resolve();
   expect(params.socket.sent.length).toBeGreaterThan(0);
-  const envelope = parseSentEnvelope(params.socket.sent[0]);
-  expect(envelope.type).toBe("session");
-  const serverInfo = parseServerInfoStatusPayload(envelope.message?.payload);
-  expect(envelope.message?.type).toBe("status");
+  const challengeEnvelope = parseSentEnvelope(params.socket.sent[0]);
+  expect(challengeEnvelope.type).toBe("session");
+  expect(challengeEnvelope.message?.type).toBe("daemon.auth.challenge.response");
+  const challenge = DaemonAuthChallengePayloadSchema.parse(challengeEnvelope.message?.payload);
+  const keyPair = getRelayAuthKey(params.clientId);
+  const signatureB64 = signDaemonAuthChallenge({
+    serverId: challenge.serverId,
+    clientId: params.clientId,
+    clientPublicKeyB64: keyPair.publicKeyB64,
+    challengeId: challenge.challengeId,
+    challengeB64: challenge.challengeB64,
+    purpose: "enroll",
+    secretKeyB64: keyPair.secretKeyB64,
+  });
+  params.socket.emit(
+    "message",
+    JSON.stringify({
+      type: "session",
+      message: {
+        type: "daemon.auth.enroll.request",
+        requestId: `enroll-${params.clientId}`,
+        challengeId: challenge.challengeId,
+        clientPublicKeyB64: keyPair.publicKeyB64,
+        signatureB64,
+        adminPassword: CORRECT_PASSWORD,
+        clientName: "Vitest relay client",
+      },
+    }),
+  );
+  await vi.waitFor(() => {
+    const hasServerInfo = params.socket.sent
+      .map(parseSentEnvelope)
+      .some((envelope) => envelope.message?.type === "status");
+    expect(hasServerInfo).toBe(true);
+  });
+  const statusEnvelope = params.socket.sent
+    .map(parseSentEnvelope)
+    .find((envelope) => envelope.message?.type === "status");
+  const serverInfo = parseServerInfoStatusPayload(statusEnvelope?.message?.payload);
   expect(serverInfo).not.toBeNull();
   return serverInfo!;
 }
@@ -399,9 +464,30 @@ async function attachDirectAndHello(params: {
   return serverInfo!;
 }
 
+interface TestAuthAdministration {
+  listClients(): {
+    clients: Array<{ id: string; publicKeyB64: string }>;
+    passwordConfigured: boolean;
+  };
+  revokeClient(input: { clientId: string; adminPassword: string }): Promise<{
+    ok: boolean;
+    code?: string;
+    retryAfterMs?: number;
+  }>;
+  changePassword(input: {
+    currentPassword?: string | null;
+    newPassword: string;
+  }): Promise<{ ok: boolean; code?: string; retryAfterMs?: number; revokedClientCount?: number }>;
+}
+
+function getAuthAdministration(session: InstanceType<typeof sessionMock.MockSession>) {
+  return session.args.authAdministration as TestAuthAdministration;
+}
+
 describe("relay external socket reconnect behavior", () => {
   beforeEach(() => {
     sessionMock.instances.length = 0;
+    relayAuthKeys.clear();
     vi.useFakeTimers();
   });
 
@@ -590,7 +676,7 @@ describe("relay external socket reconnect behavior", () => {
     await server.close();
   });
 
-  test("reuses one session when switching from direct to relay with the same clientId", async () => {
+  test("keeps direct and authorized relay sessions isolated for the same clientId", async () => {
     const server = createServer();
     const clientId = "cid-switch-path";
 
@@ -601,7 +687,7 @@ describe("relay external socket reconnect behavior", () => {
       clientId,
     });
     expect(sessionMock.instances).toHaveLength(1);
-    const session = sessionMock.instances[0];
+    const directSession = sessionMock.instances[0];
 
     const relaySocket = new MockSocket();
     await attachRelayAndHello({
@@ -609,27 +695,32 @@ describe("relay external socket reconnect behavior", () => {
       socket: relaySocket,
       clientId,
     });
-    expect(sessionMock.instances).toHaveLength(1);
+    expect(sessionMock.instances).toHaveLength(2);
+    const relaySession = sessionMock.instances[1];
 
-    const { onMessage } = session.args;
-    expect(onMessage).toBeTypeOf("function");
-    if (typeof onMessage === "function") {
-      onMessage({
+    const directSentBefore = directSocket.sent.length;
+    const relaySentBefore = relaySocket.sent.length;
+    const directOnMessage = directSession.args.onMessage;
+    expect(directOnMessage).toBeTypeOf("function");
+    if (typeof directOnMessage === "function") {
+      directOnMessage({
         type: "status",
-        payload: { status: "ok" },
+        payload: { status: "direct-only" },
       });
     }
 
-    expect(directSocket.sent.length).toBeGreaterThan(0);
-    expect(relaySocket.sent.length).toBeGreaterThan(0);
+    expect(directSocket.sent).toHaveLength(directSentBefore + 1);
+    expect(relaySocket.sent).toHaveLength(relaySentBefore);
 
     directSocket.emit("close", 1006, "");
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(session.cleanup).not.toHaveBeenCalled();
+    expect(directSession.cleanup).not.toHaveBeenCalled();
+    expect(relaySession.cleanup).not.toHaveBeenCalled();
 
     relaySocket.emit("close", 1006, "");
     await vi.advanceTimersByTimeAsync(90_000);
-    expect(session.cleanup).toHaveBeenCalledTimes(1);
+    expect(directSession.cleanup).toHaveBeenCalledTimes(1);
+    expect(relaySession.cleanup).toHaveBeenCalledTimes(1);
 
     await server.close();
   });
@@ -650,6 +741,138 @@ describe("relay external socket reconnect behavior", () => {
     socket1.emit("close", 1006, "");
     await vi.advanceTimersByTimeAsync(90_000);
     expect(session.cleanup).toHaveBeenCalledTimes(1);
+
+    await server.close();
+  });
+
+  test("revoke disconnects the targeted authorized relay client", async () => {
+    const server = createServer();
+    const socket = new MockSocket();
+    await attachRelayAndHello({
+      server,
+      socket,
+      clientId: "cid-revoke",
+    });
+    expect(sessionMock.instances).toHaveLength(1);
+    const session = sessionMock.instances[0];
+    const authAdministration = getAuthAdministration(session);
+    const clients = authAdministration.listClients().clients;
+    expect(clients).toHaveLength(1);
+
+    const result = await authAdministration.revokeClient({
+      clientId: clients[0]!.id,
+      adminPassword: CORRECT_PASSWORD,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(socket.readyState).toBe(3);
+    expect(session.cleanup).toHaveBeenCalledTimes(1);
+
+    await server.close();
+  });
+
+  test("rate limits failed revoke administrator password attempts", async () => {
+    const server = createServer();
+    const socket = new MockSocket();
+    await attachRelayAndHello({
+      server,
+      socket,
+      clientId: "cid-revoke-rate-limit",
+    });
+    const session = sessionMock.instances[0];
+    const authAdministration = getAuthAdministration(session);
+    const clients = authAdministration.listClients().clients;
+    expect(clients).toHaveLength(1);
+
+    const first = await authAdministration.revokeClient({
+      clientId: clients[0]!.id,
+      adminPassword: "wrong-password",
+    });
+    expect(first).toMatchObject({
+      ok: false,
+      code: "incorrect_password",
+      retryAfterMs: expect.any(Number),
+    });
+
+    const second = await authAdministration.revokeClient({
+      clientId: clients[0]!.id,
+      adminPassword: "wrong-password",
+    });
+    expect(second).toMatchObject({
+      ok: false,
+      code: "rate_limited",
+      retryAfterMs: expect.any(Number),
+    });
+
+    await server.close();
+  });
+
+  test("changing the daemon password revokes and disconnects all authorized relay clients", async () => {
+    const server = createServer();
+    const socket1 = new MockSocket();
+    const socket2 = new MockSocket();
+    await attachRelayAndHello({
+      server,
+      socket: socket1,
+      clientId: "cid-password-change-1",
+    });
+    await attachRelayAndHello({
+      server,
+      socket: socket2,
+      clientId: "cid-password-change-2",
+    });
+    expect(sessionMock.instances).toHaveLength(2);
+    const session1 = sessionMock.instances[0];
+    const session2 = sessionMock.instances[1];
+    const authAdministration = getAuthAdministration(session1);
+    expect(authAdministration.listClients().clients).toHaveLength(2);
+
+    const result = await authAdministration.changePassword({
+      currentPassword: CORRECT_PASSWORD,
+      newPassword: "new-correct-password",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.revokedClientCount).toBe(2);
+    expect(authAdministration.listClients().clients).toHaveLength(0);
+    expect(socket1.readyState).toBe(3);
+    expect(socket2.readyState).toBe(3);
+    expect(session1.cleanup).toHaveBeenCalledTimes(1);
+    expect(session2.cleanup).toHaveBeenCalledTimes(1);
+
+    await server.close();
+  });
+
+  test("rate limits failed change-password administrator password attempts", async () => {
+    const server = createServer();
+    const socket = new MockSocket();
+    await attachRelayAndHello({
+      server,
+      socket,
+      clientId: "cid-password-change-rate-limit",
+    });
+    const session = sessionMock.instances[0];
+    const authAdministration = getAuthAdministration(session);
+
+    const first = await authAdministration.changePassword({
+      currentPassword: "wrong-password",
+      newPassword: "new-correct-password",
+    });
+    expect(first).toMatchObject({
+      ok: false,
+      code: "incorrect_password",
+      retryAfterMs: expect.any(Number),
+    });
+
+    const second = await authAdministration.changePassword({
+      currentPassword: "wrong-password",
+      newPassword: "new-correct-password",
+    });
+    expect(second).toMatchObject({
+      ok: false,
+      code: "rate_limited",
+      retryAfterMs: expect.any(Number),
+    });
 
     await server.close();
   });
@@ -694,20 +917,19 @@ describe("relay external socket reconnect behavior", () => {
       socket,
       clientId: "cid-server-info-broadcast",
     });
-    expect(socket.sent).toHaveLength(1);
+    expect(getServerInfoEnvelopes(socket.sent)).toHaveLength(1);
 
     const speechReadiness = createReadySpeechReadinessSnapshot();
     server.publishSpeechReadiness(speechReadiness);
-    expect(socket.sent).toHaveLength(2);
-
-    const secondEnvelope = parseSentEnvelope(socket.sent[1]);
-    const secondPayload = parseServerInfoStatusPayload(secondEnvelope.message?.payload);
+    const serverInfoEnvelopes = getServerInfoEnvelopes(socket.sent);
+    expect(serverInfoEnvelopes).toHaveLength(2);
+    const secondPayload = parseServerInfoStatusPayload(serverInfoEnvelopes[1]?.message?.payload);
     expect(secondPayload?.capabilities?.voice?.dictation.enabled).toBe(true);
     expect(secondPayload?.capabilities?.voice?.voice.enabled).toBe(true);
 
     // Same readiness should not produce another server_info broadcast.
     server.publishSpeechReadiness(speechReadiness);
-    expect(socket.sent).toHaveLength(2);
+    expect(getServerInfoEnvelopes(socket.sent)).toHaveLength(2);
 
     await server.close();
   });
@@ -720,13 +942,12 @@ describe("relay external socket reconnect behavior", () => {
       socket,
       clientId: "cid-server-info-download-guidance",
     });
-    expect(socket.sent).toHaveLength(1);
+    expect(getServerInfoEnvelopes(socket.sent)).toHaveLength(1);
 
     server.publishSpeechReadiness(createDownloadInProgressSpeechReadinessSnapshot());
-    expect(socket.sent).toHaveLength(2);
-
-    const envelope = parseSentEnvelope(socket.sent[1]);
-    const payload = parseServerInfoStatusPayload(envelope.message?.payload);
+    const serverInfoEnvelopes = getServerInfoEnvelopes(socket.sent);
+    expect(serverInfoEnvelopes).toHaveLength(2);
+    const payload = parseServerInfoStatusPayload(serverInfoEnvelopes[1]?.message?.payload);
     expect(payload?.capabilities?.voice?.dictation.enabled).toBe(true);
     expect(payload?.capabilities?.voice?.voice.enabled).toBe(true);
     expect(payload?.capabilities?.voice?.dictation.reason).toContain("Try again in a few minutes.");
@@ -786,10 +1007,12 @@ describe("relay external socket reconnect behavior", () => {
       onBinaryMessage(new Uint8Array([TerminalStreamOpcode.Output, 12, 0x6f, 0x6b]));
     }
 
-    expect(socket.sent).toHaveLength(2);
-    const binaryPayload = asUint8Array(socket.sent[1]);
-    expect(binaryPayload).not.toBeNull();
-    const frame = decodeTerminalStreamFrame(binaryPayload!);
+    const binaryPayloads = socket.sent
+      .filter((payload) => typeof payload !== "string")
+      .map(asUint8Array)
+      .filter((payload): payload is Uint8Array => payload !== null);
+    expect(binaryPayloads).toHaveLength(1);
+    const frame = decodeTerminalStreamFrame(binaryPayloads[0]!);
     expect(frame).not.toBeNull();
     expect(frame!.opcode).toBe(TerminalStreamOpcode.Output);
     expect(frame!.slot).toBe(12);

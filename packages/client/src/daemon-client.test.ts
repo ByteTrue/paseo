@@ -1,6 +1,11 @@
 import { afterEach, expect, expectTypeOf, test, vi } from "vitest";
 import { z } from "zod";
-import { DaemonClient, type DaemonTransport } from "./daemon-client";
+import {
+  DaemonClient,
+  type DaemonClientAuthCredential,
+  type DaemonClientAuthKeyStore,
+  type DaemonTransport,
+} from "./daemon-client";
 import {
   encodeFileTransferFrame,
   FileTransferOpcode,
@@ -33,6 +38,7 @@ function createMockLogger() {
 
 function createMockTransport() {
   const sent: Array<string | Uint8Array | ArrayBuffer> = [];
+  const closes: Array<{ code?: number; reason?: string }> = [];
 
   let onMessage: (data: unknown) => void = () => {};
   let onOpen: () => void = () => {};
@@ -42,7 +48,9 @@ function createMockTransport() {
 
   const transport: DaemonTransport = {
     send: (data) => sent.push(data),
-    close: () => {},
+    close: (code, reason) => {
+      closes.push({ code, reason });
+    },
     onMessage: (handler) => {
       onMessage = handler;
       return () => {};
@@ -64,11 +72,15 @@ function createMockTransport() {
   return {
     transport,
     sent,
-    triggerOpen: (options?: { preserveSent?: boolean }) => {
+    closes,
+    triggerOpen: (options?: { preserveSent?: boolean; serverInfo?: boolean }) => {
       onOpen();
       if (!options?.preserveSent) {
         // Ignore HELLO handshake payloads in assertions.
         sent.length = 0;
+      }
+      if (options?.serverInfo === false) {
+        return;
       }
       onMessage(
         JSON.stringify({
@@ -204,7 +216,7 @@ test("dedupes in-flight checkout status requests per agentId", async () => {
   });
 });
 
-test("passes password as HTTP bearer header and WebSocket subprotocol", async () => {
+test("passes legacy password credentials for old daemon compatibility", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();
   const transportFactory = vi.fn(() => mock.transport);
@@ -228,6 +240,207 @@ test("passes password as HTTP bearer header and WebSocket subprotocol", async ()
     headers: { Authorization: "Bearer shared-secret" },
     protocols: ["paseo.bearer.shared-secret"],
   });
+});
+
+test("enrolls with daemon authorization challenge before resolving connect", async () => {
+  const logger = createMockLogger();
+  const mock = createMockTransport();
+  const credentialStore = new Map<string, DaemonClientAuthCredential>();
+  const keyStore: DaemonClientAuthKeyStore = {
+    get: vi.fn(async (serverId: string) => credentialStore.get(serverId) ?? null),
+    set: vi.fn(async (credential: DaemonClientAuthCredential) => {
+      credentialStore.set(credential.serverId, credential);
+    }),
+    delete: vi.fn(async (serverId: string) => {
+      credentialStore.delete(serverId);
+    }),
+  };
+  const adminPasswordProvider = vi.fn(async () => "admin-secret");
+
+  const client = new DaemonClient({
+    url: "wss://relay.test/ws?role=client&serverId=srv_auth_test&v=2",
+    clientId: "clsk_auth_test",
+    logger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+    clientAuth: {
+      keyStore,
+      adminPasswordProvider,
+      clientName: "Unit Test CLI",
+    },
+  });
+  clients.push(client);
+
+  let connected = false;
+  const connectPromise = client.connect().then(() => {
+    connected = true;
+    return undefined;
+  });
+  mock.triggerOpen({ preserveSent: true, serverInfo: false });
+  await Promise.resolve();
+  expect(connected).toBe(false);
+
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "daemon.auth.challenge.response",
+      payload: {
+        requestId: "auth_challenge_1",
+        serverId: "srv_auth_test",
+        challengeId: "challenge-1",
+        challengeB64: "Y2hhbGxlbmdlLTE=",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        adminPasswordConfigured: true,
+        enrollmentAllowed: true,
+        transport: "relay",
+        error: null,
+      },
+    }),
+  );
+
+  await vi.waitFor(() => expect(mock.sent.length).toBeGreaterThan(1));
+  const enrollRequest = parseSentFrame(mock.sent[mock.sent.length - 1]);
+  expect(enrollRequest.type).toBe("daemon.auth.enroll.request");
+  expect(enrollRequest.adminPassword).toBe("admin-secret");
+  expect(enrollRequest.clientName).toBe("Unit Test CLI");
+  expect(adminPasswordProvider).toHaveBeenCalledTimes(1);
+
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "daemon.auth.enroll.response",
+      payload: {
+        requestId: enrollRequest.requestId,
+        ok: true,
+        client: {
+          id: "authorized-client-1",
+          publicKeyB64: "test-public-key",
+          clientName: "Unit Test CLI",
+          createdAt: new Date().toISOString(),
+          lastSeenAt: null,
+        },
+      },
+    }),
+  );
+  await vi.waitFor(() => expect(keyStore.set).toHaveBeenCalledTimes(1));
+  expect(connected).toBe(false);
+
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "status",
+      payload: {
+        status: "server_info",
+        serverId: "srv_auth_test",
+        hostname: null,
+        version: null,
+      },
+    }),
+  );
+  await connectPromise;
+  expect(connected).toBe(true);
+});
+
+test("does not apply connect timeout while waiting for daemon auth password", async () => {
+  vi.useFakeTimers();
+  try {
+    const logger = createMockLogger();
+    const mock = createMockTransport();
+    const credentialStore = new Map<string, DaemonClientAuthCredential>();
+    const keyStore: DaemonClientAuthKeyStore = {
+      get: vi.fn(async (serverId: string) => credentialStore.get(serverId) ?? null),
+      set: vi.fn(async (credential: DaemonClientAuthCredential) => {
+        credentialStore.set(credential.serverId, credential);
+      }),
+    };
+    const passwordResolver: { current?: (password: string | null) => void } = {};
+    const adminPasswordProvider = vi.fn(
+      () =>
+        new Promise<string | null>((resolve) => {
+          passwordResolver.current = resolve;
+        }),
+    );
+
+    const client = new DaemonClient({
+      url: "wss://relay.test/ws?role=client&serverId=srv_auth_timeout&v=2",
+      clientId: "clsk_auth_timeout",
+      logger,
+      reconnect: { enabled: false },
+      connectTimeoutMs: 25,
+      transportFactory: () => mock.transport,
+      clientAuth: {
+        keyStore,
+        adminPasswordProvider,
+      },
+    });
+    clients.push(client);
+
+    const connectPromise = client.connect();
+    mock.triggerOpen({ preserveSent: true, serverInfo: false });
+    mock.triggerMessage(
+      wrapSessionMessage({
+        type: "daemon.auth.challenge.response",
+        payload: {
+          requestId: "auth_challenge_timeout",
+          serverId: "srv_auth_timeout",
+          challengeId: "challenge-timeout",
+          challengeB64: "Y2hhbGxlbmdlLXRpbWVvdXQ=",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          adminPasswordConfigured: true,
+          enrollmentAllowed: true,
+          transport: "relay",
+          error: null,
+        },
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(adminPasswordProvider).toHaveBeenCalledTimes(1);
+    expect(mock.closes).toEqual([]);
+
+    if (!passwordResolver.current) {
+      throw new Error("Expected daemon auth password prompt to be pending");
+    }
+    passwordResolver.current("admin-secret");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mock.sent.length).toBeGreaterThan(1);
+    const enrollRequest = parseSentFrame(mock.sent[mock.sent.length - 1]);
+    expect(enrollRequest.type).toBe("daemon.auth.enroll.request");
+
+    mock.triggerMessage(
+      wrapSessionMessage({
+        type: "daemon.auth.enroll.response",
+        payload: {
+          requestId: enrollRequest.requestId,
+          ok: true,
+          client: {
+            id: "authorized-client-timeout",
+            publicKeyB64: "test-public-key-timeout",
+            clientName: null,
+            createdAt: new Date().toISOString(),
+            lastSeenAt: null,
+          },
+        },
+      }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(keyStore.set).toHaveBeenCalledTimes(1);
+
+    mock.triggerMessage(
+      wrapSessionMessage({
+        type: "status",
+        payload: {
+          status: "server_info",
+          serverId: "srv_auth_timeout",
+          hostname: null,
+          version: null,
+        },
+      }),
+    );
+    await connectPromise;
+    expect(mock.closes).toEqual([]);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("advertises client capabilities in hello", async () => {
@@ -1292,25 +1505,27 @@ test("reconnects after relay close with replaced-by-new-connection reason", asyn
 });
 
 test("requires non-empty clientId", () => {
+  let client: DaemonClient | null = null;
   expect(() => {
-    const _client = new DaemonClient({
+    client = new DaemonClient({
       url: "ws://relay.test/ws?role=client&serverId=srv_test&v=2",
       clientId: "",
       reconnect: { enabled: false },
     });
-    void _client;
   }).toThrow("Daemon client requires a non-empty clientId");
+  expect(client).toBeNull();
 });
 
 test("requires non-empty clientId for direct connections", () => {
+  let client: DaemonClient | null = null;
   expect(() => {
-    const _client = new DaemonClient({
+    client = new DaemonClient({
       url: "ws://127.0.0.1:6767/ws",
       clientId: "   ",
       reconnect: { enabled: false },
     });
-    void _client;
   }).toThrow("Daemon client requires a non-empty clientId");
+  expect(client).toBeNull();
 });
 
 test("logs configured runtime generation in connection transition events", async () => {
@@ -1913,7 +2128,7 @@ test("renames a branch via RPC", async () => {
   });
 
   expect(mock.sent).toHaveLength(1);
-  const request = JSON.parse(mock.sent[0]) as {
+  const request = JSON.parse(String(mock.sent[0])) as {
     type: "session";
     message: {
       type: "checkout.rename_branch.request";

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useReducer, useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { Check, ChevronDown, ChevronRight, Eye, EyeOff, Link2 } from "lucide-react-native";
+import { Check, ChevronDown, ChevronRight, Link2 } from "lucide-react-native";
 import type { HostProfile } from "@/types/host-connection";
 import { useHosts, useHostMutations } from "@/runtime/host-runtime";
 import {
@@ -21,14 +21,12 @@ interface DirectConnectionDraft {
   host: string;
   port: string;
   useTls: boolean;
-  password: string;
 }
 
 interface PreparedDirectConnection {
   uri: string;
   endpoint: string;
   useTls: boolean;
-  password?: string;
 }
 
 const styles = StyleSheet.create((theme) => ({
@@ -59,25 +57,6 @@ const styles = StyleSheet.create((theme) => ({
   },
   portField: {
     width: 112,
-  },
-  passwordRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-  },
-  passwordInput: {
-    flex: 1,
-    minWidth: 0,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
   },
   checkboxRow: {
     flexDirection: "row",
@@ -143,7 +122,6 @@ function buildConnectionUriFromDraft(draft: DirectConnectionDraft): string {
     port,
     isIpv6: isIpv6Host(host),
     useTls: draft.useTls,
-    ...(draft.password ? { password: draft.password } : {}),
   });
 }
 
@@ -157,7 +135,6 @@ function prepareDirectConnection(draft: DirectConnectionDraft): PreparedDirectCo
     uri: serializeConnectionUri(parsed),
     endpoint,
     useTls: parsed.useTls,
-    ...(parsed.password ? { password: parsed.password } : {}),
   };
 }
 
@@ -167,7 +144,6 @@ function draftFromConnectionUri(uri: string): DirectConnectionDraft {
     host: parsed.host,
     port: String(parsed.port),
     useTls: parsed.useTls,
-    password: parsed.password ?? "",
   };
 }
 
@@ -276,8 +252,6 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
   const [host, setHost] = useState("");
   const [port, setPort] = useState("6767");
   const [useTls, setUseTls] = useState(false);
-  const [password, setPassword] = useState("");
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [advancedUri, setAdvancedUri] = useState("");
   const [inputResetKey, bumpInputResetKey] = useReducer((key: number) => key + 1, 0);
@@ -286,8 +260,6 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
     setHost("");
     setPort("6767");
     setUseTls(false);
-    setPassword("");
-    setIsPasswordVisible(false);
     setIsAdvancedOpen(false);
     setAdvancedUri("");
     bumpInputResetKey();
@@ -303,7 +275,6 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
     () => [styles.checkbox, useTls ? styles.checkboxChecked : null],
     [useTls],
   );
-  const passwordInputStyle = useMemo(() => [styles.input, styles.passwordInput], []);
   const useTlsAccessibilityState = useMemo(
     () => ({ checked: useTls, disabled: isSaving }),
     [isSaving, useTls],
@@ -328,7 +299,7 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
 
     let connection: PreparedDirectConnection;
     try {
-      connection = prepareDirectConnection({ host, port, useTls, password });
+      connection = prepareDirectConnection({ host, port, useTls });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Invalid connection";
       setErrorMessage(message);
@@ -342,7 +313,6 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
       const { profile, serverId, hostname } = await probeAndUpsertDirectConnection({
         endpoint: connection.endpoint,
         useTls: connection.useTls,
-        ...(connection.password ? { password: connection.password } : {}),
       });
       const isNewHost = !daemons.some((daemon) => daemon.serverId === serverId);
 
@@ -372,7 +342,6 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
     isMobile,
     isSaving,
     onSaved,
-    password,
     port,
     probeAndUpsertDirectConnection,
     useTls,
@@ -391,14 +360,10 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
     setUseTls((current) => !current);
   }, [isSaving]);
 
-  const handleTogglePasswordVisibility = useCallback(() => {
-    setIsPasswordVisible((current) => !current);
-  }, []);
-
   const handleToggleAdvanced = useCallback(() => {
     if (!isAdvancedOpen) {
       try {
-        setAdvancedUri(buildConnectionUriFromDraft({ host, port, useTls, password }));
+        setAdvancedUri(buildConnectionUriFromDraft({ host, port, useTls }));
       } catch {
         setAdvancedUri("");
       }
@@ -412,17 +377,15 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
       setHost(next.host);
       setPort(next.port);
       setUseTls(next.useTls);
-      setPassword(next.password);
       setErrorMessage("");
       bumpInputResetKey();
     } catch {
       setErrorMessage("");
     }
     setIsAdvancedOpen(false);
-  }, [advancedUri, host, isAdvancedOpen, password, port, useTls]);
+  }, [advancedUri, host, isAdvancedOpen, port, useTls]);
 
   const AdvancedIcon = isAdvancedOpen ? ChevronDown : ChevronRight;
-  const PasswordIcon = isPasswordVisible ? EyeOff : Eye;
 
   return (
     <AdaptiveModalSheet
@@ -495,40 +458,6 @@ export function AddHostModal({ visible, onClose, onCancel, onSaved }: AddHostMod
         </View>
         <Text style={styles.label}>Use SSL</Text>
       </Pressable>
-
-      <View style={styles.field}>
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.passwordRow}>
-          <AdaptiveTextInput
-            testID="direct-password-input"
-            nativeID="direct-password-input"
-            accessibilityLabel="Password"
-            initialValue={password}
-            resetKey={`direct-password-${inputResetKey}`}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Optional"
-            placeholderTextColor={theme.colors.foregroundMuted}
-            style={passwordInputStyle}
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry={!isPasswordVisible}
-            editable={!isSaving}
-            returnKeyType="done"
-            onSubmitEditing={handleSubmitEditing}
-          />
-          <Pressable
-            style={styles.iconButton}
-            onPress={handleTogglePasswordVisibility}
-            disabled={isSaving}
-            accessibilityRole="button"
-            accessibilityLabel={isPasswordVisible ? "Hide password" : "Show password"}
-            testID="direct-password-visibility-toggle"
-          >
-            <PasswordIcon size={18} color={theme.colors.foregroundMuted} />
-          </Pressable>
-        </View>
-      </View>
 
       <View style={styles.field}>
         <Pressable

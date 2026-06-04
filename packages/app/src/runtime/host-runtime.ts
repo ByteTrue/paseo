@@ -23,7 +23,12 @@ import {
   shouldUseTlsForDefaultHostedRelay,
 } from "@/utils/daemon-endpoints";
 import { resolveAppVersion } from "@/utils/app-version";
-import { ConnectionOfferSchema, type ConnectionOffer } from "@bytetrue/protocol/connection-offer";
+import {
+  ConnectionOfferBundleSchema,
+  ConnectionOfferSchema,
+  type ConnectionOffer,
+  type ConnectionOfferBundle,
+} from "@bytetrue/protocol/connection-offer";
 import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 import { connectToDaemon } from "@/utils/test-daemon-connection";
 import { getOrCreateClientId } from "@/utils/client-id";
@@ -38,6 +43,8 @@ import {
 } from "@/desktop/daemon/desktop-daemon-transport";
 import { replaceFetchedAgentDirectory } from "@/utils/agent-directory-sync";
 import { useSessionStore } from "@/stores/session-store";
+import { appClientAuthKeyStore } from "@/daemon-auth/client-auth-store";
+import { requestDaemonAdminPassword } from "@/daemon-auth/admin-password-prompt";
 
 export type HostRuntimeConnectionStatus = "idle" | "connecting" | "online" | "offline" | "error";
 
@@ -104,14 +111,6 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function hashForLog(value: string): string {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) | 0;
-  }
-  return `h_${Math.abs(hash).toString(16)}`;
-}
-
 export interface HostRuntimeControllerDeps {
   createClient: (input: {
     host: HostProfile;
@@ -129,6 +128,7 @@ export interface HostRuntimeControllerDeps {
     hostname: string | null;
   }>;
   getClientId: () => Promise<string>;
+  deleteClientAuthCredential?: (serverId: string) => Promise<void>;
 }
 
 export interface HostRuntimeStartOptions {
@@ -461,6 +461,11 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
         clientType: "mobile" as const,
         appVersion: resolveAppVersion() ?? undefined,
         runtimeGeneration,
+        clientAuth: {
+          keyStore: appClientAuthKeyStore,
+          adminPasswordProvider: requestDaemonAdminPassword,
+          clientName: "Paseo app",
+        },
       };
       if (connection.type === "directSocket" || connection.type === "directPipe") {
         return new DaemonClient({
@@ -478,7 +483,6 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
           url: buildDaemonWebSocketUrl(connection.endpoint, {
             useTls: connection.useTls ?? false,
           }),
-          ...(connection.password ? { password: connection.password } : {}),
         });
       }
       return new DaemonClient({
@@ -500,6 +504,8 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       }),
     getClientId: () => getOrCreateClientId(),
+    deleteClientAuthCredential: (serverId) =>
+      appClientAuthKeyStore.delete?.(serverId) ?? Promise.resolve(),
   };
 }
 
@@ -519,7 +525,6 @@ export class HostRuntimeController {
   private switchCandidateConnectionId: string | null = null;
   private switchCandidateHitCount = 0;
   private clientIdPromise: Promise<string> | null = null;
-  private clientIdHash: string | null = null;
   private switchRequestVersion = 0;
   private probeRequestVersion = 0;
   private probeCycleInFlight: Promise<void> | null = null;
@@ -1190,10 +1195,7 @@ export class HostRuntimeController {
 
   private resolveClientId(): Promise<string> {
     if (!this.clientIdPromise) {
-      this.clientIdPromise = this.deps.getClientId().then((value) => {
-        this.clientIdHash = hashForLog(value);
-        return value;
-      });
+      this.clientIdPromise = this.deps.getClientId();
     }
     return this.clientIdPromise;
   }
@@ -1435,7 +1437,6 @@ export class HostRuntimeStore {
     existingClient?: DaemonClient;
   }): Promise<HostProfile> {
     const endpoint = normalizeHostPort(input.endpoint);
-    const password = input.password?.trim();
     return this.upsertHostConnection({
       serverId: input.serverId,
       label: input.label,
@@ -1444,7 +1445,6 @@ export class HostRuntimeStore {
         type: "directTcp",
         endpoint,
         useTls: input.useTls ?? false,
-        ...(password ? { password } : {}),
       },
       existingClient: input.existingClient,
     });
@@ -1488,7 +1488,6 @@ export class HostRuntimeStore {
     label?: string;
   }): Promise<{ profile: HostProfile; serverId: string; hostname: string | null }> {
     const endpoint = normalizeHostPort(input.endpoint);
-    const password = input.password?.trim();
     return this.probeAndUpsertConnection({
       label: input.label,
       connection: {
@@ -1496,7 +1495,6 @@ export class HostRuntimeStore {
         type: "directTcp",
         endpoint,
         useTls: input.useTls ?? false,
-        ...(password ? { password } : {}),
       },
     });
   }
@@ -1540,6 +1538,15 @@ export class HostRuntimeStore {
     });
   }
 
+  async upsertConnectionsFromOfferBundle(bundle: ConnectionOfferBundle): Promise<HostProfile[]> {
+    const parsed = ConnectionOfferBundleSchema.parse(bundle);
+    const profiles: HostProfile[] = [];
+    for (const entry of parsed.entries) {
+      profiles.push(await this.upsertConnectionFromOffer(entry.offer, entry.label));
+    }
+    return profiles;
+  }
+
   async upsertConnectionFromOfferUrl(
     offerUrlOrFragment: string,
     label?: string,
@@ -1556,6 +1563,21 @@ export class HostRuntimeStore {
     const payload = decodeOfferFragmentPayload(encoded);
     const offer = ConnectionOfferSchema.parse(payload);
     return this.upsertConnectionFromOffer(offer, label);
+  }
+
+  async upsertConnectionsFromOfferBundleUrl(offerUrlOrFragment: string): Promise<HostProfile[]> {
+    const marker = "#offers=";
+    const idx = offerUrlOrFragment.indexOf(marker);
+    if (idx === -1) {
+      throw new Error("Missing #offers= fragment");
+    }
+    const encoded = offerUrlOrFragment.slice(idx + marker.length).trim();
+    if (!encoded) {
+      throw new Error("Offer bundle payload is empty");
+    }
+    const payload = decodeOfferFragmentPayload(encoded);
+    const bundle = ConnectionOfferBundleSchema.parse(payload);
+    return this.upsertConnectionsFromOfferBundle(bundle);
   }
 
   async upsertConnectionFromListen(input: {
@@ -1591,6 +1613,7 @@ export class HostRuntimeStore {
     const remaining = this.hosts.filter((daemon) => daemon.serverId !== serverId);
     this.setHostsAndSync(remaining);
     await this.persistHosts();
+    await this.deps.deleteClientAuthCredential?.(serverId);
   }
 
   async removeConnection(serverId: string, connectionId: string): Promise<void> {
@@ -1616,6 +1639,9 @@ export class HostRuntimeStore {
       .filter((entry): entry is HostProfile => entry !== null);
     this.setHostsAndSync(next);
     await this.persistHosts();
+    if (!next.some((host) => host.serverId === serverId)) {
+      await this.deps.deleteClientAuthCredential?.(serverId);
+    }
   }
 
   private async upsertHostConnection(input: {
@@ -2095,6 +2121,8 @@ export interface HostMutations {
     offerUrlOrFragment: string,
     label?: string,
   ) => Promise<HostProfile>;
+  upsertConnectionsFromOfferBundle: (bundle: ConnectionOfferBundle) => Promise<HostProfile[]>;
+  upsertConnectionsFromOfferBundleUrl: (offerUrlOrFragment: string) => Promise<HostProfile[]>;
   renameHost: (serverId: string, label: string) => Promise<void>;
   removeHost: (serverId: string) => Promise<void>;
   removeConnection: (serverId: string, connectionId: string) => Promise<void>;
@@ -2109,6 +2137,8 @@ export function useHostMutations(): HostMutations {
       upsertRelayConnection: (input) => store.upsertRelayConnection(input),
       upsertConnectionFromOffer: (offer, label) => store.upsertConnectionFromOffer(offer, label),
       upsertConnectionFromOfferUrl: (url, label) => store.upsertConnectionFromOfferUrl(url, label),
+      upsertConnectionsFromOfferBundle: (bundle) => store.upsertConnectionsFromOfferBundle(bundle),
+      upsertConnectionsFromOfferBundleUrl: (url) => store.upsertConnectionsFromOfferBundleUrl(url),
       renameHost: (serverId, label) => store.renameHost(serverId, label),
       removeHost: (serverId) => store.removeHost(serverId),
       removeConnection: (serverId, connectionId) => store.removeConnection(serverId, connectionId),

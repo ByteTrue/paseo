@@ -44,8 +44,9 @@ describe("daemon-client transport helpers", () => {
       { warn: vi.fn() },
     );
 
-    expect(openHandler).not.toBeNull();
-    openHandler?.();
+    const handler = openHandler;
+    expect(typeof handler).toBe("function");
+    (handler as unknown as () => void)();
 
     await vi.waitFor(() => {
       expect(close).toHaveBeenCalledWith(4001, "E2EE handshake failed");
@@ -75,7 +76,7 @@ describe("daemon-client transport helpers", () => {
     expect(close).toHaveBeenCalledWith(1000, "bye");
   });
 
-  test("createWebSocketTransportFactory passes WebSocket protocols to the socket factory", () => {
+  test("createWebSocketTransportFactory passes explicit headers and protocols to the socket factory", () => {
     const socketFactory = vi.fn(() => ({
       readyState: 1,
       send: vi.fn(),
@@ -86,13 +87,13 @@ describe("daemon-client transport helpers", () => {
 
     createWebSocketTransportFactory(socketFactory)({
       url: "ws://example.test",
-      headers: { Authorization: "Bearer shared-secret" },
-      protocols: ["paseo.bearer.shared-secret"],
+      headers: { "X-Test": "value" },
+      protocols: ["paseo.test"],
     });
 
     expect(socketFactory).toHaveBeenCalledWith("ws://example.test", {
-      headers: { Authorization: "Bearer shared-secret" },
-      protocols: ["paseo.bearer.shared-secret"],
+      headers: { "X-Test": "value" },
+      protocols: ["paseo.test"],
     });
   });
 

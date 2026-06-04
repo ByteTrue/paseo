@@ -5,7 +5,11 @@ import type {
   FetchAgentsEntry,
   FetchAgentsOptions,
 } from "@bytetrue/client/internal/daemon-client";
-import type { ConnectionOffer } from "@bytetrue/protocol/connection-offer";
+import {
+  buildConnectionOfferBundleUrl,
+  type ConnectionOffer,
+  type ConnectionOfferBundle,
+} from "@bytetrue/protocol/connection-offer";
 import type { HostConnection, HostProfile } from "@/types/host-connection";
 import { useSessionStore, type Agent } from "@/stores/session-store";
 import {
@@ -207,6 +211,23 @@ function makeOffer(input?: Partial<ConnectionOffer>): ConnectionOffer {
   };
 }
 
+function makeOfferBundle(input?: Partial<ConnectionOfferBundle>): ConnectionOfferBundle {
+  return {
+    v: 1,
+    entries: input?.entries ?? [
+      { label: "offer one", offer: makeOffer({ serverId: "srv_offer_one" }) },
+      {
+        label: "offer two",
+        offer: makeOffer({
+          serverId: "srv_offer_two",
+          daemonPublicKeyB64: "pk_test_offer_two",
+          relay: { endpoint: "relay-two.example.com:443", useTls: true },
+        }),
+      },
+    ],
+  };
+}
+
 function encodeOfferUrl(payload: unknown): string {
   const encoded = Buffer.from(JSON.stringify(payload), "utf8")
     .toString("base64")
@@ -318,7 +339,7 @@ describe("HostRuntimeController", () => {
       ...oldRelay,
       daemonPublicKeyB64: "pk_new",
     };
-    const createdClients: Array<{ client: FakeDaemonClient; connection: HostConnection }> = [];
+    const createdClients: { client: FakeDaemonClient; connection: HostConnection }[] = [];
     const controller = new HostRuntimeController({
       host: makeHost({
         connections: [oldRelay],
@@ -1712,7 +1733,69 @@ describe("HostRuntimeStore", () => {
     store.syncHosts([]);
   });
 
-  it("upsertDirectConnection stores SSL and password settings", async () => {
+  it("removes local client auth credentials when removing a host", async () => {
+    const deletedServerIds: string[] = [];
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+        deleteClientAuthCredential: async (serverId) => {
+          deletedServerIds.push(serverId);
+        },
+      },
+    });
+    const host = makeHost({ serverId: "srv_auth_cleanup" });
+    store.syncHosts([host]);
+
+    await store.removeHost("srv_auth_cleanup");
+
+    expect(deletedServerIds).toEqual(["srv_auth_cleanup"]);
+    expect(store.getHosts().some((entry) => entry.serverId === "srv_auth_cleanup")).toBe(false);
+  });
+
+  it("removes local client auth credentials when deleting the last host connection", async () => {
+    const deletedServerIds: string[] = [];
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+        deleteClientAuthCredential: async (serverId) => {
+          deletedServerIds.push(serverId);
+        },
+      },
+    });
+    const host = makeHost({
+      serverId: "srv_last_connection_cleanup",
+      connections: [
+        {
+          id: "direct:lan:6767",
+          type: "directTcp",
+          endpoint: "lan:6767",
+        },
+      ],
+      preferredConnectionId: "direct:lan:6767",
+    });
+    store.syncHosts([host]);
+
+    await store.removeConnection("srv_last_connection_cleanup", "direct:lan:6767");
+
+    expect(deletedServerIds).toEqual(["srv_last_connection_cleanup"]);
+    expect(store.getHosts().some((entry) => entry.serverId === "srv_last_connection_cleanup")).toBe(
+      false,
+    );
+  });
+
+  it("upsertDirectConnection stores SSL settings and drops legacy passwords", async () => {
     const store = new HostRuntimeStore({
       deps: {
         createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
@@ -1740,7 +1823,48 @@ describe("HostRuntimeStore", () => {
         type: "directTcp",
         endpoint: "example.paseo.test:7443",
         useTls: true,
-        password: "shared-secret",
+      },
+    ]);
+
+    store.syncHosts([]);
+  });
+
+  it("probeAndUpsertDirectConnection drops legacy passwords before probing and storing", async () => {
+    const probeClient = makeConnectedProbeClient(5);
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ connection }) => {
+          expect(connection).toEqual({
+            id: "direct:example.paseo.test:7443",
+            type: "directTcp",
+            endpoint: "example.paseo.test:7443",
+            useTls: true,
+          });
+          return {
+            client: probeClient as unknown as DaemonClient,
+            serverId: "srv_probe_tls_password",
+            hostname: "tls-probe",
+          };
+        },
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+
+    await store.probeAndUpsertDirectConnection({
+      endpoint: "example.paseo.test:7443",
+      useTls: true,
+      password: "shared-secret",
+      label: "tls probe",
+    });
+
+    const host = store.getHosts().find((entry) => entry.serverId === "srv_probe_tls_password");
+    expect(host?.connections).toEqual([
+      {
+        id: "direct:example.paseo.test:7443",
+        type: "directTcp",
+        endpoint: "example.paseo.test:7443",
+        useTls: true,
       },
     ]);
 
@@ -1917,6 +2041,53 @@ describe("HostRuntimeStore", () => {
     ]);
 
     store.syncHosts([]);
+  });
+
+  it("adds relay hosts from a pairing bundle URL", async () => {
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+    const bundle = makeOfferBundle();
+
+    const profiles = await store.upsertConnectionsFromOfferBundleUrl(
+      buildConnectionOfferBundleUrl(bundle),
+    );
+
+    expect(profiles.map((profile) => profile.serverId)).toEqual(["srv_offer_one", "srv_offer_two"]);
+    expect(store.getHosts()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ serverId: "srv_offer_one", label: "offer one" }),
+        expect.objectContaining({ serverId: "srv_offer_two", label: "offer two" }),
+      ]),
+    );
+
+    store.syncHosts([]);
+  });
+
+  it("rejects empty pairing bundle URLs", async () => {
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+      },
+    });
+
+    await expect(
+      store.upsertConnectionsFromOfferBundleUrl("https://paseo.zijieapi.de5.net/#offers="),
+    ).rejects.toThrow("Offer bundle payload is empty");
   });
 
   it("uses the latest advertised hostname when re-pairing an existing relay host", async () => {
