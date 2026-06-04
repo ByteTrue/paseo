@@ -2,21 +2,59 @@
   "worktree": {
     "setup": [
       "npm ci",
+      "if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then gh repo set-default ByteTrue/paseo >/dev/null 2>&1 || true; fi",
+      "if [ -f \"$PASEO_SOURCE_CHECKOUT_PATH/packages/server/.env\" ]; then cp \"$PASEO_SOURCE_CHECKOUT_PATH/packages/server/.env\" \"$PASEO_WORKTREE_PATH/packages/server/.env\"; fi",
       "npm run build:server",
-      "cp \"$PASEO_SOURCE_CHECKOUT_PATH/packages/server/.env\" \"$PASEO_WORKTREE_PATH/packages/server/.env\""
+      "if command -v codegraph >/dev/null 2>&1; then codegraph init -i; fi"
     ]
   },
   "scripts": {
     "daemon": {
       "type": "service",
-      "command": "PASEO_LISTEN=0.0.0.0:$PASEO_PORT ./scripts/dev-daemon.sh"
+      "command": "PASEO_LISTEN=127.0.0.1:$PASEO_PORT ./scripts/dev-daemon.sh"
     },
     "app": {
       "type": "service",
-      "command": "cd packages/app && BROWSER=none EXPO_PUBLIC_LOCAL_DAEMON=\"localhost:${PASEO_SERVICE_DAEMON_PORT}\" npx expo start --port $PASEO_PORT"
+      "command": "cd packages/app && BROWSER=none APP_VARIANT=development EXPO_PUBLIC_LOCAL_DAEMON=\"localhost:${PASEO_SERVICE_DAEMON_PORT}\" npx expo start --port $PASEO_PORT"
+    },
+    "website": {
+      "type": "service",
+      "command": "cd packages/website && npm run dev -- --host 127.0.0.1 --port $PASEO_PORT"
+    },
+    "check": {
+      "command": "npm run format:check && npm run lint && npm run typecheck"
     },
     "typecheck": {
       "command": "npm run typecheck"
+    },
+    "typecheck-server": {
+      "command": "npm run typecheck:server"
+    },
+    "lint": {
+      "command": "npm run lint"
+    },
+    "format-check": {
+      "command": "npm run format:check"
+    },
+    "build-server": {
+      "command": "npm run build:server"
+    },
+    "codegraph": {
+      "command": "if command -v codegraph >/dev/null 2>&1; then codegraph init -i; else echo 'codegraph is not installed'; exit 1; fi"
+    }
+  },
+  "metadataGeneration": {
+    "agentTitle": {
+      "instructions": "Generate a short task title for this Paseo fork. Prefer the touched area or package name first (server, app, desktop, cli, relay, website, docs), then the user-visible intent. Keep it under 7 words. No emoji, no generic titles like 'Paseo Update'."
+    },
+    "branchName": {
+      "instructions": "Use lowercase kebab-case with a clear prefix: feat/, fix/, docs/, refactor/, chore/, release/, or upstream-sync/. Keep branch names concise and specific. This fork works in ByteTrue/paseo; do not name branches as if they target getpaseo/paseo unless explicitly syncing/cherry-picking upstream."
+    },
+    "commitMessage": {
+      "instructions": "Use Conventional Commit style when it fits (feat:, fix:, docs:, refactor:, chore:, test:). Keep the subject imperative and under 72 characters. Mention important validation in the body for non-trivial changes. Respect fork constraints: browser web + Electron only; do not reintroduce native mobile release/build surface unless explicitly requested."
+    },
+    "pullRequest": {
+      "instructions": "Target ByteTrue/paseo main, not upstream getpaseo/paseo. Include Summary, Validation, and Risk/Compatibility notes. Call out daemon/client protocol or security implications when touched. If a change intentionally ignores old-client compatibility because this fork has a single user, state that explicitly. Mention if no native iOS/Android surface was changed."
     }
   }
 }
