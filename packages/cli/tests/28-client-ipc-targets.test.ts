@@ -7,7 +7,6 @@ import path from "node:path";
 import {
   getDaemonHost,
   normalizeDaemonHost,
-  resolveDaemonPassword,
   resolveDaemonTarget,
   resolveDefaultDaemonHosts,
 } from "../src/utils/client.js";
@@ -48,12 +47,14 @@ console.log("=== CLI IPC Target Helpers ===\n");
 }
 
 {
-  console.log("Test 4: tcp URI hosts normalize into canonical direct TCP targets");
+  console.log(
+    "Test 4: tcp URI hosts normalize into canonical direct TCP targets without passwords",
+  );
   assert.strictEqual(
     normalizeDaemonHost("tcp://Example.com:6767?ssl=true&password=query-secret"),
-    "tcp://Example.com:6767?ssl=true&password=query-secret",
+    "tcp://Example.com:6767?ssl=true",
   );
-  console.log("✓ tcp URI hosts normalize into canonical direct TCP targets\n");
+  console.log("✓ tcp URI hosts normalize into canonical direct TCP targets without passwords\n");
 }
 
 {
@@ -143,49 +144,30 @@ console.log("=== CLI IPC Target Helpers ===\n");
 }
 
 {
-  console.log("Test 10: daemon password resolution prefers TCP URI query, falls back to env");
-  const previousEnv = process.env.PASEO_PASSWORD;
+  console.log("Test 10: client-side PASEO_PASSWORD is not a daemon connection grant");
+  const previousEnvPassword = process.env.PASEO_PASSWORD;
+  const previousEnvHost = process.env.PASEO_HOST;
   try {
-    delete process.env.PASEO_PASSWORD;
-    assert.strictEqual(
-      resolveDaemonPassword("tcp://example.com:6767?ssl=true&password=query-secret"),
-      "query-secret",
-    );
-    assert.strictEqual(resolveDaemonPassword("tcp://missing.example:6767"), undefined);
-    assert.strictEqual(resolveDaemonPassword("example.com:6767"), undefined);
-
     process.env.PASEO_PASSWORD = "env-secret";
+    delete process.env.PASEO_HOST;
+    assert.strictEqual(getDaemonHost({ host: "example.com:6767" }), "example.com:6767");
     assert.strictEqual(
-      resolveDaemonPassword("tcp://example.com:6767?ssl=true&password=query-secret"),
-      "query-secret",
-      "URI password should take precedence over env var",
-    );
-    assert.strictEqual(
-      resolveDaemonPassword("tcp://missing.example:6767"),
-      "env-secret",
-      "TCP host without query password should fall back to env var",
-    );
-    assert.strictEqual(
-      resolveDaemonPassword("example.com:6767"),
-      "env-secret",
-      "Bare host should pick up env var password",
-    );
-    assert.strictEqual(resolveDaemonPassword("localhost:6767"), "env-secret");
-
-    process.env.PASEO_PASSWORD = "";
-    assert.strictEqual(
-      resolveDaemonPassword("localhost:6767"),
-      undefined,
-      "Empty env var should be treated as unset",
+      normalizeDaemonHost("tcp://example.com:6767?password=query-secret"),
+      "tcp://example.com:6767",
     );
   } finally {
-    if (previousEnv === undefined) {
+    if (previousEnvPassword === undefined) {
       delete process.env.PASEO_PASSWORD;
     } else {
-      process.env.PASEO_PASSWORD = previousEnv;
+      process.env.PASEO_PASSWORD = previousEnvPassword;
+    }
+    if (previousEnvHost === undefined) {
+      delete process.env.PASEO_HOST;
+    } else {
+      process.env.PASEO_HOST = previousEnvHost;
     }
   }
-  console.log("✓ daemon password resolution prefers TCP URI query, falls back to env\n");
+  console.log("✓ client-side PASEO_PASSWORD is not a daemon connection grant\n");
 }
 
 console.log("=== All CLI IPC target tests passed ===");

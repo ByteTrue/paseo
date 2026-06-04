@@ -126,11 +126,7 @@ export function serializeConnectionUri(parts: ConnectionUriParts): string {
 }
 
 export function serializeConnectionUriForStorage(parts: ParsedConnectionUri): string {
-  const url = createConnectionUri(parts);
-  if (parts.password) {
-    url.searchParams.set("password", parts.password);
-  }
-  return url.toString();
+  return createConnectionUri(parts).toString();
 }
 
 function createConnectionUri(parts: ConnectionUriParts): URL {

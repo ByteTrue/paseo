@@ -1008,6 +1008,43 @@ export const DaemonGetPairingOfferRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const DaemonAuthProveRequestSchema = z.object({
+  type: z.literal("daemon.auth.prove.request"),
+  requestId: z.string(),
+  challengeId: z.string(),
+  clientPublicKeyB64: z.string().min(1),
+  signatureB64: z.string().min(1),
+});
+
+export const DaemonAuthEnrollRequestSchema = z.object({
+  type: z.literal("daemon.auth.enroll.request"),
+  requestId: z.string(),
+  challengeId: z.string(),
+  clientPublicKeyB64: z.string().min(1),
+  signatureB64: z.string().min(1),
+  adminPassword: z.string(),
+  clientName: z.string().min(1).optional(),
+});
+
+export const DaemonAuthListClientsRequestSchema = z.object({
+  type: z.literal("daemon.auth.list_clients.request"),
+  requestId: z.string(),
+});
+
+export const DaemonAuthRevokeClientRequestSchema = z.object({
+  type: z.literal("daemon.auth.revoke_client.request"),
+  requestId: z.string(),
+  clientId: z.string().min(1),
+  adminPassword: z.string(),
+});
+
+export const DaemonAuthChangePasswordRequestSchema = z.object({
+  type: z.literal("daemon.auth.change_password.request"),
+  requestId: z.string(),
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(1),
+});
+
 export const GetDaemonConfigRequestMessageSchema = z.object({
   type: z.literal("get_daemon_config_request"),
   requestId: z.string(),
@@ -1868,6 +1905,11 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   WaitForFinishRequestSchema,
   DaemonGetStatusRequestSchema,
   DaemonGetPairingOfferRequestSchema,
+  DaemonAuthProveRequestSchema,
+  DaemonAuthEnrollRequestSchema,
+  DaemonAuthListClientsRequestSchema,
+  DaemonAuthRevokeClientRequestSchema,
+  DaemonAuthChangePasswordRequestSchema,
   GetDaemonConfigRequestMessageSchema,
   SetDaemonConfigRequestMessageSchema,
   ReadProjectConfigRequestMessageSchema,
@@ -2142,6 +2184,8 @@ export const ServerInfoStatusPayloadSchema = z
         rewind: z.boolean().optional(),
         // COMPAT(checkoutRefresh): added in v0.1.86, remove gate after 2026-11-29.
         checkoutRefresh: z.boolean().optional(),
+        // COMPAT(daemonClientAuthorization): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        daemonClientAuthorization: z.boolean().optional(),
       })
       .optional(),
   })
@@ -2765,6 +2809,115 @@ export const DaemonGetPairingOfferResponseSchema = z.object({
       relayEnabled: z.boolean(),
     })
     .passthrough(),
+});
+
+const DaemonAuthClientSummarySchema = z.object({
+  id: z.string(),
+  publicKeyB64: z.string(),
+  clientName: z.string().nullable(),
+  createdAt: z.string(),
+  lastSeenAt: z.string().nullable(),
+});
+
+export const DaemonAuthChallengeResponseSchema = z.object({
+  type: z.literal("daemon.auth.challenge.response"),
+  payload: z.object({
+    requestId: z.string(),
+    serverId: z.string(),
+    challengeId: z.string(),
+    challengeB64: z.string(),
+    expiresAt: z.string(),
+    adminPasswordConfigured: z.boolean(),
+    enrollmentAllowed: z.boolean(),
+    transport: z.enum(["relay", "direct"]),
+    error: z.string().nullable().optional(),
+  }),
+});
+
+export const DaemonAuthProveResponseSchema = z.object({
+  type: z.literal("daemon.auth.prove.response"),
+  payload: z.discriminatedUnion("ok", [
+    z.object({
+      requestId: z.string(),
+      ok: z.literal(true),
+      client: DaemonAuthClientSummarySchema,
+    }),
+    z.object({
+      requestId: z.string(),
+      ok: z.literal(false),
+      code: z.enum(["invalid_challenge", "invalid_signature", "not_enrolled", "rate_limited"]),
+      error: z.string(),
+      retryAfterMs: z.number().int().positive().optional(),
+    }),
+  ]),
+});
+
+export const DaemonAuthEnrollResponseSchema = z.object({
+  type: z.literal("daemon.auth.enroll.response"),
+  payload: z.discriminatedUnion("ok", [
+    z.object({
+      requestId: z.string(),
+      ok: z.literal(true),
+      client: DaemonAuthClientSummarySchema,
+    }),
+    z.object({
+      requestId: z.string(),
+      ok: z.literal(false),
+      code: z.enum([
+        "invalid_challenge",
+        "invalid_signature",
+        "incorrect_password",
+        "password_not_configured",
+        "transport_not_allowed",
+        "rate_limited",
+      ]),
+      error: z.string(),
+      retryAfterMs: z.number().int().positive().optional(),
+    }),
+  ]),
+});
+
+export const DaemonAuthListClientsResponseSchema = z.object({
+  type: z.literal("daemon.auth.list_clients.response"),
+  payload: z.object({
+    requestId: z.string(),
+    clients: z.array(DaemonAuthClientSummarySchema),
+    passwordConfigured: z.boolean(),
+  }),
+});
+
+export const DaemonAuthRevokeClientResponseSchema = z.object({
+  type: z.literal("daemon.auth.revoke_client.response"),
+  payload: z.discriminatedUnion("ok", [
+    z.object({ requestId: z.string(), ok: z.literal(true), revokedClientId: z.string() }),
+    z.object({
+      requestId: z.string(),
+      ok: z.literal(false),
+      code: z.enum([
+        "incorrect_password",
+        "not_found",
+        "password_not_configured",
+        "rate_limited",
+        "transport_not_allowed",
+      ]),
+      error: z.string(),
+      retryAfterMs: z.number().int().positive().optional(),
+    }),
+  ]),
+});
+
+export const DaemonAuthChangePasswordResponseSchema = z.object({
+  type: z.literal("daemon.auth.change_password.response"),
+  payload: z.discriminatedUnion("ok", [
+    z.object({ requestId: z.string(), ok: z.literal(true), revokedClientCount: z.number().int() }),
+    z.object({
+      requestId: z.string(),
+      ok: z.literal(false),
+      code: z.enum(["incorrect_password", "transport_not_allowed", "rate_limited"]),
+      error: z.string(),
+      retryAfterMs: z.number().int().positive().optional(),
+    }),
+  ]),
 });
 
 export const SetDaemonConfigResponseMessageSchema = z.object({
@@ -3695,6 +3848,12 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   SetVoiceModeResponseMessageSchema,
   DaemonGetStatusResponseSchema,
   DaemonGetPairingOfferResponseSchema,
+  DaemonAuthChallengeResponseSchema,
+  DaemonAuthProveResponseSchema,
+  DaemonAuthEnrollResponseSchema,
+  DaemonAuthListClientsResponseSchema,
+  DaemonAuthRevokeClientResponseSchema,
+  DaemonAuthChangePasswordResponseSchema,
   GetDaemonConfigResponseMessageSchema,
   SetDaemonConfigResponseMessageSchema,
   ReadProjectConfigResponseMessageSchema,

@@ -318,7 +318,7 @@ describe("HostRuntimeController", () => {
       ...oldRelay,
       daemonPublicKeyB64: "pk_new",
     };
-    const createdClients: Array<{ client: FakeDaemonClient; connection: HostConnection }> = [];
+    const createdClients: { client: FakeDaemonClient; connection: HostConnection }[] = [];
     const controller = new HostRuntimeController({
       host: makeHost({
         connections: [oldRelay],
@@ -1712,7 +1712,69 @@ describe("HostRuntimeStore", () => {
     store.syncHosts([]);
   });
 
-  it("upsertDirectConnection stores SSL and password settings", async () => {
+  it("removes local client auth credentials when removing a host", async () => {
+    const deletedServerIds: string[] = [];
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+        deleteClientAuthCredential: async (serverId) => {
+          deletedServerIds.push(serverId);
+        },
+      },
+    });
+    const host = makeHost({ serverId: "srv_auth_cleanup" });
+    store.syncHosts([host]);
+
+    await store.removeHost("srv_auth_cleanup");
+
+    expect(deletedServerIds).toEqual(["srv_auth_cleanup"]);
+    expect(store.getHosts().some((entry) => entry.serverId === "srv_auth_cleanup")).toBe(false);
+  });
+
+  it("removes local client auth credentials when deleting the last host connection", async () => {
+    const deletedServerIds: string[] = [];
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
+        connectToDaemon: async ({ host }) => ({
+          client: makeConnectedProbeClient(5) as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: host.label ?? null,
+        }),
+        getClientId: async () => "cid_test_runtime",
+        deleteClientAuthCredential: async (serverId) => {
+          deletedServerIds.push(serverId);
+        },
+      },
+    });
+    const host = makeHost({
+      serverId: "srv_last_connection_cleanup",
+      connections: [
+        {
+          id: "direct:lan:6767",
+          type: "directTcp",
+          endpoint: "lan:6767",
+        },
+      ],
+      preferredConnectionId: "direct:lan:6767",
+    });
+    store.syncHosts([host]);
+
+    await store.removeConnection("srv_last_connection_cleanup", "direct:lan:6767");
+
+    expect(deletedServerIds).toEqual(["srv_last_connection_cleanup"]);
+    expect(store.getHosts().some((entry) => entry.serverId === "srv_last_connection_cleanup")).toBe(
+      false,
+    );
+  });
+
+  it("upsertDirectConnection stores SSL settings and drops legacy passwords", async () => {
     const store = new HostRuntimeStore({
       deps: {
         createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
@@ -1740,7 +1802,6 @@ describe("HostRuntimeStore", () => {
         type: "directTcp",
         endpoint: "example.paseo.test:7443",
         useTls: true,
-        password: "shared-secret",
       },
     ]);
 

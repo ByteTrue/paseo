@@ -153,11 +153,11 @@ export async function fillDirectHostUri(page: Page, uri: string): Promise<void> 
 
 export async function expectDirectHostFormValues(
   page: Page,
-  fields: { host: string; port: string; password: string },
+  fields: { host: string; port: string },
 ): Promise<void> {
   await expect(page.getByTestId("direct-host-input")).toHaveValue(fields.host);
   await expect(page.getByTestId("direct-port-input")).toHaveValue(fields.port);
-  await expect(page.getByTestId("direct-password-input")).toHaveValue(fields.password);
+  await expect(page.getByTestId("direct-password-input")).toHaveCount(0);
 }
 
 export async function expectDirectHostSslEnabled(page: Page): Promise<void> {

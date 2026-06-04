@@ -1,13 +1,14 @@
 import type { z } from "zod";
 import { CLIENT_CAPS } from "@bytetrue/protocol/client-capabilities";
+import { generateDaemonAuthKeyPair, signDaemonAuthChallenge } from "@bytetrue/protocol/daemon-auth";
 import {
   AgentCreateFailedStatusPayloadSchema,
   AgentCreatedStatusPayloadSchema,
   AgentRefreshedStatusPayloadSchema,
   AgentResumedStatusPayloadSchema,
-  CheckoutRenameBranchResponseSchema,
+  type CheckoutRenameBranchResponseSchema,
   parseServerInfoStatusPayload,
-  RenameTerminalResponseSchema,
+  type RenameTerminalResponseSchema,
   RestartRequestedStatusPayloadSchema,
   ShutdownRequestedStatusPayloadSchema,
   SessionInboundMessageSchema,
@@ -146,13 +147,6 @@ export type ImportAgentInput =
       sessionId: string;
     });
 
-function normalizePassword(value: string | undefined): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  return value.length > 0 ? value : null;
-}
-
 export type {
   DaemonTransport,
   DaemonTransportFactory,
@@ -214,6 +208,31 @@ export type DaemonEvent =
 
 export type DaemonEventHandler = (event: DaemonEvent) => void;
 
+export interface DaemonClientAuthCredential {
+  serverId: string;
+  publicKeyB64: string;
+  secretKeyB64: string;
+  createdAt: string;
+}
+
+export interface DaemonClientAuthKeyStore {
+  get(serverId: string): Promise<DaemonClientAuthCredential | null>;
+  set(credential: DaemonClientAuthCredential): Promise<void>;
+  delete?(serverId: string): Promise<void>;
+}
+
+export interface DaemonClientAdminPasswordContext {
+  serverId: string;
+  url: string;
+  enrollmentAllowed: boolean;
+  adminPasswordConfigured: boolean;
+  error?: string | null;
+}
+
+export type DaemonClientAdminPasswordProvider = (
+  context: DaemonClientAdminPasswordContext,
+) => Promise<string | null | undefined>;
+
 export interface DaemonClientConfig {
   url: string;
   clientId: string;
@@ -223,6 +242,11 @@ export interface DaemonClientConfig {
   password?: string;
   authHeader?: string;
   suppressSendErrors?: boolean;
+  clientAuth?: {
+    keyStore?: DaemonClientAuthKeyStore;
+    adminPasswordProvider?: DaemonClientAdminPasswordProvider;
+    clientName?: string;
+  };
   transportFactory?: DaemonTransportFactory;
   webSocketFactory?: WebSocketFactory;
   logger?: Logger;
@@ -843,6 +867,21 @@ interface LivenessProbe {
   startedAt: number;
 }
 
+type DaemonAuthChallengePayload = Extract<
+  SessionOutboundMessage,
+  { type: "daemon.auth.challenge.response" }
+>["payload"];
+
+type DaemonAuthProveResponse = Extract<
+  SessionOutboundMessage,
+  { type: "daemon.auth.prove.response" }
+>;
+
+type DaemonAuthEnrollResponse = Extract<
+  SessionOutboundMessage,
+  { type: "daemon.auth.enroll.response" }
+>;
+
 export class DaemonClient {
   private transport: DaemonTransport | null = null;
   private transportCleanup: Array<() => void> = [];
@@ -865,6 +904,8 @@ export class DaemonClient {
   private connectReject: ((error: Error) => void) | null = null;
   private lastErrorValue: string | null = null;
   private connectionState: ConnectionState = { status: "idle" };
+  private pendingAuthChallenge: DaemonAuthChallengePayload | null = null;
+  private pendingAuthEnrollmentCredential: DaemonClientAuthCredential | null = null;
   private checkoutDiffSubscriptions = new Map<
     string,
     {
@@ -974,14 +1015,9 @@ export class DaemonClient {
       return;
     }
 
+    this.pendingAuthChallenge = null;
+    this.pendingAuthEnrollmentCredential = null;
     const headers: Record<string, string> = {};
-    const password = normalizePassword(this.config.password);
-    if (password) {
-      headers.Authorization = `Bearer ${password}`;
-    } else if (this.config.authHeader) {
-      headers.Authorization = this.config.authHeader;
-    }
-    const protocols = password ? [`paseo.bearer.${password}`] : undefined;
 
     try {
       // Reconnect can overlap with browser close/error delivery ordering.
@@ -1009,7 +1045,6 @@ export class DaemonClient {
       const transport = transportFactory({
         url: transportUrl,
         headers,
-        ...(protocols ? { protocols } : {}),
       });
       this.transport = transport;
       this.lastServerInfoMessage = null;
@@ -4297,6 +4332,182 @@ export class DaemonClient {
     }
   }
 
+  private handleDaemonAuthHandshakeMessage(msg: SessionOutboundMessage): boolean {
+    switch (msg.type) {
+      case "daemon.auth.challenge.response":
+        void this.handleDaemonAuthChallengeResponse(msg.payload).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.failDaemonAuth(message);
+        });
+        return true;
+      case "daemon.auth.prove.response":
+        void this.handleDaemonAuthProveResponse(msg).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.failDaemonAuth(message);
+        });
+        return true;
+      case "daemon.auth.enroll.response":
+        void this.handleDaemonAuthEnrollResponse(msg).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.failDaemonAuth(message);
+        });
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private async handleDaemonAuthChallengeResponse(
+    payload: DaemonAuthChallengePayload,
+  ): Promise<void> {
+    this.pendingAuthChallenge = payload;
+    const keyStore = this.config.clientAuth?.keyStore;
+    if (!keyStore) {
+      await this.beginDaemonAuthEnrollment(payload);
+      return;
+    }
+
+    const credential = await keyStore.get(payload.serverId);
+    if (!credential) {
+      await this.beginDaemonAuthEnrollment(payload);
+      return;
+    }
+
+    const signatureB64 = signDaemonAuthChallenge({
+      serverId: payload.serverId,
+      clientId: this.config.clientId,
+      clientPublicKeyB64: credential.publicKeyB64,
+      challengeId: payload.challengeId,
+      challengeB64: payload.challengeB64,
+      purpose: "authenticate",
+      secretKeyB64: credential.secretKeyB64,
+    });
+    this.sendPreAuthSessionMessage({
+      type: "daemon.auth.prove.request",
+      requestId: this.createRequestId(),
+      challengeId: payload.challengeId,
+      clientPublicKeyB64: credential.publicKeyB64,
+      signatureB64,
+    });
+  }
+
+  private async handleDaemonAuthProveResponse(msg: DaemonAuthProveResponse): Promise<void> {
+    if (msg.payload.ok) {
+      this.pendingAuthChallenge = null;
+      return;
+    }
+
+    if (msg.payload.code === "not_enrolled" || msg.payload.code === "invalid_signature") {
+      const challenge = this.pendingAuthChallenge;
+      if (!challenge) {
+        this.failDaemonAuth(msg.payload.error);
+        return;
+      }
+      await this.config.clientAuth?.keyStore?.delete?.(challenge.serverId);
+      await this.beginDaemonAuthEnrollment(challenge);
+      return;
+    }
+
+    this.failDaemonAuth(msg.payload.error);
+  }
+
+  private async handleDaemonAuthEnrollResponse(msg: DaemonAuthEnrollResponse): Promise<void> {
+    if (!msg.payload.ok) {
+      this.pendingAuthEnrollmentCredential = null;
+      this.failDaemonAuth(msg.payload.error);
+      return;
+    }
+
+    const credential = this.pendingAuthEnrollmentCredential;
+    const keyStore = this.config.clientAuth?.keyStore;
+    if (!credential || !keyStore) {
+      this.failDaemonAuth("Client auth key store unavailable after enrollment");
+      return;
+    }
+
+    await keyStore.set(credential);
+    this.pendingAuthEnrollmentCredential = null;
+    this.pendingAuthChallenge = null;
+  }
+
+  private async beginDaemonAuthEnrollment(challenge: DaemonAuthChallengePayload): Promise<void> {
+    const keyStore = this.config.clientAuth?.keyStore;
+    const adminPasswordProvider = this.config.clientAuth?.adminPasswordProvider;
+    if (!keyStore) {
+      this.failDaemonAuth("Client auth key store is required for daemon enrollment");
+      return;
+    }
+    if (!challenge.enrollmentAllowed) {
+      this.failDaemonAuth(challenge.error ?? "Daemon enrollment is not allowed on this transport");
+      return;
+    }
+    if (!adminPasswordProvider) {
+      this.failDaemonAuth("Daemon enrollment requires an administrator password provider");
+      return;
+    }
+
+    const adminPassword = await adminPasswordProvider({
+      serverId: challenge.serverId,
+      url: this.config.url,
+      enrollmentAllowed: challenge.enrollmentAllowed,
+      adminPasswordConfigured: challenge.adminPasswordConfigured,
+      error: challenge.error ?? null,
+    });
+    if (typeof adminPassword !== "string" || adminPassword.length === 0) {
+      this.failDaemonAuth("Daemon enrollment cancelled");
+      return;
+    }
+
+    const keyPair = generateDaemonAuthKeyPair();
+    const credential: DaemonClientAuthCredential = {
+      serverId: challenge.serverId,
+      publicKeyB64: keyPair.publicKeyB64,
+      secretKeyB64: keyPair.secretKeyB64,
+      createdAt: new Date().toISOString(),
+    };
+    const signatureB64 = signDaemonAuthChallenge({
+      serverId: challenge.serverId,
+      clientId: this.config.clientId,
+      clientPublicKeyB64: credential.publicKeyB64,
+      challengeId: challenge.challengeId,
+      challengeB64: challenge.challengeB64,
+      purpose: "enroll",
+      secretKeyB64: credential.secretKeyB64,
+    });
+    this.pendingAuthEnrollmentCredential = credential;
+    this.sendPreAuthSessionMessage({
+      type: "daemon.auth.enroll.request",
+      requestId: this.createRequestId(),
+      challengeId: challenge.challengeId,
+      clientPublicKeyB64: credential.publicKeyB64,
+      signatureB64,
+      adminPassword,
+      ...(this.config.clientAuth?.clientName
+        ? { clientName: this.config.clientAuth.clientName }
+        : {}),
+    });
+  }
+
+  private sendPreAuthSessionMessage(message: SessionInboundMessage): void {
+    if (!this.transport) {
+      throw new Error("Transport unavailable during daemon auth");
+    }
+    const payload = SessionInboundMessageSchema.parse(message);
+    this.transport.send(JSON.stringify({ type: "session", message: payload }));
+  }
+
+  private failDaemonAuth(message: string): void {
+    this.pendingAuthChallenge = null;
+    this.pendingAuthEnrollmentCredential = null;
+    this.lastErrorValue = message;
+    this.disposeTransport(4401, message.slice(0, 120));
+    this.scheduleReconnect({
+      reason: message,
+      event: "DAEMON_AUTH_FAILED",
+      reasonCode: "daemon_auth_failed",
+    });
+  }
+
   private disposeTransport(code = 1001, reason = "Reconnecting"): void {
     this.cleanupTransport();
     if (this.transport) {
@@ -4636,6 +4847,10 @@ export class DaemonClient {
   }
 
   private handleSessionMessage(msg: SessionOutboundMessage): void {
+    if (this.handleDaemonAuthHandshakeMessage(msg)) {
+      return;
+    }
+
     if (msg.type === "status") {
       const serverInfo = parseServerInfoStatusPayload(msg.payload);
       if (serverInfo) {

@@ -12,6 +12,8 @@ import {
   buildLocalDaemonTransportUrl,
   createDesktopLocalDaemonTransportFactory,
 } from "@/desktop/daemon/desktop-daemon-transport";
+import { appClientAuthKeyStore } from "@/daemon-auth/client-auth-store";
+import { requestDaemonAdminPassword } from "@/daemon-auth/admin-password-prompt";
 
 export interface DaemonProbeClient {
   readonly lastError: string | null;
@@ -31,6 +33,7 @@ export interface DaemonConnectionDependencies<TClient extends DaemonProbeClient>
   createLocalTransportFactory(): DaemonClientConfig["transportFactory"] | null;
   buildLocalTransportUrl(input: LocalTransportUrlInput): string;
   createClient(config: DaemonClientConfig): TClient;
+  getClientAuth?(): DaemonClientConfig["clientAuth"];
 }
 
 const defaultDaemonConnectionDependencies: DaemonConnectionDependencies<DaemonClient> = {
@@ -39,6 +42,11 @@ const defaultDaemonConnectionDependencies: DaemonConnectionDependencies<DaemonCl
   createLocalTransportFactory: createDesktopLocalDaemonTransportFactory,
   buildLocalTransportUrl: buildLocalDaemonTransportUrl,
   createClient: (config) => new DaemonClient(config),
+  getClientAuth: () => ({
+    keyStore: appClientAuthKeyStore,
+    adminPasswordProvider: requestDaemonAdminPassword,
+    clientName: "Paseo app",
+  }),
 };
 
 function normalizeNonEmptyString(value: unknown): string | null {
@@ -65,23 +73,6 @@ function pickBestReason(reason: string | null, lastError: string | null): string
   return "Unable to connect";
 }
 
-function isIncorrectPasswordFailure(input: {
-  config: DaemonClientConfig;
-  reason: string | null;
-  lastError: string | null;
-}): boolean {
-  if (!input.config.password) {
-    return false;
-  }
-  const details = [input.reason, input.lastError].filter(Boolean).join("\n").toLowerCase();
-  return (
-    details.includes("401") ||
-    details.includes("4001") ||
-    details.includes("unauthorized") ||
-    details.includes("code 1006")
-  );
-}
-
 export class DaemonConnectionTestError extends Error {
   reason: string | null;
   lastError: string | null;
@@ -99,17 +90,23 @@ export async function buildClientConfig(
   serverId?: string,
   deps: Pick<
     DaemonConnectionDependencies<DaemonProbeClient>,
-    "getClientId" | "resolveAppVersion" | "createLocalTransportFactory" | "buildLocalTransportUrl"
+    | "getClientId"
+    | "resolveAppVersion"
+    | "createLocalTransportFactory"
+    | "buildLocalTransportUrl"
+    | "getClientAuth"
   > = defaultDaemonConnectionDependencies,
 ): Promise<DaemonClientConfig> {
   const clientId = await deps.getClientId();
   const localTransportFactory = deps.createLocalTransportFactory();
+  const clientAuth = deps.getClientAuth?.();
   const base = {
     clientId,
     clientType: "mobile" as const,
     appVersion: deps.resolveAppVersion() ?? undefined,
     suppressSendErrors: true,
     reconnect: { enabled: false },
+    ...(clientAuth ? { clientAuth } : {}),
     ...((connection.type === "directSocket" || connection.type === "directPipe") &&
     localTransportFactory
       ? { transportFactory: localTransportFactory }
@@ -130,7 +127,6 @@ export async function buildClientConfig(
     return {
       ...base,
       url: buildDaemonWebSocketUrl(connection.endpoint, { useTls: connection.useTls ?? false }),
-      ...(connection.password ? { password: connection.password } : {}),
     };
   }
 
@@ -208,9 +204,7 @@ export function connectAndProbe(
             error instanceof Error ? error.message : String(error),
           );
           const lastError = normalizeNonEmptyString(client.lastError);
-          const message = isIncorrectPasswordFailure({ config, reason, lastError })
-            ? "Incorrect password"
-            : pickBestReason(reason, lastError);
+          const message = pickBestReason(reason, lastError);
           void client.close().catch(() => undefined);
           reject(new DaemonConnectionTestError(message, { reason, lastError }));
         });

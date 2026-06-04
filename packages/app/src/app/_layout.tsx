@@ -31,6 +31,7 @@ import { ProviderSettingsHost } from "@/components/provider-settings-host";
 import { WorkspaceSetupDialog } from "@/components/workspace-setup-dialog";
 import { WorkspaceShortcutTargetsSubscriber } from "@/components/workspace-shortcut-targets-subscriber";
 import { FloatingPanelPortalHost } from "@/components/ui/floating-panel-portal";
+import { DaemonAuthPromptHost } from "@/daemon-auth/daemon-auth-prompt-host";
 import { getIsElectronRuntime, useIsCompactFormFactor } from "@/constants/layout";
 import { isNative, isWeb } from "@/constants/platform";
 import {
@@ -880,6 +881,7 @@ function RuntimeProviders({ children }: { children: ReactNode }) {
       <SidebarCalloutProvider>
         <ToastProvider>
           <ProvidersWrapper>{children}</ProvidersWrapper>
+          <DaemonAuthPromptHost />
         </ToastProvider>
       </SidebarCalloutProvider>
     </HostRuntimeBootstrapProvider>

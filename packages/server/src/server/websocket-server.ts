@@ -1,7 +1,8 @@
-import { WebSocket, WebSocketServer } from "ws";
+import { WebSocketServer } from "ws";
 import type { IncomingMessage, Server as HTTPServer } from "http";
 import { basename, join } from "path";
 import { hostname as getHostname } from "node:os";
+import { randomBytes } from "node:crypto";
 import type { AgentManager } from "./agent/agent-manager.js";
 import type { AgentStorage } from "./agent/agent-storage.js";
 import type { DownloadTokenStore } from "./file-download/token-store.js";
@@ -18,6 +19,7 @@ import {
   type WorkspaceSetupSnapshot,
   type WSHelloMessage,
   type WSInboundMessage,
+  type SessionInboundMessage,
   WSInboundMessageSchema,
   type ServerCapabilityState,
   type ServerCapabilities,
@@ -29,7 +31,7 @@ import type { HostnamesConfig } from "./hostnames.js";
 import { isHostnameAllowed } from "./hostnames.js";
 import { Session, type SessionLifecycleIntent, type SessionRuntimeMetrics } from "./session.js";
 import type { AgentProvider } from "./agent/agent-sdk-types.js";
-import { ProviderSnapshotManager } from "./agent/provider-snapshot-manager.js";
+import type { ProviderSnapshotManager } from "./agent/provider-snapshot-manager.js";
 import type { WorkspaceGitRuntimeSnapshot, WorkspaceGitService } from "./workspace-git-service.js";
 import { buildWorkspaceGitMetadataFromSnapshot } from "./workspace-git-metadata.js";
 import { PushTokenStore } from "./push/token-store.js";
@@ -45,16 +47,15 @@ import {
   findLatestPermissionRequest,
 } from "@bytetrue/protocol/agent-attention-notification";
 import { createGitHubService, type GitHubService } from "../services/github-service.js";
-import {
-  extractWsBearerProtocol,
-  extractWsBearerToken,
-  isBearerTokenValid,
-  type DaemonAuthConfig,
-} from "./auth.js";
+import { hashDaemonPassword, isBearerTokenValidAsync, type DaemonAuthConfig } from "./auth.js";
 import {
   WebSocketRuntimeMetricsWindow,
   type WebSocketRuntimeCounters,
 } from "./websocket/runtime-metrics.js";
+import { AuthorizedClientStore, type AuthorizedClient } from "./authorized-client-store.js";
+import { AuthAttemptThrottler } from "./auth-attempt-throttler.js";
+import { loadPersistedConfig, savePersistedConfig } from "./persisted-config.js";
+import { bytesToBase64, verifyDaemonAuthChallengeSignature } from "@bytetrue/protocol/daemon-auth";
 
 const WS_CLOSE_DAEMON_AUTH_FAILED = 4401;
 
@@ -63,9 +64,34 @@ export interface ExternalSocketMetadata {
   externalSessionKey?: string;
 }
 
+interface PendingAuthChallenge {
+  challengeId: string;
+  challengeB64: string;
+  expiresAtMs: number;
+}
+
+interface PendingHello {
+  clientId: string;
+  appVersion: string | null;
+  clientCapabilities: Record<string, unknown> | null;
+}
+
+interface SocketRequestMetadata {
+  host?: string;
+  origin?: string;
+  userAgent?: string;
+  remoteAddress?: string;
+}
+
 interface PendingConnection {
   connectionLogger: pino.Logger;
   helloTimeout: ReturnType<typeof setTimeout> | null;
+  requestMetadata: SocketRequestMetadata;
+  transport: "direct" | "relay";
+  trustedLocal: boolean;
+  authAdminAllowed: boolean;
+  hello: PendingHello | null;
+  authChallenge: PendingAuthChallenge | null;
 }
 
 interface WebSocketServerConfig {
@@ -268,6 +294,9 @@ interface SessionConnection {
   connectionLogger: pino.Logger;
   sockets: Set<WebSocketLike>;
   externalDisconnectCleanupTimeout: ReturnType<typeof setTimeout> | null;
+  sessionKey: string;
+  authorizedClientId: string | null;
+  authorizedClientPublicKeyB64: string | null;
 }
 
 const SLOW_REQUEST_THRESHOLD_MS = 500;
@@ -352,6 +381,9 @@ export class VoiceAssistantWebSocketServer {
   private readonly paseoHome: string;
   private readonly worktreesRoot: string | undefined;
   private readonly daemonConfigStore: DaemonConfigStore;
+  private readonly authorizedClientStore: AuthorizedClientStore;
+  private readonly authAttemptThrottler = new AuthAttemptThrottler();
+  private authPasswordHash: string | undefined;
   private readonly pushTokenStore: PushTokenStore;
   private readonly pushNotificationSender: PushNotificationSender;
   private readonly mcpBaseUrl: string | null;
@@ -460,6 +492,11 @@ export class VoiceAssistantWebSocketServer {
     this.paseoHome = paseoHome;
     this.worktreesRoot = daemonRuntimeConfig?.worktreesRoot;
     this.daemonConfigStore = daemonConfigStore;
+    this.authPasswordHash = auth?.password;
+    this.authorizedClientStore = new AuthorizedClientStore(
+      this.logger,
+      join(paseoHome, "authorized-clients.json"),
+    );
     this.mcpBaseUrl = mcpBaseUrl;
     this.assignOptionalServices({
       speech,
@@ -541,20 +578,19 @@ export class VoiceAssistantWebSocketServer {
   private createWebSocketServer(
     server: HTTPServer,
     wsConfig: WebSocketServerConfig,
-    auth: DaemonAuthConfig | undefined,
+    _auth: DaemonAuthConfig | undefined,
   ): WebSocketServer {
     const { allowedOrigins, hostnames } = wsConfig;
-    const password = auth?.password;
     const wss = new WebSocketServer({
       server,
       path: "/ws",
-      handleProtocols: (protocols) => selectWebSocketProtocol(protocols, password),
       verifyClient: ({ req }, callback) => {
         this.verifyWsUpgrade(req, allowedOrigins, hostnames, callback);
       },
+      handleProtocols: () => false,
     });
     wss.on("connection", (ws, request) => {
-      void this.attachAuthenticatedSocket(ws, request, password);
+      void this.attachSocket(ws, request);
     });
     return wss;
   }
@@ -597,30 +633,6 @@ export class VoiceAssistantWebSocketServer {
       this.logger.warn({ ...requestMetadata, origin }, "Rejected connection from origin");
       callback(false, 403, "Origin not allowed");
     }
-  }
-
-  private async attachAuthenticatedSocket(
-    ws: WebSocket,
-    request: IncomingMessage,
-    password: string | undefined,
-  ): Promise<void> {
-    if (password) {
-      const requestMetadata = extractSocketRequestMetadata(request);
-      const protocol = extractWsBearerProtocol(request.headers["sec-websocket-protocol"]);
-      const token = extractWsBearerToken(protocol);
-      const isAuthorized = isBearerTokenValid({ password, token });
-      if (!isAuthorized) {
-        const reason = token === null ? "Password required" : "Incorrect password";
-        this.logger.warn(
-          { ...requestMetadata, hasToken: token !== null },
-          "Rejected WebSocket connection with invalid daemon password",
-        );
-        ws.close(WS_CLOSE_DAEMON_AUTH_FAILED, reason);
-        return;
-      }
-    }
-
-    await this.attachSocket(ws, request);
   }
 
   public broadcast(message: WSOutboundMessage): void {
@@ -798,10 +810,19 @@ export class VoiceAssistantWebSocketServer {
       connectionLoggerFields.remoteAddress = requestMetadata.remoteAddress;
     }
     const connectionLogger = this.logger.child(connectionLoggerFields);
+    const transport = metadata?.transport === "relay" ? "relay" : "direct";
+    const trustedLocal = transport === "direct" && isLocalSocketRequest(requestMetadata);
+    const authAdminAllowed = trustedLocal || transport === "relay" || isTlsSocketRequest(request);
 
     const pending: PendingConnection = {
       connectionLogger,
       helloTimeout: null,
+      requestMetadata,
+      transport,
+      trustedLocal,
+      authAdminAllowed,
+      hello: null,
+      authChallenge: null,
     };
     const timeout = setTimeout(() => {
       if (this.pendingConnections.get(ws) !== pending) {
@@ -840,8 +861,20 @@ export class VoiceAssistantWebSocketServer {
     appVersion: string | null;
     clientCapabilities: Record<string, unknown> | null;
     connectionLogger: pino.Logger;
+    sessionKey: string;
+    authorizedClient: AuthorizedClient | null;
+    authAdminAllowed: boolean;
   }): SessionConnection {
-    const { ws, clientId, appVersion, clientCapabilities, connectionLogger } = params;
+    const {
+      ws,
+      clientId,
+      appVersion,
+      clientCapabilities,
+      connectionLogger,
+      sessionKey,
+      authorizedClient,
+      authAdminAllowed,
+    } = params;
     let connection: SessionConnection | null = null;
 
     const session = new Session({
@@ -879,6 +912,7 @@ export class VoiceAssistantWebSocketServer {
       github: this.github,
       workspaceGitService: this.workspaceGitService,
       daemonConfigStore: this.daemonConfigStore,
+      authAdministration: this.createSessionAuthAdministration(authAdminAllowed),
       mcpBaseUrl: this.mcpBaseUrl,
       stt: () => this.speech?.resolveStt() ?? null,
       sttLanguage: this.speech?.resolveSttLanguage() ?? "en",
@@ -932,6 +966,9 @@ export class VoiceAssistantWebSocketServer {
       connectionLogger,
       sockets: new Set([ws]),
       externalDisconnectCleanupTimeout: null,
+      sessionKey,
+      authorizedClientId: authorizedClient?.id ?? null,
+      authorizedClientPublicKeyB64: authorizedClient?.publicKeyB64 ?? null,
     };
     return connection;
   }
@@ -985,33 +1022,60 @@ export class VoiceAssistantWebSocketServer {
       return;
     }
 
+    const hello: PendingHello = {
+      clientId,
+      appVersion: message.appVersion ?? null,
+      clientCapabilities: message.capabilities ?? null,
+    };
+
+    if (pending.trustedLocal) {
+      this.attachSessionForHello({
+        ws,
+        pending,
+        hello,
+        authorizedClient: null,
+      });
+      return;
+    }
+
+    pending.hello = hello;
+    this.clearPendingHelloTimeout(pending);
+    this.sendAuthChallenge(ws, pending);
+  }
+
+  private attachSessionForHello(params: {
+    ws: WebSocketLike;
+    pending: PendingConnection;
+    hello: PendingHello;
+    authorizedClient: AuthorizedClient | null;
+  }): void {
+    const { ws, pending, hello, authorizedClient } = params;
     this.clearPendingConnection(ws);
-    const existing = this.externalSessionsByKey.get(clientId);
+    const sessionKey = buildSessionKey(hello.clientId, authorizedClient);
+    const existing = this.externalSessionsByKey.get(sessionKey);
     if (existing) {
       this.incrementRuntimeCounter("helloResumed");
       if (existing.externalDisconnectCleanupTimeout) {
         clearTimeout(existing.externalDisconnectCleanupTimeout);
         existing.externalDisconnectCleanupTimeout = null;
       }
-      const newAppVersion = message.appVersion ?? null;
-      if (newAppVersion && newAppVersion !== existing.appVersion) {
-        existing.appVersion = newAppVersion;
-        existing.session.updateAppVersion(newAppVersion);
+      if (hello.appVersion && hello.appVersion !== existing.appVersion) {
+        existing.appVersion = hello.appVersion;
+        existing.session.updateAppVersion(hello.appVersion);
       }
-      const newClientCapabilities = message.capabilities ?? null;
       if (
         JSON.stringify(existing.clientCapabilities ?? null) !==
-        JSON.stringify(newClientCapabilities ?? null)
+        JSON.stringify(hello.clientCapabilities ?? null)
       ) {
-        existing.clientCapabilities = newClientCapabilities;
-        existing.session.updateClientCapabilities(newClientCapabilities);
+        existing.clientCapabilities = hello.clientCapabilities;
+        existing.session.updateClientCapabilities(hello.clientCapabilities);
       }
       existing.sockets.add(ws);
       this.sessions.set(ws, existing);
       this.sendToClient(ws, this.createServerInfoMessage());
       existing.connectionLogger.trace(
         {
-          clientId,
+          clientId: hello.clientId,
           resumed: true,
           totalSessions: this.sessions.size,
         },
@@ -1020,26 +1084,434 @@ export class VoiceAssistantWebSocketServer {
       return;
     }
 
-    const connectionLogger = pending.connectionLogger.child({ clientId });
+    const connectionLogger = pending.connectionLogger.child({
+      clientId: hello.clientId,
+      ...(authorizedClient ? { authorizedClientId: authorizedClient.id } : {}),
+    });
     this.incrementRuntimeCounter("helloNew");
     const connection = this.createSessionConnection({
       ws,
-      clientId,
-      appVersion: message.appVersion ?? null,
-      clientCapabilities: message.capabilities ?? null,
+      clientId: hello.clientId,
+      appVersion: hello.appVersion,
+      clientCapabilities: hello.clientCapabilities,
       connectionLogger,
+      sessionKey,
+      authorizedClient,
+      authAdminAllowed: pending.authAdminAllowed,
     });
     this.sessions.set(ws, connection);
-    this.externalSessionsByKey.set(clientId, connection);
+    this.externalSessionsByKey.set(sessionKey, connection);
     this.sendToClient(ws, this.createServerInfoMessage());
     connection.connectionLogger.trace(
       {
-        clientId,
+        clientId: hello.clientId,
         resumed: false,
         totalSessions: this.sessions.size,
       },
       "Client connected via hello",
     );
+  }
+
+  private clearPendingHelloTimeout(pending: PendingConnection): void {
+    if (!pending.helloTimeout) {
+      return;
+    }
+    clearTimeout(pending.helloTimeout);
+    pending.helloTimeout = null;
+  }
+
+  private sendAuthChallenge(ws: WebSocketLike, pending: PendingConnection): void {
+    const challenge = this.createAuthChallenge();
+    pending.authChallenge = challenge;
+    const passwordConfigured = Boolean(this.authPasswordHash);
+    let error: string | null = null;
+    if (!passwordConfigured) {
+      error = "Set a daemon administrator password locally before enrolling remote clients";
+    } else if (!pending.authAdminAllowed) {
+      error = "Enrollment requires relay E2EE, localhost, IPC, or trusted TLS direct transport";
+    }
+    this.sendToClient(
+      ws,
+      wrapSessionMessage({
+        type: "daemon.auth.challenge.response",
+        payload: {
+          requestId: `auth_${challenge.challengeId}`,
+          serverId: this.serverId,
+          challengeId: challenge.challengeId,
+          challengeB64: challenge.challengeB64,
+          expiresAt: new Date(challenge.expiresAtMs).toISOString(),
+          adminPasswordConfigured: passwordConfigured,
+          enrollmentAllowed: passwordConfigured && pending.authAdminAllowed,
+          transport: pending.transport,
+          error,
+        },
+      }),
+    );
+  }
+
+  private createAuthChallenge(): PendingAuthChallenge {
+    return {
+      challengeId: bytesToBase64(randomBytes(16)),
+      challengeB64: bytesToBase64(randomBytes(32)),
+      expiresAtMs: Date.now() + 120_000,
+    };
+  }
+
+  private async handlePreAuthSessionMessage(params: {
+    ws: WebSocketLike;
+    pending: PendingConnection;
+    message: SessionInboundMessage;
+  }): Promise<boolean> {
+    const { ws, pending, message } = params;
+    switch (message.type) {
+      case "daemon.auth.prove.request":
+        await this.handlePreAuthProveRequest(ws, pending, message);
+        return true;
+      case "daemon.auth.enroll.request":
+        await this.handlePreAuthEnrollRequest(ws, pending, message);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private async handlePreAuthProveRequest(
+    ws: WebSocketLike,
+    pending: PendingConnection,
+    message: Extract<SessionInboundMessage, { type: "daemon.auth.prove.request" }>,
+  ): Promise<void> {
+    const client = this.authorizedClientStore.findByPublicKey(message.clientPublicKeyB64);
+    if (!client) {
+      this.sendToClient(
+        ws,
+        wrapSessionMessage({
+          type: "daemon.auth.prove.response",
+          payload: {
+            requestId: message.requestId,
+            ok: false,
+            code: "not_enrolled",
+            error: "Client is not enrolled with this daemon",
+          },
+        }),
+      );
+      return;
+    }
+
+    const proof = this.validatePendingAuthProof(pending, message, "authenticate");
+    if (!proof.ok) {
+      this.sendToClient(
+        ws,
+        wrapSessionMessage({
+          type: "daemon.auth.prove.response",
+          payload: { requestId: message.requestId, ...proof.error },
+        }),
+      );
+      return;
+    }
+
+    const touchedClient = this.authorizedClientStore.touch(client.publicKeyB64) ?? client;
+    this.authAttemptThrottler.recordSuccess(
+      this.getAuthThrottleKey(pending, message.clientPublicKeyB64),
+    );
+    this.sendToClient(
+      ws,
+      wrapSessionMessage({
+        type: "daemon.auth.prove.response",
+        payload: {
+          requestId: message.requestId,
+          ok: true,
+          client: touchedClient,
+        },
+      }),
+    );
+    this.attachSessionForHello({
+      ws,
+      pending,
+      hello: proof.hello,
+      authorizedClient: touchedClient,
+    });
+  }
+
+  private async handlePreAuthEnrollRequest(
+    ws: WebSocketLike,
+    pending: PendingConnection,
+    message: Extract<SessionInboundMessage, { type: "daemon.auth.enroll.request" }>,
+  ): Promise<void> {
+    if (!pending.authAdminAllowed) {
+      this.sendPreAuthEnrollFailure(ws, message.requestId, {
+        code: "transport_not_allowed",
+        error: "Enrollment requires relay E2EE, localhost, IPC, or trusted TLS direct transport",
+      });
+      return;
+    }
+    if (!this.authPasswordHash) {
+      this.sendPreAuthEnrollFailure(ws, message.requestId, {
+        code: "password_not_configured",
+        error: "Set a daemon administrator password locally before enrolling remote clients",
+      });
+      return;
+    }
+
+    const throttleKey = this.getAuthThrottleKey(pending, message.clientPublicKeyB64);
+    const throttle = this.authAttemptThrottler.check(throttleKey);
+    if (!throttle.allowed) {
+      this.sendPreAuthEnrollFailure(ws, message.requestId, {
+        code: "rate_limited",
+        error: "Too many failed enrollment attempts",
+        retryAfterMs: throttle.retryAfterMs,
+      });
+      return;
+    }
+
+    const proof = this.validatePendingAuthProof(pending, message, "enroll");
+    if (!proof.ok) {
+      const nextThrottle = this.authAttemptThrottler.recordFailure(throttleKey);
+      this.sendPreAuthEnrollFailure(ws, message.requestId, {
+        ...proof.error,
+        retryAfterMs: nextThrottle.retryAfterMs,
+      });
+      return;
+    }
+
+    if (!(await this.isAdminPasswordValid(message.adminPassword))) {
+      const nextThrottle = this.authAttemptThrottler.recordFailure(throttleKey);
+      this.sendPreAuthEnrollFailure(ws, message.requestId, {
+        code: "incorrect_password",
+        error: "Incorrect daemon administrator password",
+        retryAfterMs: nextThrottle.retryAfterMs,
+      });
+      return;
+    }
+
+    this.authAttemptThrottler.recordSuccess(throttleKey);
+    const client = this.authorizedClientStore.enroll({
+      publicKeyB64: message.clientPublicKeyB64,
+      clientName: message.clientName ?? null,
+    });
+    this.sendToClient(
+      ws,
+      wrapSessionMessage({
+        type: "daemon.auth.enroll.response",
+        payload: {
+          requestId: message.requestId,
+          ok: true,
+          client,
+        },
+      }),
+    );
+    this.attachSessionForHello({
+      ws,
+      pending,
+      hello: proof.hello,
+      authorizedClient: client,
+    });
+  }
+
+  private validatePendingAuthProof(
+    pending: PendingConnection,
+    message: Extract<
+      SessionInboundMessage,
+      { type: "daemon.auth.prove.request" | "daemon.auth.enroll.request" }
+    >,
+    purpose: "authenticate" | "enroll",
+  ):
+    | { ok: true; hello: PendingHello }
+    | {
+        ok: false;
+        error: {
+          ok: false;
+          code: "invalid_challenge" | "invalid_signature";
+          error: string;
+          retryAfterMs?: number;
+        };
+      } {
+    const hello = pending.hello;
+    const challenge = pending.authChallenge;
+    if (!hello || !challenge || challenge.challengeId !== message.challengeId) {
+      return {
+        ok: false,
+        error: {
+          ok: false,
+          code: "invalid_challenge",
+          error: "Auth challenge is missing or no longer valid",
+        },
+      };
+    }
+    if (challenge.expiresAtMs <= Date.now()) {
+      return {
+        ok: false,
+        error: {
+          ok: false,
+          code: "invalid_challenge",
+          error: "Auth challenge expired",
+        },
+      };
+    }
+
+    const verified = verifyDaemonAuthChallengeSignature({
+      serverId: this.serverId,
+      clientId: hello.clientId,
+      clientPublicKeyB64: message.clientPublicKeyB64,
+      challengeId: challenge.challengeId,
+      challengeB64: challenge.challengeB64,
+      purpose,
+      signatureB64: message.signatureB64,
+    });
+    if (!verified) {
+      return {
+        ok: false,
+        error: {
+          ok: false,
+          code: "invalid_signature",
+          error: "Auth challenge signature was invalid",
+        },
+      };
+    }
+
+    return { ok: true, hello };
+  }
+
+  private sendPreAuthEnrollFailure(
+    ws: WebSocketLike,
+    requestId: string,
+    failure: {
+      code:
+        | "invalid_challenge"
+        | "invalid_signature"
+        | "incorrect_password"
+        | "password_not_configured"
+        | "transport_not_allowed"
+        | "rate_limited";
+      error: string;
+      retryAfterMs?: number;
+    },
+  ): void {
+    this.sendToClient(
+      ws,
+      wrapSessionMessage({
+        type: "daemon.auth.enroll.response",
+        payload: {
+          requestId,
+          ok: false,
+          ...failure,
+        },
+      }),
+    );
+  }
+
+  private getAuthThrottleKey(pending: PendingConnection, clientPublicKeyB64: string): string {
+    const source = pending.requestMetadata.remoteAddress ?? pending.hello?.clientId ?? "unknown";
+    return `${pending.transport}:${source}:${clientPublicKeyB64}`;
+  }
+
+  private async isAdminPasswordValid(password: string | undefined): Promise<boolean> {
+    return isBearerTokenValidAsync({ password: this.authPasswordHash, token: password ?? null });
+  }
+
+  private createSessionAuthAdministration(authAdminAllowed: boolean) {
+    return {
+      listClients: () => ({
+        clients: this.authorizedClientStore.list(),
+        passwordConfigured: Boolean(this.authPasswordHash),
+      }),
+      revokeClient: async (input: { clientId: string; adminPassword: string }) => {
+        if (!authAdminAllowed) {
+          return {
+            ok: false as const,
+            code: "transport_not_allowed" as const,
+            error:
+              "Auth administration requires relay E2EE, localhost, IPC, or trusted TLS direct transport",
+          };
+        }
+        if (!this.authPasswordHash) {
+          return {
+            ok: false as const,
+            code: "password_not_configured" as const,
+            error: "Daemon administrator password is not configured",
+          };
+        }
+        if (!(await this.isAdminPasswordValid(input.adminPassword))) {
+          return {
+            ok: false as const,
+            code: "incorrect_password" as const,
+            error: "Incorrect daemon administrator password",
+          };
+        }
+        const revoked = this.authorizedClientStore.revoke(input.clientId);
+        if (!revoked) {
+          return {
+            ok: false as const,
+            code: "not_found" as const,
+            error: "Authorized client not found",
+          };
+        }
+        await this.disconnectAuthorizedClient(revoked.id, "Authorized client revoked");
+        return { ok: true as const, revokedClientId: revoked.id };
+      },
+      changePassword: async (input: { currentPassword?: string; newPassword: string }) => {
+        if (!authAdminAllowed) {
+          return {
+            ok: false as const,
+            code: "transport_not_allowed" as const,
+            error:
+              "Auth administration requires relay E2EE, localhost, IPC, or trusted TLS direct transport",
+          };
+        }
+        if (this.authPasswordHash && !(await this.isAdminPasswordValid(input.currentPassword))) {
+          return {
+            ok: false as const,
+            code: "incorrect_password" as const,
+            error: "Incorrect daemon administrator password",
+          };
+        }
+        const nextPasswordHash = hashDaemonPassword(input.newPassword);
+        const persisted = loadPersistedConfig(this.paseoHome);
+        savePersistedConfig(this.paseoHome, {
+          ...persisted,
+          daemon: {
+            ...persisted.daemon,
+            auth: {
+              ...persisted.daemon?.auth,
+              password: nextPasswordHash,
+            },
+          },
+        });
+        this.authPasswordHash = nextPasswordHash;
+        const revoked = this.authorizedClientStore.revokeAll();
+        await this.disconnectAllAuthorizedClients("Daemon administrator password changed");
+        return { ok: true as const, revokedClientCount: revoked.length };
+      },
+    };
+  }
+
+  private async disconnectAuthorizedClient(clientId: string, reason: string): Promise<void> {
+    const connections = [...new Set(this.externalSessionsByKey.values())].filter(
+      (connection) => connection.authorizedClientId === clientId,
+    );
+    await Promise.all(
+      connections.map((connection) => this.disconnectConnection(connection, reason)),
+    );
+  }
+
+  private async disconnectAllAuthorizedClients(reason: string): Promise<void> {
+    const connections = [...new Set(this.externalSessionsByKey.values())].filter(
+      (connection) => connection.authorizedClientId !== null,
+    );
+    await Promise.all(
+      connections.map((connection) => this.disconnectConnection(connection, reason)),
+    );
+  }
+
+  private async disconnectConnection(connection: SessionConnection, reason: string): Promise<void> {
+    const sockets = [...connection.sockets];
+    for (const socket of sockets) {
+      try {
+        socket.close(WS_CLOSE_DAEMON_AUTH_FAILED, reason);
+      } catch {
+        // Ignore close errors; cleanup below removes the session either way.
+      }
+    }
+    await this.cleanupConnection(connection, reason);
   }
 
   private buildServerInfoStatusPayload(): ServerInfoStatusPayload {
@@ -1062,6 +1534,8 @@ export class VoiceAssistantWebSocketServer {
         rewind: true,
         // COMPAT(checkoutRefresh): added in v0.1.86, remove gate after 2026-11-29.
         checkoutRefresh: true,
+        // COMPAT(daemonClientAuthorization): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        daemonClientAuthorization: true,
       },
     };
   }
@@ -1214,9 +1688,9 @@ export class VoiceAssistantWebSocketServer {
       this.sessions.delete(socket);
     }
     connection.sockets.clear();
-    const existing = this.externalSessionsByKey.get(connection.clientId);
+    const existing = this.externalSessionsByKey.get(connection.sessionKey);
     if (existing === connection) {
-      this.externalSessionsByKey.delete(connection.clientId);
+      this.externalSessionsByKey.delete(connection.sessionKey);
     }
 
     connection.connectionLogger.trace(
@@ -1329,11 +1803,11 @@ export class VoiceAssistantWebSocketServer {
     return true;
   }
 
-  private handlePendingConnectionMessage(params: {
+  private async handlePendingConnectionMessage(params: {
     ws: WebSocketLike;
     message: WSInboundMessage;
     pendingConnection: PendingConnection;
-  }): void {
+  }): Promise<void> {
     const { ws, message, pendingConnection } = params;
     if (message.type === "hello") {
       this.handleHello({
@@ -1342,6 +1816,17 @@ export class VoiceAssistantWebSocketServer {
         pending: pendingConnection,
       });
       return;
+    }
+
+    if (message.type === "session" && pendingConnection.hello) {
+      const handled = await this.handlePreAuthSessionMessage({
+        ws,
+        pending: pendingConnection,
+        message: message.message,
+      });
+      if (handled) {
+        return;
+      }
     }
 
     pendingConnection.connectionLogger.warn(
@@ -1407,7 +1892,7 @@ export class VoiceAssistantWebSocketServer {
       }
 
       if (pendingConnection) {
-        this.handlePendingConnectionMessage({
+        await this.handlePendingConnectionMessage({
           ws,
           message,
           pendingConnection,
@@ -1750,22 +2235,30 @@ function extractSocketRequestMetadata(request: unknown): SocketRequestMetadata {
   };
 }
 
-function selectWebSocketProtocol(
-  protocols: Set<string>,
-  password: string | undefined,
-): string | false {
-  if (!password) {
-    return protocols.values().next().value ?? false;
-  }
+function buildSessionKey(clientId: string, authorizedClient: AuthorizedClient | null): string {
+  return authorizedClient ? `${clientId}:auth:${authorizedClient.id}` : `${clientId}:local`;
+}
 
-  for (const protocol of protocols) {
-    const token = extractWsBearerToken(protocol);
-    if (token !== null) {
-      return protocol;
-    }
+function isLocalSocketRequest(metadata: SocketRequestMetadata): boolean {
+  const remoteAddress = metadata.remoteAddress;
+  if (!remoteAddress) {
+    return true;
   }
+  return (
+    remoteAddress === "::1" ||
+    remoteAddress.startsWith("127.") ||
+    remoteAddress.startsWith("::ffff:127.")
+  );
+}
 
-  return false;
+function isTlsSocketRequest(request: unknown): boolean {
+  if (!request || typeof request !== "object") {
+    return false;
+  }
+  const socket = (request as { socket?: unknown }).socket;
+  return Boolean(
+    socket && typeof socket === "object" && (socket as { encrypted?: unknown }).encrypted === true,
+  );
 }
 
 function stringifyCloseReason(reason: unknown): string | null {

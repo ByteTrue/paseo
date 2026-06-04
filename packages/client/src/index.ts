@@ -20,6 +20,7 @@ import type {
 } from "@bytetrue/protocol/messages";
 import { DaemonClient } from "./daemon-client.js";
 import type {
+  DaemonClientConfig,
   FetchAgentTimelineCursor,
   FetchAgentTimelineDirection,
   FetchAgentTimelinePayload,
@@ -28,6 +29,9 @@ import type {
 
 export { DaemonClient };
 export type {
+  DaemonClientAdminPasswordProvider,
+  DaemonClientAuthCredential,
+  DaemonClientAuthKeyStore,
   DaemonClientConfig,
   DaemonEvent,
   WebSocketFactory,
@@ -69,6 +73,7 @@ export interface PaseoClientConfig {
   };
   runtimeMetricsIntervalMs?: number;
   runtimeMetricsWindowMs?: number;
+  clientAuth?: DaemonClientConfig["clientAuth"];
 }
 
 export type PaseoWorkspace = WorkspaceDescriptorPayload;

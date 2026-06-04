@@ -59,7 +59,7 @@ describe("connection URI parsing", () => {
     );
   });
 
-  test("parses password without including it in the public serializer", () => {
+  test("parses legacy password but never serializes it for storage", () => {
     const parsed = parseConnectionUri("tcp://localhost:6767?ssl=true&password=secret");
 
     expect(parsed).toEqual({
@@ -70,9 +70,7 @@ describe("connection URI parsing", () => {
       password: "secret",
     });
     expect(serializeConnectionUri(parsed)).toBe("tcp://localhost:6767?ssl=true");
-    expect(serializeConnectionUriForStorage(parsed)).toBe(
-      "tcp://localhost:6767?ssl=true&password=secret",
-    );
+    expect(serializeConnectionUriForStorage(parsed)).toBe("tcp://localhost:6767?ssl=true");
   });
 
   test("rejects userinfo passwords", () => {

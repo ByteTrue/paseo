@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { isCancel, password as passwordPrompt } from "@clack/prompts";
 import { loadConfig, resolvePaseoHome } from "@bytetrue/server";
 import {
   buildDaemonWebSocketUrl,
@@ -11,10 +12,15 @@ import {
   parseConnectionOfferFromUrl,
   type ConnectionOffer,
 } from "@bytetrue/protocol/connection-offer";
-import { DaemonClient, type WebSocketLike } from "@bytetrue/client/internal/daemon-client";
+import {
+  DaemonClient,
+  type DaemonClientConfig,
+  type WebSocketLike,
+} from "@bytetrue/client/internal/daemon-client";
 import path from "node:path";
 import { WebSocket } from "ws";
 import { getOrCreateCliClientId } from "./client-id.js";
+import { createCliClientAuthKeyStore } from "./client-auth-store.js";
 import { resolveCliVersion } from "../version.js";
 
 export interface ConnectOptions {
@@ -59,9 +65,6 @@ export function normalizeDaemonHost(raw: string): string | null {
       const query = new URLSearchParams();
       if (parsed.useTls) {
         query.set("ssl", "true");
-      }
-      if (parsed.password) {
-        query.set("password", parsed.password);
       }
       const queryString = query.toString();
       const suffix = queryString ? `?${queryString}` : "";
@@ -216,16 +219,6 @@ export function resolveDaemonTarget(host: string): DaemonTarget {
   };
 }
 
-export function resolveDaemonPassword(host: string): string | undefined {
-  const trimmed = host.trim();
-  if (trimmed.startsWith("tcp://")) {
-    const fromUri = parseConnectionUri(trimmed).password;
-    if (fromUri) return fromUri;
-  }
-  const fromEnv = process.env.PASEO_PASSWORD;
-  return fromEnv && fromEnv.length > 0 ? fromEnv : undefined;
-}
-
 /**
  * Create a WebSocket factory that works in Node.js
  */
@@ -241,16 +234,39 @@ function createNodeWebSocketFactory() {
   };
 }
 
+function createCliAdminPasswordProvider(): NonNullable<
+  DaemonClientConfig["clientAuth"]
+>["adminPasswordProvider"] {
+  return async ({ serverId }) => {
+    const value = await passwordPrompt({
+      message: `Enter daemon administrator password for ${serverId}`,
+    });
+    if (isCancel(value)) return null;
+    return typeof value === "string" && value.length > 0 ? value : null;
+  };
+}
+
+function createCliClientAuth(
+  clientId: string,
+  paseoHome: string,
+): DaemonClientConfig["clientAuth"] {
+  return {
+    keyStore: createCliClientAuthKeyStore(paseoHome),
+    adminPasswordProvider: createCliAdminPasswordProvider(),
+    clientName: `Paseo CLI (${clientId.slice(0, 8)})`,
+  };
+}
+
 /**
  * Create and connect a daemon client
  * Returns the connected client or throws if connection fails
  */
 async function tryConnectHost(
   host: string,
-  password: string | undefined,
   clientId: string,
   timeout: number,
   nodeWebSocketFactory: ReturnType<typeof createNodeWebSocketFactory>,
+  clientAuth: DaemonClientConfig["clientAuth"],
 ): Promise<{ client: DaemonClient } | { error: unknown }> {
   const target = resolveDaemonTarget(host);
   const client = new DaemonClient({
@@ -258,7 +274,7 @@ async function tryConnectHost(
     clientId,
     clientType: "cli",
     appVersion: resolveCliVersion(),
-    password,
+    clientAuth,
     connectTimeoutMs: timeout,
     webSocketFactory: (
       url: string,
@@ -286,6 +302,7 @@ async function connectViaRelayOffer(
   clientId: string,
   timeout: number,
   nodeWebSocketFactory: ReturnType<typeof createNodeWebSocketFactory>,
+  clientAuth: DaemonClientConfig["clientAuth"],
 ): Promise<DaemonClient> {
   const url = buildRelayWebSocketUrl({
     endpoint: offer.relay.endpoint,
@@ -305,6 +322,7 @@ async function connectViaRelayOffer(
       config?: { headers?: Record<string, string>; protocols?: string[] },
     ) => nodeWebSocketFactory(target, { headers: config?.headers, protocols: config?.protocols }),
     e2ee: { enabled: true, daemonPublicKeyB64: offer.daemonPublicKeyB64 },
+    clientAuth,
     reconnect: { enabled: false },
   });
 
@@ -333,11 +351,13 @@ export async function connectToDaemon(options?: ConnectOptions): Promise<DaemonC
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
   const clientId = await getOrCreateCliClientId();
   const nodeWebSocketFactory = createNodeWebSocketFactory();
+  const paseoHome = resolvePaseoHome();
+  const clientAuth = createCliClientAuth(clientId, paseoHome);
 
   const explicitHost = options?.host ?? process.env.PASEO_HOST;
   const offer = parseHostOfferOrNull(explicitHost);
   if (offer) {
-    return connectViaRelayOffer(offer, clientId, timeout, nodeWebSocketFactory);
+    return connectViaRelayOffer(offer, clientId, timeout, nodeWebSocketFactory, clientAuth);
   }
 
   const hosts = resolveDaemonHostCandidates(options);
@@ -348,8 +368,7 @@ export async function connectToDaemon(options?: ConnectOptions): Promise<DaemonC
       throw new Error(`Unable to connect to Paseo daemon via ${hosts.join(", ")}`);
     }
     const host = hosts[index];
-    const password = resolveDaemonPassword(host);
-    const result = await tryConnectHost(host, password, clientId, timeout, nodeWebSocketFactory);
+    const result = await tryConnectHost(host, clientId, timeout, nodeWebSocketFactory, clientAuth);
     if ("client" in result) {
       return result.client;
     }

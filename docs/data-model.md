@@ -417,18 +417,34 @@ Simple set of Expo push notification tokens. Loaded with permissive parsing (fil
 
 These small files are not validated as full Zod schemas but are persisted under `$PASEO_HOME` for daemon identity and runtime coordination.
 
-| Path                  | Format                                                         | Notes                                                                             |
-| --------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `server-id`           | Plain text, e.g. `srv_<base64url>`                             | Stable per-`$PASEO_HOME` daemon ID. Overridable via `PASEO_SERVER_ID` env.        |
-| `daemon-keypair.json` | `{ v: 2, publicKeyB64, secretKeyB64 }` (libsodium box keypair) | E2EE relay identity. Written with mode `0600`. Regenerated if file is unreadable. |
-| `paseo.pid`           | JSON `{ pid, startedAt, ... }`                                 | PID lock; prevents two daemons sharing one `$PASEO_HOME`.                         |
-| `daemon.log`          | Pino log output                                                | Default location; path/rotation configurable via `log.file` in `config.json`.     |
+| Path                      | Format                                                         | Notes                                                                                                  |
+| ------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `server-id`               | Plain text, e.g. `srv_<base64url>`                             | Stable per-`$PASEO_HOME` daemon ID. Overridable via `PASEO_SERVER_ID` env.                             |
+| `daemon-keypair.json`     | `{ v: 2, publicKeyB64, secretKeyB64 }` (libsodium box keypair) | E2EE relay identity. Written with mode `0600`. Regenerated if file is unreadable.                      |
+| `authorized-clients.json` | `{ v: 1, clients: AuthorizedClient[] }`                        | Enrolled remote client public keys and metadata. Written with mode `0600` and atomic temp-file rename. |
+| `paseo.pid`               | JSON `{ pid, startedAt, ... }`                                 | PID lock; prevents two daemons sharing one `$PASEO_HOME`.                                              |
+| `daemon.log`              | Pino log output                                                | Default location; path/rotation configurable via `log.file` in `config.json`.                          |
 
 ---
 
 ## Client-side stores (App)
 
 These live in React Native `AsyncStorage` or browser `IndexedDB`, not on the daemon filesystem.
+
+### Client Auth Key Store
+
+Client-side store keyed by daemon `serverId`. Each entry contains one Ed25519 signing keypair for that daemon/host plus metadata such as creation time. The private key remains on the client device and is not stored in `HostProfile` connection records.
+
+```typescript
+{
+  v: 1,
+  keys: Record<serverId, {
+    publicKeyB64: string,
+    secretKeyB64: string,
+    createdAt: string
+  }>
+}
+```
 
 ### Draft Store
 

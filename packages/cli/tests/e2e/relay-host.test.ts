@@ -1,24 +1,27 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
+import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildRelayWebSocketUrl } from "@bytetrue/protocol/daemon-endpoints";
 import { parseConnectionOfferFromUrl } from "@bytetrue/protocol/connection-offer";
-import { generateLocalPairingOffer } from "@bytetrue/server";
+import { generateLocalPairingOffer, hashDaemonPassword } from "@bytetrue/server";
 import { DaemonClient } from "@bytetrue/client/internal/daemon-client";
 import { WebSocket } from "ws";
 import { getAvailablePort } from "../helpers/network.ts";
-import { createE2ETestContext } from "../helpers/test-daemon.ts";
+import { createE2ETestContext, createTempDirs } from "../helpers/test-daemon.ts";
+import { createCliClientAuthKeyStore } from "../../src/utils/client-auth-store.ts";
 
 const nodeMajor = Number((process.versions.node ?? "0").split(".")[0] ?? "0");
 const shouldRunRelayE2e = process.env.FORCE_RELAY_E2E === "1" || nodeMajor < 25;
 const wranglerCliPath = createRequire(import.meta.url).resolve("wrangler/bin/wrangler.js");
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const relayDir = path.resolve(__dirname, "../../../relay");
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const relayDir = path.resolve(currentDir, "../../../relay");
 const STARTUP_HOOK_TIMEOUT_MS = 120_000;
 const SHUTDOWN_TIMEOUT_MS = 15_000;
+const TEST_DAEMON_ADMIN_PASSWORD = "relay-e2e-admin-secret";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -117,13 +120,14 @@ async function stopRelayProcess(relayProcess: ChildProcess): Promise<void> {
   await waitForProcessExit(relayProcess, Date.now() + 2000);
 }
 
-async function probeRelayConnection(offerUrl: string): Promise<boolean> {
+async function probeRelayConnection(offerUrl: string, paseoHome: string): Promise<boolean> {
   const offer = parseConnectionOfferFromUrl(offerUrl);
   if (!offer) return false;
   const url = buildRelayWebSocketUrl({
     endpoint: offer.relay.endpoint,
     serverId: offer.serverId,
     role: "client",
+    useTls: offer.relay.useTls ?? false,
   });
   const client = new DaemonClient({
     url,
@@ -132,8 +136,16 @@ async function probeRelayConnection(offerUrl: string): Promise<boolean> {
     connectTimeoutMs: 4000,
     e2ee: { enabled: true, daemonPublicKeyB64: offer.daemonPublicKeyB64 },
     reconnect: { enabled: false },
-    webSocketFactory: (target: string, opts?: { headers?: Record<string, string> }) =>
-      new WebSocket(target, { headers: opts?.headers }) as unknown as ReturnType<
+    clientAuth: {
+      keyStore: createCliClientAuthKeyStore(paseoHome),
+      adminPasswordProvider: async () => TEST_DAEMON_ADMIN_PASSWORD,
+      clientName: "Paseo CLI relay e2e",
+    },
+    webSocketFactory: (
+      target: string,
+      opts?: { headers?: Record<string, string>; protocols?: string[] },
+    ) =>
+      new WebSocket(target, opts?.protocols, { headers: opts?.headers }) as unknown as ReturnType<
         NonNullable<ConstructorParameters<typeof DaemonClient>[0]["webSocketFactory"]>
       >,
   });
@@ -147,10 +159,14 @@ async function probeRelayConnection(offerUrl: string): Promise<boolean> {
   }
 }
 
-async function waitForDaemonRelayRegistered(offerUrl: string, timeoutMs = 30_000): Promise<void> {
+async function waitForDaemonRelayRegistered(
+  offerUrl: string,
+  paseoHome: string,
+  timeoutMs = 30_000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await probeRelayConnection(offerUrl)) return;
+    if (await probeRelayConnection(offerUrl, paseoHome)) return;
     await sleep(500);
   }
   throw new Error("Daemon failed to register with the relay within timeout");
@@ -177,8 +193,22 @@ async function waitForDaemonRelayRegistered(offerUrl: string, timeoutMs = 30_000
     }
 
     const relayEndpoint = `127.0.0.1:${relayPort}`;
+    const { paseoHome, workDir } = await createTempDirs();
+    await writeFile(
+      path.join(paseoHome, "config.json"),
+      JSON.stringify(
+        {
+          version: 1,
+          daemon: { auth: { password: hashDaemonPassword(TEST_DAEMON_ADMIN_PASSWORD) } },
+        },
+        null,
+        2,
+      ),
+    );
     ctx = await createE2ETestContext({
       timeout: 60_000,
+      paseoHome,
+      workDir,
       env: {
         PASEO_RELAY_ENABLED: "true",
         PASEO_RELAY_ENDPOINT: relayEndpoint,
@@ -196,7 +226,7 @@ async function waitForDaemonRelayRegistered(offerUrl: string, timeoutMs = 30_000
     if (!offer.url) throw new Error("generateLocalPairingOffer returned no URL");
     offerUrl = offer.url;
 
-    await waitForDaemonRelayRegistered(offerUrl, 30_000);
+    await waitForDaemonRelayRegistered(offerUrl, ctx.paseoHome, 30_000);
   }, STARTUP_HOOK_TIMEOUT_MS);
 
   afterAll(async () => {

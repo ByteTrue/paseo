@@ -36,6 +36,14 @@ class FakeDaemonProbe {
   clientIdsRequested = 0;
   nextConnectError: Error | null = null;
   nextLastError: string | null = null;
+  readonly clientAuth = {
+    keyStore: {
+      get: async () => null,
+      set: async () => undefined,
+    },
+    adminPasswordProvider: async () => null,
+    clientName: "Probe test",
+  } satisfies NonNullable<DaemonClientConfig["clientAuth"]>;
 
   readonly deps: DaemonConnectionDependencies<FakeDaemonClient> = {
     getClientId: async () => {
@@ -51,6 +59,7 @@ class FakeDaemonProbe {
       this.createdClients.push(client);
       return client;
     },
+    getClientAuth: () => this.clientAuth,
   };
 
   failNextConnection(error: Error, lastError: string | null): void {
@@ -117,7 +126,7 @@ describe("test-daemon-connection connectToDaemon", () => {
     expect(probe.createdConfigs()[0]?.url).toBe("paseo+local://socket?path=%2Ftmp%2Fpaseo.sock");
   });
 
-  it("passes direct TCP connection passwords into the client config", async () => {
+  it("drops legacy direct TCP connection passwords from the client config", async () => {
     const { connectToDaemon } = await import("./test-daemon-connection");
     const result = await connectToDaemon(
       {
@@ -131,7 +140,25 @@ describe("test-daemon-connection connectToDaemon", () => {
     );
     await result.client.close();
 
-    expect(probe.createdConfigs()[0]?.password).toBe("shared-secret");
+    expect(probe.createdConfigs()[0]?.password).toBeUndefined();
+  });
+
+  it("passes client auth hooks into probe client configs", async () => {
+    const { connectToDaemon } = await import("./test-daemon-connection");
+    const result = await connectToDaemon(
+      {
+        id: "relay:wss:relay.paseo.test:443",
+        type: "relay",
+        relayEndpoint: "relay.paseo.test:443",
+        useTls: true,
+        daemonPublicKeyB64: "pubkey",
+      },
+      { serverId: "srv_probe_test" },
+      probe.deps,
+    );
+    await result.client.close();
+
+    expect(probe.createdConfigs()[0]?.clientAuth).toBe(probe.clientAuth);
   });
 
   it("uses relay TLS from the stored connection", async () => {
@@ -168,7 +195,7 @@ describe("test-daemon-connection connectToDaemon", () => {
     );
   });
 
-  it("surfaces auth rejection as an incorrect password", async () => {
+  it("surfaces auth rejection as a transport failure", async () => {
     const { connectToDaemon } = await import("./test-daemon-connection");
     probe.failNextConnection(
       new Error("Transport closed (code 4001)"),
@@ -181,17 +208,16 @@ describe("test-daemon-connection connectToDaemon", () => {
           id: "direct:lan:6767",
           type: "directTcp",
           endpoint: "lan:6767",
-          password: "wrong-secret",
         },
         undefined,
         probe.deps,
       ),
     ).rejects.toMatchObject({
-      message: "Incorrect password",
+      message: "Transport closed (code 4001)",
     });
   });
 
-  it("keeps generic transport failures generic when a password was supplied", async () => {
+  it("keeps generic transport failures generic", async () => {
     const { connectToDaemon } = await import("./test-daemon-connection");
     probe.failNextConnection(new Error("Transport error"), "Transport error");
 
@@ -201,7 +227,6 @@ describe("test-daemon-connection connectToDaemon", () => {
           id: "direct:lan:6767",
           type: "directTcp",
           endpoint: "lan:6767",
-          password: "shared-secret",
         },
         undefined,
         probe.deps,
