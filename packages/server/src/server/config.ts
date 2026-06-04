@@ -253,16 +253,34 @@ function resolveVoiceLlmConfig(
   };
 }
 
+function resolveOriginFromAppBaseUrl(appBaseUrl: string): string | null {
+  try {
+    const url = new URL(appBaseUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 function resolveCorsAllowedOrigins(
   env: NodeJS.ProcessEnv,
   persisted: ReturnType<typeof loadPersistedConfig>,
+  appBaseUrl: string,
 ): string[] {
   const envCorsOrigins = env.PASEO_CORS_ORIGINS
     ? env.PASEO_CORS_ORIGINS.split(",").map((s) => s.trim())
     : [];
   const persistedCorsOrigins = persisted.daemon?.cors?.allowedOrigins ?? [];
+  const appBaseOrigin = resolveOriginFromAppBaseUrl(appBaseUrl);
   return Array.from(
-    new Set([...persistedCorsOrigins, ...envCorsOrigins].filter((s) => s.length > 0)),
+    new Set(
+      [...persistedCorsOrigins, ...envCorsOrigins, appBaseOrigin].filter(
+        (s): s is string => typeof s === "string" && s.length > 0,
+      ),
+    ),
   );
 }
 
@@ -379,7 +397,7 @@ export function loadConfig(
     listen,
     paseoHome,
     worktreesRoot: resolveWorktreesRoot(paseoHome, persisted),
-    corsAllowedOrigins: resolveCorsAllowedOrigins(env, persisted),
+    corsAllowedOrigins: resolveCorsAllowedOrigins(env, persisted, appBaseUrl),
     hostnames,
     mcpEnabled,
     mcpInjectIntoAgents,

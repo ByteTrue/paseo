@@ -37,6 +37,8 @@ PASEO_DEV_RESET_HOME=1 npm run dev            # clear and reseed the derived wor
 
 In any worktree-style or portless setup, never assume default ports.
 
+The daemon treats the configured HTTP(S) `app.baseUrl` origin as an allowed browser origin for CORS and WebSocket upgrades. Non-HTTP app URLs are ignored for origin allowlisting. This keeps direct browser-to-local-daemon connections working for existing homes even when `daemon.cors.allowedOrigins` was never written to `config.json`.
+
 ### Desktop renderer profiling
 
 `npm run dev:desktop` starts Electron with Chromium remote debugging enabled on
