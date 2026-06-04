@@ -606,6 +606,7 @@ export async function createPaseoDaemon(
     paseoHome: config.paseoHome,
     logger,
     agentManager,
+    providerSnapshotManager,
   });
   await loopService.initialize();
   logger.info({ elapsed: elapsed() }, "Loop service initialized");
@@ -614,6 +615,7 @@ export async function createPaseoDaemon(
     logger,
     agentManager,
     agentStorage,
+    providerSnapshotManager,
   });
   await scheduleService.start();
   agentManager.setAgentArchivedCallback(async (agentId) => {
