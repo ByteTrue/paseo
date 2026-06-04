@@ -1,6 +1,6 @@
 ---
 name: release-stable
-description: Cut a stable release of Paseo (fresh patch or promote from beta). Use when the user says "release stable", "ship stable", "promote", "release:patch", "release:promote", or "/release-stable".
+description: Cut or promote a stable release of the ByteTrue Paseo fork. Use when the user says "release stable", "ship stable", "promote", "release:patch", "release:promote", asks to publish @bytetrue packages, or asks to debug fork release CI/CD.
 user-invocable: true
 ---
 
@@ -8,4 +8,4 @@ user-invocable: true
 
 Read `docs/release.md` in the Paseo repo and follow the **Standard release (patch)** flow if cutting fresh, or the **Beta flow** promotion step if promoting an existing beta. Run the **Stable release (or promotion)** completion checklist at the bottom of that doc.
 
-The doc covers the changelog (required for stable), the pre-release sanity check (required for stable), and the post-release babysit pattern. Don't skip steps.
+This is also the entry point for fork npm release triage. Do not create a separate npm-only release path; the fork package list, Trusted Publishing setup, resumable publish behavior, Cloudflare deploy notes, and no-native-mobile release invariant live in `docs/release.md`.

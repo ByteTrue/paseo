@@ -1,6 +1,7 @@
 ---
 name: paseo-upstream-sync
 description: Review upstream getpaseo/paseo changes with an upstream cursor branch, reuse selected commits in the ByteTrue fork, and preserve fork-specific package, deployment, and release behavior.
+user-invocable: true
 ---
 
 # Paseo Upstream Sync

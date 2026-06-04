@@ -32,6 +32,33 @@ There are two supported ways to ship from `main`:
 1. **Direct stable release**: you are ready to ship the current `main` commit to everyone immediately.
 2. **Beta flow**: silent release candidates. Betas don't touch the changelog, don't move the website, and don't publish npm.
 
+## Fork release model
+
+This fork releases from `origin` (`ByteTrue/paseo`). `upstream` (`getpaseo/paseo`) is only an input for reviewed sync work; release commits, version tags, and GitHub Actions triage target `ByteTrue/paseo`.
+
+Fork facts:
+
+- Public npm scope: `@bytetrue`; the CLI binary remains `paseo`.
+- Public app URL: `https://paseo.zijieapi.de5.net`.
+- Relay Worker host: `relay.paseo.zijieapi.de5.net:443`.
+- Browser web deploy: `deploy-app.yml` to the `paseo-zijieapi-de5-net` Pages project.
+- Relay deploy: `deploy-relay.yml` to the ByteTrue Cloudflare account.
+- Website deploy: `deploy-website.yml` to the ByteTrue Cloudflare account.
+- Browser web and Electron desktop are the only shipped app surfaces. There is no native iOS/Android client, no EAS/App Store/Play Store flow, and no Android APK release path.
+
+Publishable npm packages, in dependency order:
+
+1. `@bytetrue/highlight`
+2. `@bytetrue/relay`
+3. `@bytetrue/protocol`
+4. `@bytetrue/client`
+5. `@bytetrue/server`
+6. `@bytetrue/cli`
+
+Do not publish private workspaces such as app, website, or desktop.
+
+Npm publishing runs through `.github/workflows/publish-npm.yml` with GitHub OIDC and npm Trusted Publishing. Each publishable package needs a Trusted Publisher connection for `ByteTrue/paseo`, workflow file `publish-npm.yml`, blank environment, and `npm publish` permission. No long-lived npm token or local npm OTP/passkey is used by CI.
+
 ## Standard release (patch)
 
 Before running any stable patch release command:
@@ -70,7 +97,7 @@ npm run release:promote          # Promote X.Y.Z-beta.N to stable X.Y.Z
 ```
 
 - Beta tags are published GitHub prereleases like `v0.1.41-beta.1`
-- Betas publish desktop assets and APKs for testing, but they do not publish npm packages and do not trigger the production web/mobile release flows
+- Betas publish desktop assets for testing, but they do not publish npm packages and do not move the stable website/download target
 - `release:promote` creates a fresh stable tag like `v0.1.41`; the final release never reuses the beta tag
 - Desktop assets now come from the Electron package at `packages/desktop`
 - Beta releases use Electron's `beta` update channel. Users on the stable channel only receive stable releases; users on the beta channel receive beta releases and the final stable release when it is published.

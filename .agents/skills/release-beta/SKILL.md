@@ -1,6 +1,6 @@
 ---
 name: release-beta
-description: Cut a beta release of Paseo. Use when the user says "release beta", "cut a beta", "ship a beta", "beta release", or "/release-beta". Betas are silent release candidates — no changelog, no website move.
+description: Cut a beta release of the ByteTrue Paseo fork. Use when the user says "release beta", "cut a beta", "ship a beta", "beta release", or "/release-beta". Betas are silent release candidates: no changelog, no npm publish, no stable website/download move.
 user-invocable: true
 ---
 
@@ -8,4 +8,6 @@ user-invocable: true
 
 Read `docs/release.md` in the Paseo repo and follow the **Beta flow** section end-to-end. Run the **Beta release** completion checklist at the bottom of that doc.
 
-Key rule the doc enforces — betas don't touch `CHANGELOG.md`. Don't draft release notes.
+Fork guardrails: work from `origin` / `ByteTrue/paseo`, preserve the browser-web + Electron-only release surface, and do not reintroduce native iOS/Android, EAS, App Store, Play Store, or APK release assumptions.
+
+Key rule: betas are silent release candidates. Do not draft release notes or touch `CHANGELOG.md`.
