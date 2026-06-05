@@ -123,6 +123,9 @@ const MutableMetadataGenerationConfigSchema = z
   .object({
     providers: z.array(MutableStructuredGenerationProviderSchema).default([]),
     agentTitle: MutableAgentTitleGenerationConfigSchema.optional(),
+    branchName: MutableAgentTitleGenerationConfigSchema.optional(),
+    commitMessage: MutableAgentTitleGenerationConfigSchema.optional(),
+    pullRequest: MutableAgentTitleGenerationConfigSchema.optional(),
   })
   .passthrough();
 
@@ -1413,6 +1416,12 @@ export const CheckoutCommitRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const CheckoutGenerateCommitMessageRequestSchema = z.object({
+  type: z.literal("checkout.generate_commit_message.request"),
+  cwd: z.string(),
+  requestId: z.string(),
+});
+
 export const CheckoutMergeRequestSchema = z.object({
   type: z.literal("checkout_merge_request"),
   cwd: z.string(),
@@ -1453,6 +1462,13 @@ export const CheckoutPrCreateRequestSchema = z.object({
   cwd: z.string(),
   title: z.string().optional(),
   body: z.string().optional(),
+  baseRef: z.string().optional(),
+  requestId: z.string(),
+});
+
+export const CheckoutGeneratePullRequestRequestSchema = z.object({
+  type: z.literal("checkout.generate_pull_request.request"),
+  cwd: z.string(),
   baseRef: z.string().optional(),
   requestId: z.string(),
 });
@@ -1929,12 +1945,14 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   SubscribeCheckoutDiffRequestSchema,
   UnsubscribeCheckoutDiffRequestSchema,
   CheckoutCommitRequestSchema,
+  CheckoutGenerateCommitMessageRequestSchema,
   CheckoutMergeRequestSchema,
   CheckoutMergeFromBaseRequestSchema,
   CheckoutPullRequestSchema,
   CheckoutPushRequestSchema,
   CheckoutRefreshRequestSchema,
   CheckoutPrCreateRequestSchema,
+  CheckoutGeneratePullRequestRequestSchema,
   CheckoutPrMergeRequestSchema,
   CheckoutGithubSetAutoMergeRequestSchema,
   CheckoutPrStatusRequestSchema,
@@ -2175,6 +2193,10 @@ export const ServerInfoStatusPayloadSchema = z
         daemonClientAuthorization: z.boolean().optional(),
         // COMPAT(titleGenerationSettings): added in v0.1.X, drop the gate when floor >= v0.1.X.
         titleGenerationSettings: z.boolean().optional(),
+        // COMPAT(metadataGenerationSettings): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        metadataGenerationSettings: z.boolean().optional(),
+        // COMPAT(checkoutMetadataDrafts): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        checkoutMetadataDrafts: z.boolean().optional(),
       })
       .optional(),
   })
@@ -3223,6 +3245,17 @@ export const CheckoutDiffUpdateSchema = z.object({
   payload: CheckoutDiffSubscriptionPayloadSchema,
 });
 
+export const CheckoutGenerateCommitMessageResponseSchema = z.object({
+  type: z.literal("checkout.generate_commit_message.response"),
+  payload: z.object({
+    cwd: z.string(),
+    message: z.string().nullable(),
+    disabled: z.boolean(),
+    error: CheckoutErrorSchema.nullable(),
+    requestId: z.string(),
+  }),
+});
+
 export const CheckoutCommitResponseSchema = z.object({
   type: z.literal("checkout_commit_response"),
   payload: z.object({
@@ -3289,6 +3322,18 @@ export const CheckoutPrCreateResponseSchema = z.object({
     cwd: z.string(),
     url: z.string().nullable(),
     number: z.number().nullable(),
+    error: CheckoutErrorSchema.nullable(),
+    requestId: z.string(),
+  }),
+});
+
+export const CheckoutGeneratePullRequestResponseSchema = z.object({
+  type: z.literal("checkout.generate_pull_request.response"),
+  payload: z.object({
+    cwd: z.string(),
+    title: z.string().nullable(),
+    body: z.string().nullable(),
+    disabled: z.boolean(),
     error: CheckoutErrorSchema.nullable(),
     requestId: z.string(),
   }),
@@ -3899,12 +3944,14 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   SubscribeCheckoutDiffResponseSchema,
   CheckoutDiffUpdateSchema,
   CheckoutCommitResponseSchema,
+  CheckoutGenerateCommitMessageResponseSchema,
   CheckoutMergeResponseSchema,
   CheckoutMergeFromBaseResponseSchema,
   CheckoutPullResponseSchema,
   CheckoutPushResponseSchema,
   CheckoutRefreshResponseSchema,
   CheckoutPrCreateResponseSchema,
+  CheckoutGeneratePullRequestResponseSchema,
   CheckoutPrMergeResponseSchema,
   CheckoutGithubSetAutoMergeResponseSchema,
   CheckoutPrStatusResponseSchema,
@@ -4177,6 +4224,18 @@ export type CheckoutGithubSetAutoMergeRequest = z.infer<
 export type CheckoutGithubSetAutoMergeResponse = z.infer<
   typeof CheckoutGithubSetAutoMergeResponseSchema
 >;
+export type CheckoutGenerateCommitMessageRequest = z.infer<
+  typeof CheckoutGenerateCommitMessageRequestSchema
+>;
+export type CheckoutGenerateCommitMessageResponse = z.infer<
+  typeof CheckoutGenerateCommitMessageResponseSchema
+>;
+export type CheckoutGeneratePullRequestRequest = z.infer<
+  typeof CheckoutGeneratePullRequestRequestSchema
+>;
+export type CheckoutGeneratePullRequestResponse = z.infer<
+  typeof CheckoutGeneratePullRequestResponseSchema
+>;
 export type PullRequestMergeable = z.infer<typeof CheckoutPrStatusSchema>["mergeable"];
 export type CheckoutPrStatusRequest = z.infer<typeof CheckoutPrStatusRequestSchema>;
 export type CheckoutPrStatusResponse = z.infer<typeof CheckoutPrStatusResponseSchema>;
@@ -4307,10 +4366,14 @@ export const WSSessionInboundSchema = z.object({
   message: SessionInboundMessageSchema,
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: explicit annotation cuts TS4089 inferred-type-length error
 export const WSSessionOutboundSchema = z.object({
   type: z.literal("session"),
   message: SessionOutboundMessageSchema,
-});
+  // biome-ignore lint/suspicious/noExplicitAny: same as above
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+}) as any;
 
 // Complete WebSocket message schemas
 export const WSInboundMessageSchema = z.discriminatedUnion("type", [
@@ -4320,13 +4383,19 @@ export const WSInboundMessageSchema = z.discriminatedUnion("type", [
   WSSessionInboundSchema,
 ]);
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: explicit annotation cuts TS4089 inferred-type-length error
 export const WSOutboundMessageSchema = z.discriminatedUnion("type", [
   WSPongMessageSchema,
   WSSessionOutboundSchema,
-]);
+  // biome-ignore lint/suspicious/noExplicitAny: same as above
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+]) as any;
 
 export type WSInboundMessage = z.infer<typeof WSInboundMessageSchema>;
-export type WSOutboundMessage = z.infer<typeof WSOutboundMessageSchema>;
+export type WSOutboundMessage =
+  | { type: "pong" }
+  | { type: "session"; message: SessionOutboundMessage };
 export type WSHelloMessage = z.infer<typeof WSHelloMessageSchema>;
 
 // ============================================================================

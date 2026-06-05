@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, type ReactElement } from "react";
+import { useState, useCallback, useEffect, useMemo, type ReactElement, Fragment } from "react";
 import { router, type Href } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { type CheckoutGitActionStatus, useCheckoutGitActionsStore } from "@/git/actions-store";
@@ -8,6 +8,8 @@ import { buildGitActions, narrowPullRequestState, type GitActions } from "@/git/
 import type { CheckoutPrMergeMethod } from "@bytetrue/protocol/messages";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { useToast } from "@/contexts/toast-context";
+import { CommitMessageModal, PullRequestModal } from "@/git/git-metadata-modal";
+
 import { useSessionStore } from "@/stores/session-store";
 import { resolveWorkspaceIdByExecutionDirectory } from "@/utils/workspace-execution";
 import { buildWorkspaceArchiveRedirectRoute } from "@/utils/workspace-archive-navigation";
@@ -150,6 +152,8 @@ interface UseGitActionsResult {
   gitActions: GitActions;
   branchLabel: string;
   isGit: boolean;
+  /** Modal elements to render in the consuming component */
+  dialogs: ReactElement | null;
 }
 
 export function useGitActions({ serverId, cwd, icons }: UseGitActionsInput): UseGitActionsResult {
@@ -284,6 +288,20 @@ export function useGitActions({ serverId, cwd, icons }: UseGitActionsInput): Use
   const githubAutoMergeActionsEnabled = useSessionStore(
     (s) => s.sessions[serverId]?.serverInfo?.features?.checkoutGithubSetAutoMerge === true,
   );
+  const supportsMetadataDrafts = useSessionStore(
+    (s) => s.sessions[serverId]?.serverInfo?.features?.checkoutMetadataDrafts === true,
+  );
+
+  // Commit modal state
+  const [commitModalOpen, setCommitModalOpen] = useState(false);
+  const [commitDraft, setCommitDraft] = useState<string | null>(null);
+  const [isCommitDraftLoading, setIsCommitDraftLoading] = useState(false);
+
+  // PR modal state
+  const [prModalOpen, setPrModalOpen] = useState(false);
+  const [prDraftTitle, setPrDraftTitle] = useState<string | null>(null);
+  const [prDraftBody, setPrDraftBody] = useState<string | null>(null);
+  const [isPrDraftLoading, setIsPrDraftLoading] = useState(false);
 
   const toastActionError = useCallback(
     (error: unknown, fallback: string) => {
@@ -302,51 +320,99 @@ export function useGitActions({ serverId, cwd, icons }: UseGitActionsInput): Use
 
   // Handlers
   const handleCommit = useCallback(() => {
-    void runCommit({ serverId, cwd })
-      .then(() => {
+    if (supportsMetadataDrafts) {
+      setCommitDraft(null);
+      setIsCommitDraftLoading(true);
+      setCommitModalOpen(true);
+      const client = useSessionStore.getState().sessions[serverId]?.client ?? null;
+      if (client) {
+        void (async () => {
+          try {
+            const payload = await client.generateCommitMessageDraft(cwd);
+            setCommitDraft(payload.disabled ? "" : (payload.message ?? ""));
+          } catch {
+            setCommitDraft("");
+          } finally {
+            setIsCommitDraftLoading(false);
+          }
+        })();
+      } else {
+        setIsCommitDraftLoading(false);
+        setCommitDraft("");
+      }
+      return;
+    }
+    void (async () => {
+      try {
+        await runCommit({ serverId, cwd });
         toastActionSuccess("Committed");
-        return;
-      })
-      .catch((err) => {
+      } catch (err) {
         toastActionError(err, "Failed to commit");
-      });
-  }, [cwd, runCommit, serverId, toastActionError, toastActionSuccess]);
+      }
+    })();
+  }, [supportsMetadataDrafts, cwd, runCommit, serverId, toastActionError, toastActionSuccess]);
 
   const handlePull = useCallback(() => {
-    void runPull({ serverId, cwd })
-      .then(() => {
+    void (async () => {
+      try {
+        await runPull({ serverId, cwd });
         toastActionSuccess("Pulled");
-        return;
-      })
-      .catch((err) => {
+      } catch (err) {
         toastActionError(err, "Failed to pull");
-      });
+      }
+    })();
   }, [cwd, runPull, serverId, toastActionError, toastActionSuccess]);
 
   const handlePush = useCallback(() => {
-    void runPush({ serverId, cwd })
-      .then(() => {
+    void (async () => {
+      try {
+        await runPush({ serverId, cwd });
         toastActionSuccess("Pushed");
-        return;
-      })
-      .catch((err) => {
+      } catch (err) {
         toastActionError(err, "Failed to push");
-      });
+      }
+    })();
   }, [cwd, runPush, serverId, toastActionError, toastActionSuccess]);
 
   const handlePullAndPush = useCallback(() => {
-    void runPullAndPush({ serverId, cwd })
-      .then(() => {
+    void (async () => {
+      try {
+        await runPullAndPush({ serverId, cwd });
         toastActionSuccess("Pulled and pushed");
-        return;
-      })
-      .catch((err) => {
+      } catch (err) {
         toastActionError(err, "Failed to pull and push");
-      });
+      }
+    })();
   }, [cwd, runPullAndPush, serverId, toastActionError, toastActionSuccess]);
 
   const handleCreatePr = useCallback(() => {
     void persistShipDefault("pr");
+    if (supportsMetadataDrafts) {
+      setPrDraftTitle(null);
+      setPrDraftBody(null);
+      setIsPrDraftLoading(true);
+      setPrModalOpen(true);
+      const client = useSessionStore.getState().sessions[serverId]?.client ?? null;
+      if (client) {
+        void (async () => {
+          try {
+            const payload = await client.generatePullRequestDraft(cwd, { baseRef });
+            setPrDraftTitle(payload.disabled ? "" : (payload.title ?? ""));
+            setPrDraftBody(payload.disabled ? "" : (payload.body ?? ""));
+          } catch {
+            setPrDraftTitle("");
+            setPrDraftBody("");
+          } finally {
+            setIsPrDraftLoading(false);
+          }
+        })();
+      } else {
+        setIsPrDraftLoading(false);
+        setPrDraftTitle("");
+        setPrDraftBody("");
+      }
+      return;
+    }
     void runCreatePr({ serverId, cwd })
       .then(() => {
         toastActionSuccess("PR created");
@@ -355,7 +421,16 @@ export function useGitActions({ serverId, cwd, icons }: UseGitActionsInput): Use
       .catch((err) => {
         toastActionError(err, "Failed to create PR");
       });
-  }, [cwd, persistShipDefault, runCreatePr, serverId, toastActionError, toastActionSuccess]);
+  }, [
+    baseRef,
+    cwd,
+    persistShipDefault,
+    runCreatePr,
+    serverId,
+    supportsMetadataDrafts,
+    toastActionError,
+    toastActionSuccess,
+  ]);
 
   const handleMergePr = useCallback(
     (method: CheckoutPrMergeMethod) => {
@@ -695,5 +770,66 @@ export function useGitActions({ serverId, cwd, icons }: UseGitActionsInput): Use
     baseRef,
   ]);
 
-  return { gitActions, branchLabel, isGit };
+  const handleCommitSubmit = useCallback(
+    async (message: string) => {
+      await runCommit({ serverId, cwd, message });
+      toastActionSuccess("Committed");
+    },
+    [cwd, runCommit, serverId, toastActionSuccess],
+  );
+
+  const handlePrSubmit = useCallback(
+    async (title: string, body: string) => {
+      await runCreatePr({ serverId, cwd, title, body });
+      toastActionSuccess("PR created");
+    },
+    [cwd, runCreatePr, serverId, toastActionSuccess],
+  );
+
+  const handleCommitModalClose = useCallback(() => {
+    setCommitModalOpen(false);
+  }, []);
+
+  const handlePrModalClose = useCallback(() => {
+    setPrModalOpen(false);
+  }, []);
+
+  const dialogs = useMemo<ReactElement | null>(
+    () => (
+      <Fragment>
+        <CommitMessageModal
+          visible={commitModalOpen}
+          initialMessage={commitDraft}
+          isLoading={isCommitDraftLoading}
+          onClose={handleCommitModalClose}
+          onSubmit={handleCommitSubmit}
+          testID="commit-message-modal"
+        />
+        <PullRequestModal
+          visible={prModalOpen}
+          initialTitle={prDraftTitle}
+          initialBody={prDraftBody}
+          isLoading={isPrDraftLoading}
+          onClose={handlePrModalClose}
+          onSubmit={handlePrSubmit}
+          testID="pr-modal"
+        />
+      </Fragment>
+    ),
+    [
+      commitDraft,
+      commitModalOpen,
+      handleCommitModalClose,
+      handleCommitSubmit,
+      handlePrModalClose,
+      handlePrSubmit,
+      isCommitDraftLoading,
+      isPrDraftLoading,
+      prDraftBody,
+      prDraftTitle,
+      prModalOpen,
+    ],
+  );
+
+  return { gitActions, branchLabel, isGit, dialogs };
 }

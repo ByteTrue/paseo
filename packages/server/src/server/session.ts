@@ -2172,6 +2172,10 @@ export class Session {
         return this.handleStashPopRequest(msg);
       case "stash_list_request":
         return this.handleStashListRequest(msg);
+      case "checkout.generate_commit_message.request":
+        return this.handleGenerateCommitMessageRequest(msg);
+      case "checkout.generate_pull_request.request":
+        return this.handleGeneratePullRequestRequest(msg);
       default:
         return undefined;
     }
@@ -4054,6 +4058,22 @@ export class Session {
   }
 
   private async generateCommitMessage(cwd: string): Promise<string> {
+    const commitMessageConfig =
+      this.readStructuredGenerationDaemonConfig().metadataGeneration?.commitMessage;
+    if (commitMessageConfig?.enabled === false) {
+      throw new Error("Commit message generation is disabled");
+    }
+    const preferredProviders = commitMessageConfig?.provider
+      ? [
+          {
+            provider: commitMessageConfig.provider,
+            ...(commitMessageConfig.model ? { model: commitMessageConfig.model } : {}),
+            ...(commitMessageConfig.thinkingOptionId
+              ? { thinkingOptionId: commitMessageConfig.thinkingOptionId }
+              : {}),
+          },
+        ]
+      : undefined;
     const diff = await this.workspaceGitService.getCheckoutDiff(cwd, {
       mode: "uncommitted",
       includeStructured: true,
@@ -4099,6 +4119,7 @@ export class Session {
       providerSnapshotManager: this.providerSnapshotManager,
       daemonConfig: this.readStructuredGenerationDaemonConfig(),
       currentSelection: this.getFocusedAgentSelectionForCwd(cwd),
+      ...(preferredProviders ? { preferredProviders } : {}),
     });
     try {
       const result = await generateStructuredAgentResponseWithFallback({
@@ -4134,6 +4155,19 @@ export class Session {
     title: string;
     body: string;
   }> {
+    const prConfig = this.readStructuredGenerationDaemonConfig().metadataGeneration?.pullRequest;
+    if (prConfig?.enabled === false) {
+      throw new Error("Pull request generation is disabled");
+    }
+    const preferredProviders = prConfig?.provider
+      ? [
+          {
+            provider: prConfig.provider,
+            ...(prConfig.model ? { model: prConfig.model } : {}),
+            ...(prConfig.thinkingOptionId ? { thinkingOptionId: prConfig.thinkingOptionId } : {}),
+          },
+        ]
+      : undefined;
     const diff = await this.workspaceGitService.getCheckoutDiff(cwd, {
       mode: "base",
       baseRef,
@@ -4177,6 +4211,7 @@ export class Session {
       providerSnapshotManager: this.providerSnapshotManager,
       daemonConfig: this.readStructuredGenerationDaemonConfig(),
       currentSelection: this.getFocusedAgentSelectionForCwd(cwd),
+      ...(preferredProviders ? { preferredProviders } : {}),
     });
     try {
       return await generateStructuredAgentResponseWithFallback({
@@ -4204,6 +4239,62 @@ export class Session {
         };
       }
       throw error;
+    }
+  }
+
+  private async handleGenerateCommitMessageRequest(
+    msg: Extract<SessionInboundMessage, { type: "checkout.generate_commit_message.request" }>,
+  ): Promise<void> {
+    const { cwd, requestId } = msg;
+    const config = this.readStructuredGenerationDaemonConfig().metadataGeneration?.commitMessage;
+    const disabled = config?.enabled === false;
+    try {
+      const message = disabled ? null : await this.generateCommitMessage(cwd).catch(() => null);
+      this.emit({
+        type: "checkout.generate_commit_message.response",
+        payload: { cwd, message, disabled, error: null, requestId },
+      });
+    } catch (error) {
+      this.emit({
+        type: "checkout.generate_commit_message.response",
+        payload: { cwd, message: null, disabled, error: toCheckoutError(error), requestId },
+      });
+    }
+  }
+
+  private async handleGeneratePullRequestRequest(
+    msg: Extract<SessionInboundMessage, { type: "checkout.generate_pull_request.request" }>,
+  ): Promise<void> {
+    const { cwd, baseRef, requestId } = msg;
+    const config = this.readStructuredGenerationDaemonConfig().metadataGeneration?.pullRequest;
+    const disabled = config?.enabled === false;
+    try {
+      const generated = disabled
+        ? null
+        : await this.generatePullRequestText(cwd, baseRef).catch(() => null);
+      this.emit({
+        type: "checkout.generate_pull_request.response",
+        payload: {
+          cwd,
+          title: generated?.title ?? null,
+          body: generated?.body ?? null,
+          disabled,
+          error: null,
+          requestId,
+        },
+      });
+    } catch (error) {
+      this.emit({
+        type: "checkout.generate_pull_request.response",
+        payload: {
+          cwd,
+          title: null,
+          body: null,
+          disabled,
+          error: toCheckoutError(error),
+          requestId,
+        },
+      });
     }
   }
 

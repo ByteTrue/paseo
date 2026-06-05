@@ -158,6 +158,9 @@ const AgentMetadataGenerationSchema = z
   .object({
     providers: z.array(StructuredGenerationProviderConfigSchema).optional(),
     agentTitle: AgentTitleMetadataGenerationSchema.optional(),
+    branchName: AgentTitleMetadataGenerationSchema.optional(),
+    commitMessage: AgentTitleMetadataGenerationSchema.optional(),
+    pullRequest: AgentTitleMetadataGenerationSchema.optional(),
   })
   .strict();
 

@@ -15,9 +15,10 @@ export interface StructuredGenerationProviderCandidate {
 export interface StructuredGenerationDaemonConfig {
   metadataGeneration?: {
     providers?: StructuredGenerationProviderCandidate[];
-    agentTitle?: Partial<StructuredGenerationProviderCandidate> & {
-      enabled?: boolean;
-    };
+    agentTitle?: Partial<StructuredGenerationProviderCandidate> & { enabled?: boolean };
+    branchName?: Partial<StructuredGenerationProviderCandidate> & { enabled?: boolean };
+    commitMessage?: Partial<StructuredGenerationProviderCandidate> & { enabled?: boolean };
+    pullRequest?: Partial<StructuredGenerationProviderCandidate> & { enabled?: boolean };
   };
 }
 

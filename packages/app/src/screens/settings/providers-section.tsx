@@ -187,153 +187,174 @@ function StatusIndicator({ status }: { status: ProviderStatus }) {
   );
 }
 
-interface GeneratedTitlesSectionProps {
+type MetadataTargetKey = "agentTitle" | "branchName" | "commitMessage" | "pullRequest";
+
+const METADATA_TARGET_LABELS: Record<MetadataTargetKey, string> = {
+  agentTitle: "Agent titles",
+  branchName: "Branch names",
+  commitMessage: "Commit messages",
+  pullRequest: "Pull requests",
+};
+
+interface MetadataGenerationSectionProps {
   serverId: string;
   entries: ProviderEntry[] | undefined;
   isLoading: boolean;
   config: MutableDaemonConfig | null;
   patchConfig: (patch: MutableDaemonConfigPatch) => Promise<MutableDaemonConfig | undefined>;
-  supportsTitleGenerationSettings: boolean;
+  supportsSettings: boolean;
 }
 
-function buildAgentTitleEnabledPatch(
-  config: AgentTitleGenerationConfig | undefined,
-  enabled: boolean,
-): AgentTitleGenerationConfig {
-  return {
-    enabled,
-    ...(config?.provider ? { provider: config.provider } : {}),
-    ...(config?.model ? { model: config.model } : {}),
-    ...(config?.thinkingOptionId ? { thinkingOptionId: config.thinkingOptionId } : {}),
-  };
-}
-
-function GeneratedTitlesSection({
+function MetadataTargetRow({
+  targetKey,
   serverId,
   entries,
   isLoading,
   config,
   patchConfig,
-  supportsTitleGenerationSettings,
-}: GeneratedTitlesSectionProps) {
-  const [isPending, setIsPending] = useState(false);
+  isPending,
+  setIsPending,
+}: {
+  targetKey: MetadataTargetKey;
+  serverId: string;
+  entries: ProviderEntry[] | undefined;
+  isLoading: boolean;
+  config: MutableDaemonConfig | null;
+  patchConfig: (patch: MutableDaemonConfigPatch) => Promise<MutableDaemonConfig | undefined>;
+  isPending: boolean;
+  setIsPending: (pending: boolean) => void;
+}) {
   const providers = useMemo(() => buildSelectableProviderSelectorProviders(entries), [entries]);
-  const agentTitleConfig = config?.metadataGeneration?.agentTitle as
+  const rawConfig = config?.metadataGeneration?.[targetKey] as
     | AgentTitleGenerationConfig
     | undefined;
-  const enabled = agentTitleConfig?.enabled !== false;
-  const selectedProvider = agentTitleConfig?.provider ?? "";
-  const selectedModel = agentTitleConfig?.model ?? "";
-  const selectedLabel = selectedProvider
-    ? resolveSelectedModelLabel({
-        providers,
-        selectedProvider,
-        selectedModel,
-        isLoading,
-      })
-    : "Automatic";
+  const selectedProvider = rawConfig?.provider ?? "";
+  const selectedModel = rawConfig?.model ?? "";
+  const isDisabled = rawConfig?.enabled === false;
+  const selectedLabel = useMemo(() => {
+    if (isDisabled) return "Off";
+    if (!selectedProvider) return "Automatic";
+    return resolveSelectedModelLabel({ providers, selectedProvider, selectedModel, isLoading });
+  }, [isDisabled, selectedProvider, selectedModel, providers, isLoading]);
 
-  const patchAgentTitle = useCallback(
-    async (agentTitle: AgentTitleGenerationConfig) => {
+  const patchTarget = useCallback(
+    async (patch: AgentTitleGenerationConfig) => {
       setIsPending(true);
       try {
-        await patchConfig({ metadataGeneration: { agentTitle } });
+        await patchConfig({ metadataGeneration: { [targetKey]: patch } });
       } catch (error) {
         Alert.alert(
-          "Unable to update generated title settings",
+          `Unable to update ${METADATA_TARGET_LABELS[targetKey]} settings`,
           error instanceof Error ? error.message : String(error),
         );
       } finally {
         setIsPending(false);
       }
     },
-    [patchConfig],
+    [patchConfig, setIsPending, targetKey],
   );
 
-  const handleToggleEnabled = useCallback(
-    (nextEnabled: boolean) => {
-      void patchAgentTitle(buildAgentTitleEnabledPatch(agentTitleConfig, nextEnabled));
-    },
-    [agentTitleConfig, patchAgentTitle],
-  );
+  const handleSelectOff = useCallback(() => {
+    void patchTarget({ enabled: false });
+  }, [patchTarget]);
+
+  const handleSelectAutomatic = useCallback(() => {
+    void patchTarget({ enabled: true });
+  }, [patchTarget]);
 
   const handleSelectModel = useCallback(
     (provider: AgentProvider, modelId: string) => {
-      void patchAgentTitle({
-        enabled: true,
-        provider,
-        ...(modelId ? { model: modelId } : {}),
-      });
+      void patchTarget({ enabled: true, provider, ...(modelId ? { model: modelId } : {}) });
     },
-    [patchAgentTitle],
+    [patchTarget],
   );
 
-  const handleUseAutomatic = useCallback(() => {
-    void patchAgentTitle({ enabled: true });
-  }, [patchAgentTitle]);
+  return (
+    <View style={METADATA_ROW_STYLE}>
+      <View style={settingsStyles.rowContent}>
+        <Text style={settingsStyles.rowTitle}>{METADATA_TARGET_LABELS[targetKey]}</Text>
+        <Text style={settingsStyles.rowHint} numberOfLines={1}>
+          {selectedLabel}
+        </Text>
+      </View>
+      <View style={styles.titleModelActions}>
+        {selectedProvider || isDisabled ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Reset ${METADATA_TARGET_LABELS[targetKey]} to automatic`}
+            testID={`metadata-${targetKey}-automatic-button`}
+            disabled={isPending}
+            onPress={isDisabled ? handleSelectAutomatic : handleSelectAutomatic}
+            style={styles.automaticButton}
+          >
+            <Text style={styles.automaticButtonText}>{isDisabled ? "Automatic" : "Automatic"}</Text>
+          </Pressable>
+        ) : null}
+        {!isDisabled ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Disable ${METADATA_TARGET_LABELS[targetKey]} generation`}
+            testID={`metadata-${targetKey}-off-button`}
+            disabled={isPending}
+            onPress={handleSelectOff}
+            style={styles.automaticButton}
+          >
+            <Text style={styles.automaticButtonText}>Off</Text>
+          </Pressable>
+        ) : null}
+        {!isDisabled ? (
+          <CombinedModelSelector
+            serverId={serverId}
+            providers={providers}
+            selectedProvider={selectedProvider}
+            selectedModel={selectedModel}
+            onSelect={handleSelectModel}
+            isLoading={isLoading}
+            disabled={isPending}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
 
-  if (!supportsTitleGenerationSettings) {
+function MetadataGenerationSection({
+  serverId,
+  entries,
+  isLoading,
+  config,
+  patchConfig,
+  supportsSettings,
+}: MetadataGenerationSectionProps) {
+  const [isPending, setIsPending] = useState(false);
+
+  if (!supportsSettings) {
     return null;
   }
 
   return (
     <SettingsSection
-      title="Generated titles"
-      testID="generated-titles-card"
+      title="Metadata generation"
+      testID="metadata-generation-card"
       style={styles.sectionSpacing}
     >
       <View style={settingsStyles.card}>
-        <View style={GENERATED_TITLE_ROW_STYLE}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>Generate agent titles</Text>
-            <Text style={settingsStyles.rowHint}>
-              Automatically replace prompt-derived provisional titles for agents without explicit
-              names.
-            </Text>
-          </View>
-          <Switch
-            value={enabled}
-            onValueChange={handleToggleEnabled}
-            disabled={isPending}
-            accessibilityLabel="Generate agent titles"
-            testID="generated-titles-switch"
-          />
-        </View>
-        {enabled ? (
-          <View style={GENERATED_TITLE_MODEL_ROW_STYLE}>
-            <View style={settingsStyles.rowContent}>
-              <Text style={settingsStyles.rowTitle}>Title model</Text>
-              <Text style={settingsStyles.rowHint}>
-                {selectedProvider
-                  ? `${selectedLabel} is tried first, then Paseo falls back automatically.`
-                  : "Automatic uses the existing metadata generation fallback order."}
-              </Text>
-            </View>
-            <View style={styles.titleModelActions}>
-              {selectedProvider ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Use automatic title model selection"
-                  testID="generated-titles-automatic-button"
-                  disabled={isPending}
-                  onPress={handleUseAutomatic}
-                  style={styles.automaticButton}
-                >
-                  <Text style={styles.automaticButtonText}>Automatic</Text>
-                </Pressable>
-              ) : null}
-              <CombinedModelSelector
+        {(["agentTitle", "branchName", "commitMessage", "pullRequest"] as const).map(
+          (key, index) => (
+            <View key={key} style={index > 0 ? settingsStyles.rowBorder : undefined}>
+              <MetadataTargetRow
+                targetKey={key}
                 serverId={serverId}
-                providers={providers}
-                selectedProvider={selectedProvider}
-                selectedModel={selectedModel}
-                onSelect={handleSelectModel}
+                entries={entries}
                 isLoading={isLoading}
-                disabled={isPending}
+                config={config}
+                patchConfig={patchConfig}
+                isPending={isPending}
+                setIsPending={setIsPending}
               />
             </View>
-          </View>
-        ) : null}
+          ),
+        )}
       </View>
     </SettingsSection>
   );
@@ -348,11 +369,13 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   const isConnected = useHostRuntimeIsConnected(serverId);
   const { entries, isLoading } = useProvidersSnapshot(serverId);
   const { config, patchConfig } = useDaemonConfig(serverId);
-  const supportsTitleGenerationSettings = useSessionStore((state) => {
+  const supportsMetadataGenerationSettings = useSessionStore((state) => {
     const features = state.sessions[serverId]?.serverInfo?.features as
       | Record<string, unknown>
       | undefined;
-    return features?.titleGenerationSettings === true;
+    return (
+      features?.metadataGenerationSettings === true || features?.titleGenerationSettings === true
+    );
   });
   const openProviderSettings = useProviderSettingsStore((state) => state.open);
   const [isAddProviderOpen, setIsAddProviderOpen] = useState(false);
@@ -415,13 +438,13 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   return (
     <>
       {hasServer && isConnected ? (
-        <GeneratedTitlesSection
+        <MetadataGenerationSection
           serverId={serverId}
           entries={entries}
           isLoading={isLoading}
           config={config}
           patchConfig={patchConfig}
-          supportsTitleGenerationSettings={supportsTitleGenerationSettings}
+          supportsSettings={supportsMetadataGenerationSettings}
         />
       ) : null}
 
@@ -553,9 +576,4 @@ const styles = StyleSheet.create((theme) => ({
 }));
 
 const EMPTY_CARD_STYLE = [settingsStyles.card, styles.emptyCard];
-const GENERATED_TITLE_ROW_STYLE = [settingsStyles.row, styles.generatedTitleRow];
-const GENERATED_TITLE_MODEL_ROW_STYLE = [
-  settingsStyles.row,
-  settingsStyles.rowBorder,
-  styles.generatedTitleRow,
-];
+const METADATA_ROW_STYLE = [settingsStyles.row, styles.generatedTitleRow];

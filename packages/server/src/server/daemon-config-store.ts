@@ -44,7 +44,12 @@ function deepMerge<T extends Record<string, unknown>>(
     }
     const currentValue = next[key];
     const nextPath = [...path, key];
-    const shouldReplaceObject = nextPath.join(".") === "metadataGeneration.agentTitle";
+    const shouldReplaceObject = new Set([
+      "metadataGeneration.agentTitle",
+      "metadataGeneration.branchName",
+      "metadataGeneration.commitMessage",
+      "metadataGeneration.pullRequest",
+    ]).has(nextPath.join("."));
     if (isRecord(currentValue) && isRecord(patchValue) && !shouldReplaceObject) {
       next[key] = deepMerge(currentValue, patchValue, nextPath);
       continue;
@@ -184,6 +189,9 @@ function mergeMutableConfigIntoPersistedConfig(params: {
   const shouldPersistMetadataGeneration =
     metadataGeneration.providers.length > 0 ||
     metadataGeneration.agentTitle !== undefined ||
+    metadataGeneration.branchName !== undefined ||
+    metadataGeneration.commitMessage !== undefined ||
+    metadataGeneration.pullRequest !== undefined ||
     persisted.agents?.metadataGeneration !== undefined;
 
   let nextAgents = persisted.agents as PersistedConfig["agents"];
@@ -215,14 +223,19 @@ function mergeMutableConfigIntoPersistedConfig(params: {
   } as PersistedConfig;
 }
 
+interface MetadataTargetConfig {
+  enabled?: boolean;
+  provider?: string;
+  model?: string;
+  thinkingOptionId?: string;
+}
+
 function readMetadataGenerationConfig(mutable: MutableDaemonConfig): {
   providers: Array<{ provider: string; model?: string; thinkingOptionId?: string }>;
-  agentTitle?: {
-    enabled?: boolean;
-    provider?: string;
-    model?: string;
-    thinkingOptionId?: string;
-  };
+  agentTitle?: MetadataTargetConfig;
+  branchName?: MetadataTargetConfig;
+  commitMessage?: MetadataTargetConfig;
+  pullRequest?: MetadataTargetConfig;
 } {
   const metadataGeneration = mutable.metadataGeneration;
   if (!isRecord(metadataGeneration)) {
@@ -230,11 +243,12 @@ function readMetadataGenerationConfig(mutable: MutableDaemonConfig): {
   }
 
   const providers = readMetadataGenerationProviders(metadataGeneration);
-  const agentTitle = readAgentTitleMetadataGenerationConfig(metadataGeneration);
-  return {
-    providers,
-    ...(agentTitle ? { agentTitle } : {}),
-  };
+  const targets: Record<string, MetadataTargetConfig | undefined> = {};
+  for (const key of ["agentTitle", "branchName", "commitMessage", "pullRequest"] as const) {
+    const cfg = readAgentTitleMetadataGenerationConfig(metadataGeneration, key);
+    if (cfg) targets[key] = cfg;
+  }
+  return { providers, ...targets };
 }
 
 function readMetadataGenerationProviders(
@@ -262,17 +276,18 @@ function readMetadataGenerationProviders(
 
 function readAgentTitleMetadataGenerationConfig(
   metadataGeneration: Record<string, unknown>,
-): { enabled?: boolean; provider?: string; model?: string; thinkingOptionId?: string } | undefined {
-  const agentTitle = metadataGeneration["agentTitle"];
-  if (!isRecord(agentTitle)) {
+  key: "agentTitle" | "branchName" | "commitMessage" | "pullRequest",
+): MetadataTargetConfig | undefined {
+  const entry = metadataGeneration[key];
+  if (!isRecord(entry)) {
     return undefined;
   }
   return {
-    ...(typeof agentTitle["enabled"] === "boolean" ? { enabled: agentTitle["enabled"] } : {}),
-    ...(typeof agentTitle["provider"] === "string" ? { provider: agentTitle["provider"] } : {}),
-    ...(typeof agentTitle["model"] === "string" ? { model: agentTitle["model"] } : {}),
-    ...(typeof agentTitle["thinkingOptionId"] === "string"
-      ? { thinkingOptionId: agentTitle["thinkingOptionId"] }
+    ...(typeof entry["enabled"] === "boolean" ? { enabled: entry["enabled"] } : {}),
+    ...(typeof entry["provider"] === "string" ? { provider: entry["provider"] } : {}),
+    ...(typeof entry["model"] === "string" ? { model: entry["model"] } : {}),
+    ...(typeof entry["thinkingOptionId"] === "string"
+      ? { thinkingOptionId: entry["thinkingOptionId"] }
       : {}),
   };
 }

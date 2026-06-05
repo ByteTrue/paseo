@@ -1651,6 +1651,10 @@ export class VoiceAssistantWebSocketServer {
         daemonClientAuthorization: true,
         // COMPAT(titleGenerationSettings): added in v0.1.X, drop the gate when floor >= v0.1.X.
         titleGenerationSettings: true,
+        // COMPAT(metadataGenerationSettings): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        metadataGenerationSettings: true,
+        // COMPAT(checkoutMetadataDrafts): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        checkoutMetadataDrafts: true,
       },
     };
   }

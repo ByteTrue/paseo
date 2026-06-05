@@ -271,6 +271,24 @@ export interface PaseoDaemonConfig {
       model?: string;
       thinkingOptionId?: string;
     };
+    branchName?: {
+      enabled?: boolean;
+      provider?: string;
+      model?: string;
+      thinkingOptionId?: string;
+    };
+    commitMessage?: {
+      enabled?: boolean;
+      provider?: string;
+      model?: string;
+      thinkingOptionId?: string;
+    };
+    pullRequest?: {
+      enabled?: boolean;
+      provider?: string;
+      model?: string;
+      thinkingOptionId?: string;
+    };
   };
   providerOverrides?: Record<string, ProviderOverride>;
   log?: PersistedConfig["log"];

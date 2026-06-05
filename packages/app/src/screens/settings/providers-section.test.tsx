@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderSnapshotEntry } from "@bytetrue/protocol/agent-types";
 import type { MutableDaemonConfig } from "@bytetrue/protocol/messages";
 
+import { ProvidersSection } from "./providers-section";
+
 const {
   theme,
   snapshotState,
@@ -46,6 +48,7 @@ const {
   },
   sessionState: {
     titleGenerationSettings: false,
+    metadataGenerationSettings: false,
   },
   patchConfigMock: vi.fn(async () => undefined),
   openProviderSettingsMock: vi.fn(),
@@ -102,7 +105,11 @@ vi.mock("react-native-unistyles", () => ({
 }));
 
 vi.mock("lucide-react-native", () => {
-  const icon = (name: string) => () => React.createElement("span", { "data-icon": name });
+  const icon = (name: string) => {
+    const Icon = () => React.createElement("span", { "data-icon": name });
+    Icon.displayName = name;
+    return Icon;
+  };
   return {
     ChevronRight: icon("ChevronRight"),
     Plus: icon("Plus"),
@@ -205,19 +212,24 @@ vi.mock("@/runtime/host-runtime", () => ({
 }));
 
 vi.mock("@/stores/session-store", () => ({
-  useSessionStore: (selector: (state: unknown) => unknown) =>
-    selector({
+  useSessionStore: (selector: (state: unknown) => unknown) => {
+    let features: Record<string, boolean> = {};
+    if (sessionState.metadataGenerationSettings) {
+      features = { metadataGenerationSettings: true, titleGenerationSettings: true };
+    } else if (sessionState.titleGenerationSettings) {
+      features = { titleGenerationSettings: true };
+    }
+    return selector({
       sessions: {
         "server-1": {
           serverInfo: {
-            features: sessionState.titleGenerationSettings ? { titleGenerationSettings: true } : {},
+            features,
           },
         },
       },
-    }),
+    });
+  },
 }));
-
-import { ProvidersSection } from "./providers-section";
 
 const claudeEntry: ProviderSnapshotEntry = {
   provider: "claude",
@@ -403,94 +415,86 @@ describe("ProvidersSection", () => {
     });
   });
 
-  it("hides generated title settings when the host does not support them", () => {
+  it("hides metadata generation settings when the host does not support them", () => {
+    sessionState.metadataGenerationSettings = false;
     sessionState.titleGenerationSettings = false;
     snapshotState.entries = [claudeEntry];
     configState.config = makeConfig();
 
     render();
 
-    expect(container?.querySelector('[data-testid="generated-titles-card"]')).toBeNull();
+    expect(container?.querySelector('[data-testid="metadata-generation-card"]')).toBeNull();
   });
 
-  it("toggles generated title creation through daemon config", async () => {
-    sessionState.titleGenerationSettings = true;
-    snapshotState.entries = [claudeEntry];
-    configState.config = makeConfig({}, {
-      providers: [],
-      agentTitle: {
-        enabled: true,
-        provider: "claude",
-        model: "claude-haiku-4-5",
-      },
-    } as MutableDaemonConfig["metadataGeneration"]);
-
-    render();
-
-    const switchEl = container?.querySelector<HTMLElement>(
-      '[data-testid="generated-titles-switch"]',
-    );
-    expect(switchEl?.getAttribute("aria-checked")).toBe("true");
-
-    await act(async () => {
-      switchEl?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(patchConfigMock).toHaveBeenCalledWith({
-      metadataGeneration: {
-        agentTitle: {
-          enabled: false,
-          provider: "claude",
-          model: "claude-haiku-4-5",
-        },
-      },
-    });
-  });
-
-  it("selects a title model and can return to automatic selection", async () => {
+  it("shows metadata generation card when host supports titleGenerationSettings", () => {
+    sessionState.metadataGenerationSettings = false;
     sessionState.titleGenerationSettings = true;
     snapshotState.entries = [claudeEntry];
     configState.config = makeConfig();
 
     render();
 
-    const selector = container?.querySelector<HTMLElement>(
-      '[data-testid="combined-model-selector"]',
+    expect(container?.querySelector('[data-testid="metadata-generation-card"]')).not.toBeNull();
+  });
+
+  it("shows metadata generation card when host supports metadataGenerationSettings", () => {
+    sessionState.metadataGenerationSettings = true;
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    expect(container?.querySelector('[data-testid="metadata-generation-card"]')).not.toBeNull();
+  });
+
+  it("clicking Off patches agentTitle enabled:false through daemon config", async () => {
+    sessionState.metadataGenerationSettings = true;
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    const offBtn = container?.querySelector<HTMLElement>(
+      '[data-testid="metadata-agentTitle-off-button"]',
     );
-    expect(selector).not.toBeNull();
+    expect(offBtn).not.toBeNull();
 
     await act(async () => {
-      selector?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      offBtn?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      metadataGeneration: { agentTitle: { enabled: false } },
+    });
+  });
+
+  it("selects a model for commitMessage via CombinedModelSelector", async () => {
+    sessionState.metadataGenerationSettings = true;
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    const selectors = container?.querySelectorAll<HTMLElement>(
+      '[data-testid="combined-model-selector"]',
+    );
+    // The first selector corresponds to agentTitle, second to branchName, etc.
+    // commitMessage is the 3rd target (index 2)
+    const commitSelector = selectors?.[2];
+    expect(commitSelector).not.toBeNull();
+
+    await act(async () => {
+      commitSelector?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
     });
 
     expect(patchConfigMock).toHaveBeenCalledWith({
       metadataGeneration: {
-        agentTitle: {
+        commitMessage: {
           enabled: true,
           provider: "claude",
           model: "claude-sonnet-4-6",
         },
       },
-    });
-
-    patchConfigMock.mockClear();
-    configState.config = makeConfig({}, {
-      providers: [],
-      agentTitle: { provider: "claude", model: "claude-sonnet-4-6" },
-    } as MutableDaemonConfig["metadataGeneration"]);
-    render();
-
-    const automatic = container?.querySelector<HTMLElement>(
-      '[data-testid="generated-titles-automatic-button"]',
-    );
-    expect(automatic).not.toBeNull();
-
-    await act(async () => {
-      automatic?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(patchConfigMock).toHaveBeenCalledWith({
-      metadataGeneration: { agentTitle: { enabled: true } },
     });
   });
 });

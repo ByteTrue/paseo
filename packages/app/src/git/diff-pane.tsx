@@ -2082,7 +2082,11 @@ export function GitDiffPane({
     }),
     [],
   );
-  const { gitActions, branchLabel } = useGitActions({ serverId, cwd, icons: gitActionsIcons });
+  const {
+    gitActions,
+    branchLabel,
+    dialogs: gitDialogs,
+  } = useGitActions({ serverId, cwd, icons: gitActionsIcons });
   const committedDiffDescription = useMemo(
     () => computeCommittedDiffDescription(branchLabel, baseRefLabel),
     [baseRefLabel, branchLabel],
@@ -2210,6 +2214,7 @@ export function GitDiffPane({
         {bodyContent}
         {hasChanges ? scrollbar.overlay : null}
       </View>
+      {gitDialogs}
     </View>
   );
 }

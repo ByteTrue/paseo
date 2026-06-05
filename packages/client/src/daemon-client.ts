@@ -28,6 +28,8 @@ import type {
   GitSetupOptions,
   CheckoutStatusResponse,
   CheckoutCommitResponse,
+  CheckoutGenerateCommitMessageResponse,
+  CheckoutGeneratePullRequestResponse,
   CheckoutMergeResponse,
   CheckoutMergeFromBaseResponse,
   CheckoutPullResponse,
@@ -319,6 +321,8 @@ type CheckoutPullPayload = CheckoutPullResponse["payload"];
 type CheckoutPushPayload = CheckoutPushResponse["payload"];
 type CheckoutRefreshPayload = CheckoutRefreshResponse["payload"];
 type CheckoutPrCreatePayload = CheckoutPrCreateResponse["payload"];
+type CheckoutGenerateCommitMessagePayload = CheckoutGenerateCommitMessageResponse["payload"];
+type CheckoutGeneratePullRequestPayload = CheckoutGeneratePullRequestResponse["payload"];
 type CheckoutPrMergePayload = CheckoutPrMergeResponse["payload"];
 type CheckoutGithubSetAutoMergePayload = CheckoutGithubSetAutoMergeResponse["payload"];
 type CheckoutPrStatusPayload = CheckoutPrStatusResponse["payload"];
@@ -2902,6 +2906,38 @@ export class DaemonClient {
     this.sendSessionMessage({
       type: "unsubscribe_checkout_diff_request",
       subscriptionId,
+    });
+  }
+
+  async generateCommitMessageDraft(
+    cwd: string,
+    requestId?: string,
+  ): Promise<CheckoutGenerateCommitMessagePayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"checkout.generate_commit_message.response">(
+      {
+        requestId,
+        message: {
+          type: "checkout.generate_commit_message.request",
+          cwd,
+        },
+        timeout: 60000,
+      },
+    );
+  }
+
+  async generatePullRequestDraft(
+    cwd: string,
+    input: { baseRef?: string },
+    requestId?: string,
+  ): Promise<CheckoutGeneratePullRequestPayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"checkout.generate_pull_request.response">({
+      requestId,
+      message: {
+        type: "checkout.generate_pull_request.request",
+        cwd,
+        baseRef: input.baseRef,
+      },
+      timeout: 60000,
     });
   }
 
