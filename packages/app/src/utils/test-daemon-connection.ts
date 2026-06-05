@@ -212,6 +212,9 @@ export function connectAndProbe(
   );
 }
 
+export const DEFAULT_DIRECT_DAEMON_PROBE_TIMEOUT_MS = 30_000;
+export const DEFAULT_RELAY_DAEMON_PROBE_TIMEOUT_MS = 60_000;
+
 interface ProbeOptions {
   serverId?: string;
   timeoutMs?: number;
@@ -219,7 +222,9 @@ interface ProbeOptions {
 
 function resolveTimeout(connection: HostConnection, options?: ProbeOptions): number {
   if (options?.timeoutMs) return options.timeoutMs;
-  return connection.type === "relay" ? 10_000 : 6_000;
+  return connection.type === "relay"
+    ? DEFAULT_RELAY_DAEMON_PROBE_TIMEOUT_MS
+    : DEFAULT_DIRECT_DAEMON_PROBE_TIMEOUT_MS;
 }
 
 export function connectToDaemon(

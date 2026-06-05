@@ -80,6 +80,14 @@ describe("test-daemon-connection connectToDaemon", () => {
     probe = new FakeDaemonProbe();
   });
 
+  it("keeps default probe timeouts long enough for password entry", async () => {
+    const { DEFAULT_DIRECT_DAEMON_PROBE_TIMEOUT_MS, DEFAULT_RELAY_DAEMON_PROBE_TIMEOUT_MS } =
+      await import("./test-daemon-connection");
+
+    expect(DEFAULT_DIRECT_DAEMON_PROBE_TIMEOUT_MS).toBeGreaterThanOrEqual(30_000);
+    expect(DEFAULT_RELAY_DAEMON_PROBE_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+  });
+
   it("reuses the app clientId for direct connections", async () => {
     const { connectToDaemon } = await import("./test-daemon-connection");
     const first = await connectToDaemon(
