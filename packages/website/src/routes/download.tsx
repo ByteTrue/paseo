@@ -54,8 +54,7 @@ function Download() {
               <span className="font-medium">macOS</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <DownloadPill href={urls.macAppleSilicon} label="Apple Silicon" />
-              <DownloadPill href={urls.macIntel} label="Intel" />
+              <DownloadPill href={urls.macAppleSilicon} label="Download" />
             </div>
           </div>
 

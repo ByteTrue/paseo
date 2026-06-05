@@ -100,8 +100,6 @@ jobs:
         include:
           - runner: macos-14
             electron_arch: arm64
-          - runner: macos-15-intel
-            electron_arch: x64
     permissions:
       contents: write
       packages: read
@@ -468,10 +466,7 @@ jobs:
 
           if [[ "${{ needs.publish-macos.result }}" == "success" ]]; then
             manifest_name="${RELEASE_CHANNEL}-mac.yml"
-            node ../scripts/merge-mac-manifest.mjs \
-              "mac-manifest-arm64/${manifest_name}" \
-              "mac-manifest-x64/${manifest_name}" \
-              "$manifests_dir/${manifest_name}"
+            cp "mac-manifest-arm64/${manifest_name}" "$manifests_dir/${manifest_name}"
           fi
 
           if [[ "${{ needs.publish-linux.result }}" == "success" ]]; then

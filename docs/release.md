@@ -48,6 +48,7 @@ Fork facts:
 - Relay deploy: `deploy-relay.yml` to the ByteTrue Cloudflare account.
 - Website deploy: `deploy-website.yml` to the ByteTrue Cloudflare account.
 - Browser web and Electron desktop are the only shipped app surfaces. There is no native iOS/Android client, no EAS/App Store/Play Store flow, and no Android APK release path.
+- macOS desktop releases publish Apple Silicon arm64 artifacts only; Intel x64 macOS artifacts are not shipped.
 
 Publishable npm packages, in dependency order:
 

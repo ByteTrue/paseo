@@ -15,7 +15,6 @@ export function downloadUrls(release: ReleaseAssetInfo) {
   const base = releaseBase(version);
   return {
     macAppleSilicon: `${base}/Paseo-${version}-arm64.dmg`,
-    macIntel: `${base}/Paseo-${version}-x64.dmg`,
     linuxAppImage: `${base}/Paseo-${version}-x86_64.AppImage`,
     linuxDeb: `${base}/Paseo-${version}-amd64.deb`,
     linuxRpm: `${base}/Paseo-${version}-x86_64.rpm`,
@@ -26,7 +25,7 @@ export function downloadUrls(release: ReleaseAssetInfo) {
 
 export const webAppUrl = "https://paseo.zijieapi.de5.net";
 
-type Platform = "mac-silicon" | "mac-intel" | "windows" | "linux";
+type Platform = "mac-silicon" | "windows" | "linux";
 
 export interface DownloadOption {
   platform: Platform;
@@ -42,12 +41,6 @@ export function getDownloadOptions(release: ReleaseAssetInfo): DownloadOption[] 
       platform: "mac-silicon",
       label: "Mac",
       href: urls.macAppleSilicon,
-      icon: AppleIcon,
-    },
-    {
-      platform: "mac-intel",
-      label: "Mac Intel",
-      href: urls.macIntel,
       icon: AppleIcon,
     },
     {

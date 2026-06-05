@@ -2,6 +2,10 @@
 
 ## 0.1.91 - 2026-06-05
 
+### Changed
+
+- macOS desktop releases now publish Apple Silicon arm64 artifacts only; Intel x64 macOS artifacts are no longer shipped
+
 ### Fixed
 
 - Browser web clients can get the current host pairing link from the daemon, instead of relying on the Electron-only desktop bridge
