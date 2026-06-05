@@ -526,7 +526,7 @@ function buildResolvedBuiltinProviders(
       runtimeSettings: mergedRuntimeSettings,
       profileModels: override?.models ?? [],
       additionalModels: override?.additionalModels ?? [],
-      profileModelsAreAdditive: definition.id === "claude",
+      profileModelsAreAdditive: false,
       enabled: override?.enabled !== false,
       derivedFromProviderId: null,
       canRemove: false,
