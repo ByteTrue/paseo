@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.1.90 - 2026-06-05
+
+### Added
+
+- Trusted client enrollment lets you protect daemon access with an administrator password before remote clients can control your host ([#4](https://github.com/ByteTrue/paseo/pull/4))
+- Pairing links can include multiple hosts, so browser and desktop clients can import a full host list at once ([#4](https://github.com/ByteTrue/paseo/pull/4))
+- Agent title generation can use its own provider and model, or be turned off entirely ([#5](https://github.com/ByteTrue/paseo/pull/5))
+- The New workspace flow is available globally from the sidebar and settings ([#1324](https://github.com/getpaseo/paseo/pull/1324))
+- Active files can open directly in your editor or file manager from desktop ([#1285](https://github.com/getpaseo/paseo/pull/1285) by [@aaronzhongg](https://github.com/aaronzhongg))
+- Dart files and code blocks now get syntax highlighting ([#1326](https://github.com/getpaseo/paseo/pull/1326))
+
+### Improved
+
+- The ByteTrue fork now ships only browser web and Electron desktop surfaces, with native iOS and Android release paths removed ([#3](https://github.com/ByteTrue/paseo/pull/3))
+- The sidebar can group workspaces by status and clear workspace attention in bulk ([#1317](https://github.com/getpaseo/paseo/pull/1317))
+- Child agents stay unattended more consistently across providers ([#1315](https://github.com/getpaseo/paseo/pull/1315))
+- Merged pull request workspaces can be archived from settings ([#1313](https://github.com/getpaseo/paseo/pull/1313))
+- Desktop bundled skills stay up to date automatically ([#1309](https://github.com/getpaseo/paseo/pull/1309))
+- Question prompts are shown one at a time, with free-write OpenCode answers supported ([#6](https://github.com/ByteTrue/paseo/pull/6))
+- Workspace imports, older timeline loading, and OpenCode metadata refreshes are faster ([#6](https://github.com/ByteTrue/paseo/pull/6))
+- ACP provider catalog entries were refreshed to current package versions ([#6](https://github.com/ByteTrue/paseo/pull/6))
+
+### Fixed
+
+- Removing localhost from desktop now stops the local daemon cleanly ([#1297](https://github.com/getpaseo/paseo/pull/1297) by [@mcowger](https://github.com/mcowger))
+- Long dictation sessions handle retry backpressure more reliably ([#6](https://github.com/ByteTrue/paseo/pull/6))
+- Workspace tabs no longer flicker while timeline updates arrive ([#6](https://github.com/ByteTrue/paseo/pull/6))
+- Diff rows and sidebar workspace rows stay aligned more reliably ([#6](https://github.com/ByteTrue/paseo/pull/6))
+- Archived workspaces remain recent in Done ([#6](https://github.com/ByteTrue/paseo/pull/6))
+
 ## 0.1.89 - 2026-06-03
 
 ### Added
