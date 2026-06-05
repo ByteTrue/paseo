@@ -15,7 +15,6 @@ import {
   HEADER_TOP_PADDING_MOBILE,
 } from "@/constants/layout";
 import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
-import { useIsLocalDaemon } from "@/hooks/use-is-local-daemon";
 import { PairDeviceModal } from "@/desktop/components/pair-device-modal";
 import { buildHostAgentDetailRoute, buildSettingsHostSectionRoute } from "@/utils/host-routes";
 import { ImportSessionSheet } from "@/components/import-session-sheet";
@@ -27,7 +26,6 @@ export function OpenProjectScreen({ serverId }: { serverId: string }) {
   const router = useRouter();
   const openDesktopAgentList = usePanelStore((s) => s.openDesktopAgentList);
   const openProjectPicker = useOpenProjectPicker(serverId);
-  const isLocalDaemon = useIsLocalDaemon(serverId);
   const client = useHostRuntimeClient(serverId);
   const openProject = useOpenProject(serverId);
   const [isPairDeviceOpen, setIsPairDeviceOpen] = useState(false);
@@ -96,7 +94,7 @@ export function OpenProjectScreen({ serverId }: { serverId: string }) {
             onPress={handleOpenProviders}
             testID="open-project-setup-providers"
           />
-          {isLocalDaemon ? (
+          {client ? (
             <HomeTile
               icon={Smartphone}
               title="Pair device"
@@ -113,6 +111,7 @@ export function OpenProjectScreen({ serverId }: { serverId: string }) {
       <PairDeviceModal
         visible={isPairDeviceOpen}
         onClose={handleClosePairDevice}
+        serverId={serverId}
         testID="open-project-pair-device-modal"
       />
       <ImportSessionSheet

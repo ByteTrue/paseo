@@ -4,13 +4,14 @@ import { PairDeviceSection } from "@/desktop/components/pair-device-section";
 export interface PairDeviceModalProps {
   visible: boolean;
   onClose: () => void;
+  serverId: string;
   testID?: string;
 }
 
 const SNAP_POINTS: string[] = ["82%", "94%"];
 const PAIR_DEVICE_HEADER: SheetHeader = { title: "Pair a device" };
 
-export function PairDeviceModal({ visible, onClose, testID }: PairDeviceModalProps) {
+export function PairDeviceModal({ visible, onClose, serverId, testID }: PairDeviceModalProps) {
   return (
     <AdaptiveModalSheet
       header={PAIR_DEVICE_HEADER}
@@ -20,7 +21,7 @@ export function PairDeviceModal({ visible, onClose, testID }: PairDeviceModalPro
       desktopMaxWidth={640}
       testID={testID}
     >
-      <PairDeviceSection />
+      <PairDeviceSection serverId={serverId} />
     </AdaptiveModalSheet>
   );
 }

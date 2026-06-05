@@ -171,7 +171,7 @@ function HostConnectionError({ serverId }: { serverId: string }) {
 
 export function HostConnectionsPage({ serverId }: { serverId: string }) {
   const host = useHostProfile(serverId);
-  const isLocalDaemon = useIsLocalDaemon(serverId);
+  const isConnected = useHostRuntimeIsConnected(serverId);
 
   if (!host) {
     return <HostNotFound />;
@@ -181,9 +181,9 @@ export function HostConnectionsPage({ serverId }: { serverId: string }) {
     <View>
       <HostConnectionError serverId={serverId} />
       <ConnectionsSection host={host} />
-      {isLocalDaemon ? (
+      {isConnected ? (
         <SettingsSection title="Pair devices">
-          <PairDeviceRow />
+          <PairDeviceRow serverId={serverId} />
         </SettingsSection>
       ) : null}
     </View>
@@ -795,7 +795,7 @@ function AppendSystemPromptCard({ serverId }: { serverId: string }) {
   );
 }
 
-function PairDeviceRow() {
+function PairDeviceRow({ serverId }: { serverId: string }) {
   const { theme } = useUnistyles();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -822,6 +822,7 @@ function PairDeviceRow() {
       <PairDeviceModal
         visible={isModalOpen}
         onClose={handleClose}
+        serverId={serverId}
         testID="host-page-pair-device-card"
       />
     </View>

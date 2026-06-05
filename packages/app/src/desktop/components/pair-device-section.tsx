@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Text, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as QRCode from "qrcode";
@@ -8,7 +8,8 @@ import { RotateCw, Copy, Check } from "lucide-react-native";
 import { settingsStyles } from "@/styles/settings";
 import { Button } from "@/components/ui/button";
 import { getDesktopDaemonPairing, shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
-import { useState } from "react";
+import { useHostRuntimeClient } from "@/runtime/host-runtime";
+import { useSessionStore } from "@/stores/session-store";
 
 type PairingViewState =
   | { tag: "loading" }
@@ -38,15 +39,28 @@ function resolvePairingViewState(args: {
   return { tag: "ready", url: args.data.url };
 }
 
-export function PairDeviceSection() {
+export function PairDeviceSection({ serverId }: { serverId: string }) {
   const { theme } = useUnistyles();
-  const showSection = shouldUseDesktopDaemon();
+  const useDesktopBridge = shouldUseDesktopDaemon();
+  const client = useHostRuntimeClient(serverId);
+  const supportsWebPairingOffer = useSessionStore(
+    (state) => state.sessions[serverId]?.serverInfo?.features?.daemonStatusRpc === true,
+  );
+  const canLoadPairingOffer = useDesktopBridge || (client !== null && supportsWebPairingOffer);
   const [copied, setCopied] = useState(false);
 
   const pairingQuery = useQuery({
-    queryKey: ["desktop-daemon-pairing"],
-    queryFn: getDesktopDaemonPairing,
-    enabled: showSection,
+    queryKey: ["daemon-pairing", serverId, useDesktopBridge ? "desktop" : "web"],
+    queryFn: async () => {
+      if (useDesktopBridge) {
+        return getDesktopDaemonPairing();
+      }
+      if (!client) {
+        throw new Error("Connect to this host before pairing a device.");
+      }
+      return client.getDaemonPairingOffer();
+    },
+    enabled: canLoadPairingOffer,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -97,14 +111,19 @@ export function PairDeviceSection() {
     [copied, theme.iconSize.sm, theme.colors.accent, theme.colors.foreground],
   );
 
-  if (!showSection) return null;
-
-  const viewState = resolvePairingViewState({
-    isPending: pairingQuery.isPending,
-    isError: pairingQuery.isError,
-    error: pairingQuery.error,
-    data: pairingQuery.data,
-  });
+  let viewState: PairingViewState;
+  if (canLoadPairingOffer) {
+    viewState = resolvePairingViewState({
+      isPending: pairingQuery.isPending,
+      isError: pairingQuery.isError,
+      error: pairingQuery.error,
+      data: pairingQuery.data,
+    });
+  } else if (client) {
+    viewState = { tag: "unavailable", message: "Update the host to pair a device from web." };
+  } else {
+    viewState = { tag: "unavailable", message: "Connect to this host before pairing a device." };
+  }
 
   return (
     <View style={settingsStyles.section} testID="host-page-pair-device-card">
