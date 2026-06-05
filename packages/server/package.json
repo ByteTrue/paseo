@@ -1,6 +1,6 @@
 {
   "name": "@bytetrue/server",
-  "version": "0.1.90",
+  "version": "0.1.91",
   "description": "Paseo backend server",
   "repository": {
     "type": "git",
@@ -63,10 +63,10 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.17.1",
     "@anthropic-ai/claude-agent-sdk": "^0.2.133",
-    "@bytetrue/client": "0.1.90",
-    "@bytetrue/highlight": "0.1.90",
-    "@bytetrue/protocol": "0.1.90",
-    "@bytetrue/relay": "0.1.90",
+    "@bytetrue/client": "0.1.91",
+    "@bytetrue/highlight": "0.1.91",
+    "@bytetrue/protocol": "0.1.91",
+    "@bytetrue/relay": "0.1.91",
     "@isaacs/ttlcache": "^2.1.4",
     "@modelcontextprotocol/sdk": "^1.20.1",
     "@opencode-ai/sdk": "1.14.46",
