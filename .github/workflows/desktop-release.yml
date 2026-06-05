@@ -160,6 +160,11 @@ jobs:
           PASEO_DESKTOP_SMOKE: "1"
         run: |
           set -euo pipefail
+          for signing_env in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [[ -z "${!signing_env:-}" ]]; then
+              unset "$signing_env"
+            fi
+          done
           build_args=(-- --publish never --mac --${{ matrix.electron_arch }})
           build_args+=("-c.publish.releaseType=$RELEASE_TYPE")
           build_args+=("-c.publish.channel=$RELEASE_CHANNEL")
