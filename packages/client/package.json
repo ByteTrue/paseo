@@ -1,6 +1,6 @@
 {
   "name": "@bytetrue/client",
-  "version": "0.1.89",
+  "version": "0.1.90",
   "description": "Paseo client SDK package",
   "repository": {
     "type": "git",
@@ -39,8 +39,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bytetrue/protocol": "0.1.89",
-    "@bytetrue/relay": "0.1.89",
+    "@bytetrue/protocol": "0.1.90",
+    "@bytetrue/relay": "0.1.90",
     "zod": "^3.23.8"
   },
   "devDependencies": {
