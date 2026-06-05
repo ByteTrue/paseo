@@ -74,7 +74,7 @@ Preserve these unless the user explicitly changes strategy:
    - Preserve `relay.paseo.zijieapi.de5.net:443` and `https://paseo.zijieapi.de5.net` in runtime defaults and daemon pairing tests.
    - Keep fork release scripts and `publish-npm.yml` intact.
    - Keep browser-web pairing/device-copy flows, but do not restore deleted native mobile routes, native client dependencies, mobile test harnesses, or mobile store release automation.
-   - If protocol types changed, run `npm run build --workspace=@bytetrue/protocol` before cross-workspace typecheck.
+   - If protocol, client, or server message shapes changed and typecheck reports missing fields or stale exports, run `npm run build:server` before patching consumers. Cross-workspace `dist/` declarations can be stale even when source is correct.
    - If client imports relay runtime code, ensure `build:client` builds relay before client.
 8. Refresh dependencies when package manifests changed:
    ```bash
@@ -90,6 +90,7 @@ Preserve these unless the user explicitly changes strategy:
 10. Run validation:
     ```bash
     npm run format:check
+    npm --workspace-root run lint
     npm run typecheck
     npm run release:check
     npm run test:unit --workspace=@bytetrue/server -- src/server/bootstrap.smoke.test.ts
@@ -114,7 +115,17 @@ Preserve these unless the user explicitly changes strategy:
 - Clean CI can expose missing workspace build steps that local dirty `dist/` directories hide.
 - `npm version` / release scripts need a clean worktree; stash unrelated untracked files instead of committing them accidentally.
 - Always run the daemon bootstrap smoke test after touching daemon pairing, service URLs, relay config, or websocket runtime config.
+- Use `git rev-list --left-right --count upstream-sync...upstream/main` as a sanity check before counting work. The cursor should usually have `0 N` against `upstream/main` before a review and `0 0` after advancing it.
+- Keep unrelated fork cleanup separate before starting a sync PR. A dirty `main` makes the upstream review harder to reason about and can pollute the candidate branch.
+- Some local Git versions do not support `git cherry-pick --no-verify`. Expect pre-commit hooks to run on every `cherry-pick --continue`, or plan the batch time accordingly and still run final full validation.
+- When resolving `package.json` conflicts, absorb upstream build/check improvements only after translating every workspace scope to `@bytetrue` and preserving this fork's no-native-client scripts. Do not reintroduce `@getpaseo/*`, Android/iOS scripts, or Expo native-only package build steps.
+- For modify/delete conflicts on `.native.*` files that were removed by this fork's no-native-client policy, preserve the deletion unless the user explicitly asks to restore native clients.
+- Preserve the local speech worker IPC backpressure behavior: `child_process.send()` returning `false` is backpressure, not a fatal channel error. Outcomes should still come from the send callback, worker response, or timeout.
+- GitHub `gh pr checks --watch` / GraphQL calls can EOF while CI is still healthy. Re-check with `gh run view <run-id> --json status,conclusion,jobs` before treating it as a CI failure.
+- In this repo, prefer `npm --workspace-root run lint` for root lint during sync work; plain `npm run lint` can route through the wrong npm workspace/ESLint path in some sessions.
 
 ## Evidence From First Run
 
 The first practical run reviewed `upstream-sync..upstream/main`, cherry-picked reusable commits to `reuse-upstream-20260602`, skipped upstream release/hash/changelog commits, fixed fork scope/domain regressions, added a missing relay build step for clean CI, merged PR #2, and advanced `origin/upstream-sync` to `0d98df4a`.
+
+The second practical run reviewed 59 upstream commits after cursor `0d98df4a`, cherry-picked 46 reusable commits to `reuse-upstream-20260605`, skipped 4 upstream release commits and 2 lockfile/Nix-hash-only commits, resolved fork-scope/native/speech IPC conflicts, merged PR #6, and advanced `origin/upstream-sync` to `b5192e57`.
