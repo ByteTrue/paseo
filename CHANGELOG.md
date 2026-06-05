@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.91 - 2026-06-05
+
+### Fixed
+
+- Browser web clients can get the current host pairing link from the daemon, instead of relying on the Electron-only desktop bridge
+
 ## 0.1.90 - 2026-06-05
 
 ### Added
