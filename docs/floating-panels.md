@@ -169,6 +169,21 @@ on that attach races Gorhom's dismiss path and leaves the modal unable to reopen
 Track an explicit phase (`closed` / `presenting` / `presented` / `dismissing`) and
 ignore ref churn while dismissing.
 
+## Gotcha 7 — Critical prompts must out-rank sheets
+
+`AdaptiveModalSheet` uses isolated Gorhom bottom sheet providers on compact layouts.
+If a flow inside one sheet triggers another ordinary app-global sheet, provider and
+portal ordering can leave the newer sheet behind a full-height source sheet.
+
+Do not fix critical prompts by making every caller dismiss its current sheet first.
+Authentication and permission prompts should render through a highest-priority overlay
+or native `Modal` layer so they stay answerable no matter which surface requested
+them. The daemon admin password prompt is the reference case.
+
+When a critical prompt is part of a timed probe or connection attempt, the caller
+must pause that timeout while the prompt is waiting or expire the prompt with visible
+copy. Do not let a background timeout leave a still-answerable prompt on screen.
+
 ## Recipe for a new anchored panel
 
 Before you write a new one, ask:

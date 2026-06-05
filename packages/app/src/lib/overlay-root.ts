@@ -5,6 +5,7 @@
  * Z-index scale within overlay root:
  * - Modal backdrop/content: 10
  * - Toast: 20
+ * - Critical modal backdrop/content (auth prompts): 30
  */
 export function getOverlayRoot(): HTMLElement {
   let el = document.getElementById("overlay-root");
@@ -22,4 +23,5 @@ export function getOverlayRoot(): HTMLElement {
 export const OVERLAY_Z = {
   modal: 10,
   toast: 20,
+  criticalModal: 30,
 } as const;

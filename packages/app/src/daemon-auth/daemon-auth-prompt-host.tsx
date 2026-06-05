@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Text, View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { createPortal } from "react-dom";
+import { Modal, Pressable, Text, TextInput, View } from "react-native";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import type { DaemonClientAdminPasswordContext } from "@bytetrue/client/internal/daemon-client";
-import { AdaptiveModalSheet, AdaptiveTextInput } from "@/components/adaptive-modal-sheet";
+import { SheetHeaderView } from "@/components/adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
+import { isWeb } from "@/constants/platform";
+import { getOverlayRoot, OVERLAY_Z } from "@/lib/overlay-root";
 import { registerDaemonAdminPasswordPrompt } from "./admin-password-prompt";
 
 interface PromptRequest {
@@ -12,9 +15,32 @@ interface PromptRequest {
   resolve: (password: string | null) => void;
 }
 
+const ABSOLUTE_FILL_STYLE = { ...StyleSheet.absoluteFillObject };
+
 const styles = StyleSheet.create((theme) => ({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.58)",
+    padding: theme.spacing[6],
+    pointerEvents: "auto" as const,
+    zIndex: OVERLAY_Z.criticalModal,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 460,
+    maxHeight: "85%",
+    minHeight: 0,
+    overflow: "hidden",
+    backgroundColor: theme.colors.surface1,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.surface2,
+  },
   content: {
     gap: theme.spacing[4],
+    padding: theme.spacing[6],
   },
   body: {
     gap: theme.spacing[2],
@@ -35,6 +61,10 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[6],
+    paddingVertical: theme.spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.surface2,
   },
   input: {
     minHeight: 44,
@@ -44,6 +74,7 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[2],
     backgroundColor: theme.colors.surface0,
+    color: theme.colors.foreground,
   },
 }));
 
@@ -59,6 +90,7 @@ export function DaemonAuthPromptHost() {
   const [password, setPassword] = useState("");
   const requestIdRef = useRef(0);
   const pendingRef = useRef<PromptRequest | null>(null);
+  const { theme } = useUnistyles();
 
   useEffect(() => {
     return registerDaemonAdminPasswordPrompt(
@@ -100,6 +132,22 @@ export function DaemonAuthPromptHost() {
     closeRequest(trimmed.length > 0 ? trimmed : null);
   }, [closeRequest, password]);
 
+  const isVisible = request !== null;
+
+  useEffect(() => {
+    if (!isWeb || !isVisible || typeof window === "undefined") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      event.preventDefault();
+      handleCancel();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [handleCancel, isVisible]);
+
   const header = useMemo(
     () => ({
       title: "Authorize remote daemon",
@@ -127,38 +175,55 @@ export function DaemonAuthPromptHost() {
     [canSubmit, handleCancel, handleSubmit],
   );
 
-  return (
-    <AdaptiveModalSheet
-      visible={request !== null}
-      header={header}
-      onClose={handleCancel}
-      footer={footer}
-      desktopMaxWidth={460}
-      testID="daemon-auth-prompt"
-    >
-      <View style={styles.content}>
-        <View style={styles.body}>
-          <Text style={styles.text}>
-            Enter the daemon administrator password once to enroll this device. Paseo stores only a
-            per-daemon client key after enrollment, not the password.
-          </Text>
-          {request?.context.error ? (
-            <Text style={styles.error}>{request.context.error}</Text>
-          ) : null}
+  const promptContent = (
+    <View style={styles.overlay} testID="daemon-auth-prompt">
+      <Pressable accessibilityLabel="Dismiss" style={ABSOLUTE_FILL_STYLE} onPress={handleCancel} />
+      <View style={styles.card}>
+        <SheetHeaderView header={header} onClose={handleCancel} />
+        <View style={styles.content}>
+          <View style={styles.body}>
+            <Text style={styles.text}>
+              Enter the daemon administrator password once to enroll this device. Paseo stores only
+              a per-daemon client key after enrollment, not the password.
+            </Text>
+            {request?.context.error ? (
+              <Text style={styles.error}>{request.context.error}</Text>
+            ) : null}
+          </View>
+          <TextInput
+            key={request?.id ?? "empty"}
+            defaultValue=""
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+            placeholder="Daemon administrator password"
+            placeholderTextColor={theme.colors.foregroundMuted}
+            onChangeText={setPassword}
+            onSubmitEditing={handleSubmit}
+            style={styles.input}
+            testID="daemon-auth-password-input"
+          />
         </View>
-        <AdaptiveTextInput
-          resetKey={request?.id ?? "empty"}
-          initialValue=""
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder="Daemon administrator password"
-          onChangeText={setPassword}
-          onSubmitEditing={handleSubmit}
-          style={styles.input}
-          testID="daemon-auth-password-input"
-        />
+        {footer}
       </View>
-    </AdaptiveModalSheet>
+    </View>
+  );
+
+  if (isWeb && typeof document !== "undefined") {
+    if (!isVisible) return null;
+    return createPortal(promptContent, getOverlayRoot());
+  }
+
+  return (
+    <Modal
+      transparent
+      animationType="fade"
+      visible={isVisible}
+      onRequestClose={handleCancel}
+      hardwareAccelerated
+    >
+      {promptContent}
+    </Modal>
   );
 }

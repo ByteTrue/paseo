@@ -145,6 +145,37 @@ export async function buildClientConfig(
   };
 }
 
+interface ProbeTimeoutControls {
+  pause(): void;
+  resume(): void;
+}
+
+function withProbeTimeoutPausedDuringAdminPasswordPrompt(
+  config: DaemonClientConfig,
+  controls: ProbeTimeoutControls,
+): DaemonClientConfig {
+  const clientAuth = config.clientAuth;
+  const adminPasswordProvider = clientAuth?.adminPasswordProvider;
+  if (!clientAuth || !adminPasswordProvider) {
+    return config;
+  }
+
+  return {
+    ...config,
+    clientAuth: {
+      ...clientAuth,
+      adminPasswordProvider: async (context) => {
+        controls.pause();
+        try {
+          return await adminPasswordProvider(context);
+        } finally {
+          controls.resume();
+        }
+      },
+    },
+  };
+}
+
 export function connectAndProbe(
   config: DaemonClientConfig,
   timeoutMs: number,
@@ -162,36 +193,93 @@ export function connectAndProbe(
     "createClient"
   > = defaultDaemonConnectionDependencies,
 ): Promise<{ client: DaemonProbeClient; serverId: string; hostname: string | null }> {
-  const client = deps.createClient(config);
-
   return new Promise<{ client: DaemonProbeClient; serverId: string; hostname: string | null }>(
     (resolve, reject) => {
-      const timer = setTimeout(() => {
-        void client.close().catch(() => undefined);
-        reject(
+      let client: DaemonProbeClient | null = null;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let timerStartedAt = 0;
+      let remainingTimeoutMs = timeoutMs;
+      let settled = false;
+
+      const clearProbeTimer = () => {
+        if (!timer) return;
+        clearTimeout(timer);
+        timer = null;
+      };
+
+      const rejectOnce = (error: DaemonConnectionTestError) => {
+        if (settled) return;
+        settled = true;
+        clearProbeTimer();
+        reject(error);
+      };
+
+      const resolveOnce = (result: {
+        client: DaemonProbeClient;
+        serverId: string;
+        hostname: string | null;
+      }) => {
+        if (settled) return;
+        settled = true;
+        clearProbeTimer();
+        resolve(result);
+      };
+
+      const handleTimeout = () => {
+        timer = null;
+        remainingTimeoutMs = 0;
+        void client?.close().catch(() => undefined);
+        rejectOnce(
           new DaemonConnectionTestError("Connection timed out", {
             reason: "Connection timed out",
-            lastError: client.lastError ?? null,
+            lastError: client?.lastError ?? null,
           }),
         );
-      }, timeoutMs);
+      };
+
+      const startProbeTimer = () => {
+        if (settled || timer) return;
+        if (remainingTimeoutMs <= 0) {
+          handleTimeout();
+          return;
+        }
+        timerStartedAt = Date.now();
+        timer = setTimeout(handleTimeout, remainingTimeoutMs);
+      };
+
+      const pauseProbeTimer = () => {
+        if (!timer) return;
+        clearTimeout(timer);
+        timer = null;
+        remainingTimeoutMs = Math.max(0, remainingTimeoutMs - (Date.now() - timerStartedAt));
+      };
+
+      const resumeProbeTimer = () => {
+        startProbeTimer();
+      };
+
+      const timeoutAwareConfig = withProbeTimeoutPausedDuringAdminPasswordPrompt(config, {
+        pause: pauseProbeTimer,
+        resume: resumeProbeTimer,
+      });
+      client = deps.createClient(timeoutAwareConfig);
+      startProbeTimer();
 
       void client
         .connect()
         .then(() => {
-          clearTimeout(timer);
-          const serverInfo = client.getLastServerInfoMessage();
+          const serverInfo = client?.getLastServerInfoMessage() ?? null;
           if (!serverInfo) {
-            void client.close().catch(() => undefined);
-            reject(
+            void client?.close().catch(() => undefined);
+            rejectOnce(
               new DaemonConnectionTestError("Missing server info message", {
                 reason: "Missing server info message",
-                lastError: client.lastError ?? null,
+                lastError: client?.lastError ?? null,
               }),
             );
             return;
           }
-          resolve({
+          resolveOnce({
             client,
             serverId: serverInfo.serverId,
             hostname: serverInfo.hostname,
@@ -199,14 +287,13 @@ export function connectAndProbe(
           return;
         })
         .catch((error) => {
-          clearTimeout(timer);
           const reason = normalizeNonEmptyString(
             error instanceof Error ? error.message : String(error),
           );
-          const lastError = normalizeNonEmptyString(client.lastError);
+          const lastError = normalizeNonEmptyString(client?.lastError);
           const message = pickBestReason(reason, lastError);
-          void client.close().catch(() => undefined);
-          reject(new DaemonConnectionTestError(message, { reason, lastError }));
+          void client?.close().catch(() => undefined);
+          rejectOnce(new DaemonConnectionTestError(message, { reason, lastError }));
         });
     },
   );
