@@ -468,6 +468,76 @@ describe("ProvidersSection", () => {
     });
   });
 
+  it("resets a configured metadata target to automatic", async () => {
+    sessionState.metadataGenerationSettings = true;
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig(
+      {},
+      {
+        providers: [],
+        commitMessage: {
+          enabled: true,
+          provider: "claude",
+          model: "claude-sonnet-4-6",
+        },
+      },
+    );
+
+    render();
+
+    const automaticBtn = container?.querySelector<HTMLElement>(
+      '[data-testid="metadata-commitMessage-automatic-button"]',
+    );
+    expect(automaticBtn).not.toBeNull();
+
+    await act(async () => {
+      automaticBtn?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      metadataGeneration: { commitMessage: { enabled: true } },
+    });
+  });
+
+  it("keeps metadata target pending state scoped to the edited row", async () => {
+    sessionState.metadataGenerationSettings = true;
+    snapshotState.entries = [claudeEntry];
+    configState.config = makeConfig();
+    let resolvePatch: (() => void) | null = null;
+    patchConfigMock.mockImplementation(
+      () =>
+        new Promise<undefined>((resolve) => {
+          resolvePatch = () => resolve(undefined);
+        }),
+    );
+
+    render();
+
+    const agentTitleOffBtn = container?.querySelector<HTMLElement>(
+      '[data-testid="metadata-agentTitle-off-button"]',
+    );
+    expect(agentTitleOffBtn).not.toBeNull();
+
+    await act(async () => {
+      agentTitleOffBtn?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const pendingAgentTitleOffBtn = container?.querySelector<HTMLElement>(
+      '[data-testid="metadata-agentTitle-off-button"]',
+    );
+    const branchNameOffBtn = container?.querySelector<HTMLElement>(
+      '[data-testid="metadata-branchName-off-button"]',
+    );
+    expect(pendingAgentTitleOffBtn?.getAttribute("aria-disabled")).toBe("true");
+    expect(branchNameOffBtn?.getAttribute("aria-disabled")).toBeNull();
+
+    await act(async () => {
+      resolvePatch?.();
+      await Promise.resolve();
+    });
+  });
+
   it("selects a model for commitMessage via CombinedModelSelector", async () => {
     sessionState.metadataGenerationSettings = true;
     snapshotState.entries = [claudeEntry];

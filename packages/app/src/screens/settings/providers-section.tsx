@@ -213,7 +213,7 @@ function MetadataTargetRow({
   config,
   patchConfig,
   isPending,
-  setIsPending,
+  setTargetPending,
 }: {
   targetKey: MetadataTargetKey;
   serverId: string;
@@ -222,7 +222,7 @@ function MetadataTargetRow({
   config: MutableDaemonConfig | null;
   patchConfig: (patch: MutableDaemonConfigPatch) => Promise<MutableDaemonConfig | undefined>;
   isPending: boolean;
-  setIsPending: (pending: boolean) => void;
+  setTargetPending: (targetKey: MetadataTargetKey, pending: boolean) => void;
 }) {
   const providers = useMemo(() => buildSelectableProviderSelectorProviders(entries), [entries]);
   const rawConfig = config?.metadataGeneration?.[targetKey] as
@@ -239,7 +239,7 @@ function MetadataTargetRow({
 
   const patchTarget = useCallback(
     async (patch: AgentTitleGenerationConfig) => {
-      setIsPending(true);
+      setTargetPending(targetKey, true);
       try {
         await patchConfig({ metadataGeneration: { [targetKey]: patch } });
       } catch (error) {
@@ -248,10 +248,10 @@ function MetadataTargetRow({
           error instanceof Error ? error.message : String(error),
         );
       } finally {
-        setIsPending(false);
+        setTargetPending(targetKey, false);
       }
     },
-    [patchConfig, setIsPending, targetKey],
+    [patchConfig, setTargetPending, targetKey],
   );
 
   const handleSelectOff = useCallback(() => {
@@ -284,10 +284,10 @@ function MetadataTargetRow({
             accessibilityLabel={`Reset ${METADATA_TARGET_LABELS[targetKey]} to automatic`}
             testID={`metadata-${targetKey}-automatic-button`}
             disabled={isPending}
-            onPress={isDisabled ? handleSelectAutomatic : handleSelectAutomatic}
+            onPress={handleSelectAutomatic}
             style={styles.automaticButton}
           >
-            <Text style={styles.automaticButtonText}>{isDisabled ? "Automatic" : "Automatic"}</Text>
+            <Text style={styles.automaticButtonText}>Automatic</Text>
           </Pressable>
         ) : null}
         {!isDisabled ? (
@@ -326,7 +326,20 @@ function MetadataGenerationSection({
   patchConfig,
   supportsSettings,
 }: MetadataGenerationSectionProps) {
-  const [isPending, setIsPending] = useState(false);
+  const [pendingTargets, setPendingTargets] = useState<ReadonlySet<MetadataTargetKey>>(
+    () => new Set(),
+  );
+  const setTargetPending = useCallback((targetKey: MetadataTargetKey, pending: boolean) => {
+    setPendingTargets((current) => {
+      const next = new Set(current);
+      if (pending) {
+        next.add(targetKey);
+        return next;
+      }
+      next.delete(targetKey);
+      return next;
+    });
+  }, []);
 
   if (!supportsSettings) {
     return null;
@@ -349,8 +362,8 @@ function MetadataGenerationSection({
                 isLoading={isLoading}
                 config={config}
                 patchConfig={patchConfig}
-                isPending={isPending}
-                setIsPending={setIsPending}
+                isPending={pendingTargets.has(key)}
+                setTargetPending={setTargetPending}
               />
             </View>
           ),

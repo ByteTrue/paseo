@@ -107,7 +107,7 @@ import { FileBackedChatService } from "./chat/chat-service.js";
 import { CheckoutDiffManager } from "./checkout-diff-manager.js";
 import { LoopService } from "./loop-service.js";
 import { ScheduleService } from "./schedule/service.js";
-import { DaemonConfigStore } from "./daemon-config-store.js";
+import { DaemonConfigStore, type MutableDaemonConfig } from "./daemon-config-store.js";
 import { WorkspaceGitServiceImpl } from "./workspace-git-service.js";
 import { archivePersistedWorkspaceRecord } from "./workspace-archive-service.js";
 import { setupAutoArchiveOnMerge } from "./auto-archive-on-merge/index.js";
@@ -308,6 +308,59 @@ export interface PaseoDaemon {
   getListenTarget(): ListenTarget | null;
 }
 
+function buildInitialProviderConfig(
+  override: ProviderOverride,
+): MutableDaemonConfig["providers"][string] {
+  const providerConfig: MutableDaemonConfig["providers"][string] = {};
+  if (typeof override.enabled === "boolean") {
+    providerConfig.enabled = override.enabled;
+  }
+  if (override.additionalModels) {
+    providerConfig.additionalModels = override.additionalModels;
+  }
+  return providerConfig;
+}
+
+export function buildInitialMutableDaemonConfig(config: PaseoDaemonConfig): MutableDaemonConfig {
+  const metadataGenerationConfig = config.metadataGeneration;
+  const metadataGeneration: MutableDaemonConfig["metadataGeneration"] = {
+    providers: metadataGenerationConfig?.providers ?? [],
+  };
+  if (metadataGenerationConfig?.agentTitle) {
+    metadataGeneration.agentTitle = metadataGenerationConfig.agentTitle;
+  }
+  if (metadataGenerationConfig?.branchName) {
+    metadataGeneration.branchName = metadataGenerationConfig.branchName;
+  }
+  if (metadataGenerationConfig?.commitMessage) {
+    metadataGeneration.commitMessage = metadataGenerationConfig.commitMessage;
+  }
+  if (metadataGenerationConfig?.pullRequest) {
+    metadataGeneration.pullRequest = metadataGenerationConfig.pullRequest;
+  }
+
+  return {
+    mcp: { injectIntoAgents: config.mcpInjectIntoAgents ?? true },
+    providers: Object.fromEntries(
+      Object.entries(config.providerOverrides ?? {}).map(([providerId, override]) => [
+        providerId,
+        buildInitialProviderConfig(override),
+      ]),
+    ),
+    metadataGeneration,
+    autoArchiveAfterMerge: config.autoArchiveAfterMerge ?? false,
+    appendSystemPrompt: config.appendSystemPrompt ?? "",
+  };
+}
+
+function sendFileDownloadError(res: express.Response, statusCode: number, message: string): void {
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
+  res.status(statusCode).json({ error: message });
+}
+
 export async function createPaseoDaemon(
   config: PaseoDaemonConfig,
   rootLogger: Logger,
@@ -318,26 +371,7 @@ export async function createPaseoDaemon(
   const daemonVersion = resolveDaemonVersion(import.meta.url);
   const daemonConfigStore = new DaemonConfigStore(
     config.paseoHome,
-    {
-      mcp: { injectIntoAgents: config.mcpInjectIntoAgents ?? true },
-      providers: Object.fromEntries(
-        Object.entries(config.providerOverrides ?? {}).map(([providerId, override]) => [
-          providerId,
-          {
-            ...(override.enabled !== undefined ? { enabled: override.enabled } : {}),
-            ...(override.additionalModels ? { additionalModels: override.additionalModels } : {}),
-          },
-        ]),
-      ),
-      metadataGeneration: {
-        providers: config.metadataGeneration?.providers ?? [],
-        ...(config.metadataGeneration?.agentTitle
-          ? { agentTitle: config.metadataGeneration.agentTitle }
-          : {}),
-      },
-      autoArchiveAfterMerge: config.autoArchiveAfterMerge ?? false,
-      appendSystemPrompt: config.appendSystemPrompt ?? "",
-    },
+    buildInitialMutableDaemonConfig(config),
     logger,
   );
 
@@ -503,18 +537,12 @@ export async function createPaseoDaemon(
       fileHandle = null;
       stream.on("error", (err) => {
         logger.error({ err }, "Failed to stream download");
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Failed to read file" });
-        } else {
-          res.end();
-        }
+        sendFileDownloadError(res, 500, "Failed to read file");
       });
       stream.pipe(res);
     } catch (err) {
       logger.error({ err }, "Failed to download file");
-      if (!res.headersSent) {
-        res.status(404).json({ error: "File not found" });
-      }
+      sendFileDownloadError(res, 404, "File not found");
     } finally {
       await fileHandle?.close().catch(() => undefined);
     }

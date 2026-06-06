@@ -1643,17 +1643,17 @@ export class VoiceAssistantWebSocketServer {
         daemonStatusRpc: true,
         // COMPAT(terminalRestoreModes): added in v0.1.81, remove gate after 2026-11-23.
         "terminal-restore-modes": true,
-        // COMPAT(rewind): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        // COMPAT(rewind): added in v0.1.82, remove gate after 2026-11-26.
         rewind: true,
         // COMPAT(checkoutRefresh): added in v0.1.86, remove gate after 2026-11-29.
         checkoutRefresh: true,
         // COMPAT(daemonClientAuthorization): added in v0.1.87, remove gate after 2026-12-04.
         daemonClientAuthorization: true,
-        // COMPAT(titleGenerationSettings): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        // COMPAT(titleGenerationSettings): added in v0.1.90, remove gate after 2026-12-05.
         titleGenerationSettings: true,
-        // COMPAT(metadataGenerationSettings): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        // COMPAT(metadataGenerationSettings): added in v0.1.92, remove gate after 2026-12-06.
         metadataGenerationSettings: true,
-        // COMPAT(checkoutMetadataDrafts): added in v0.1.X, drop the gate when floor >= v0.1.X.
+        // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
         checkoutMetadataDrafts: true,
       },
     };
