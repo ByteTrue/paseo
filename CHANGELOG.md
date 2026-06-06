@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.92 - 2026-06-06
+
+### Added
+
+- Git actions can draft branch names, commit messages, and pull request descriptions with your configured metadata provider
+- ACP provider catalog entries were refreshed to current package versions
+
+### Improved
+
+- Metadata generation settings are easier to review and configure
+
+### Fixed
+
+- Browser web clients no longer time out while checking daemon authorization
+- Administrator password prompts now stay above other panels and time out reliably
+
 ## 0.1.91 - 2026-06-05
 
 ### Changed
