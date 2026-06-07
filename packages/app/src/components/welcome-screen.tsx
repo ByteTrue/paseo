@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { Link2, ClipboardPaste, ExternalLink, Settings } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { HostProfile } from "@/types/host-connection";
-import { getHostRuntimeStore, isHostRuntimeConnected, useHosts } from "@/runtime/host-runtime";
 import { AddHostModal } from "./add-host-modal";
 import { PairLinkModal } from "./pair-link-modal";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,7 @@ import { buildHostRootRoute } from "@/utils/host-routes";
 import { PaseoLogo } from "@/components/icons/paseo-logo";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { isNative } from "@/constants/platform";
+import { shouldNavigateAfterHostConnect } from "@/utils/host-connect-navigation";
 
 interface WelcomeAction {
   key: "direct-connection" | "paste-pairing-link";
@@ -112,50 +112,15 @@ const styles = StyleSheet.create((theme) => ({
   },
 }));
 
-function useAnyHostOnline(serverIds: string[]): string | null {
-  const runtime = getHostRuntimeStore();
-  return useSyncExternalStore(
-    (onStoreChange) => runtime.subscribeAll(onStoreChange),
-    () => {
-      let firstOnlineServerId: string | null = null;
-      let firstOnlineAt: string | null = null;
-      for (const serverId of serverIds) {
-        const snapshot = runtime.getSnapshot(serverId);
-        const lastOnlineAt = snapshot?.lastOnlineAt ?? null;
-        if (!isHostRuntimeConnected(snapshot) || !lastOnlineAt) {
-          continue;
-        }
-        if (!firstOnlineAt || lastOnlineAt < firstOnlineAt) {
-          firstOnlineAt = lastOnlineAt;
-          firstOnlineServerId = serverId;
-        }
-      }
-      return firstOnlineServerId;
-    },
-    () => {
-      let firstOnlineServerId: string | null = null;
-      let firstOnlineAt: string | null = null;
-      for (const serverId of serverIds) {
-        const snapshot = runtime.getSnapshot(serverId);
-        const lastOnlineAt = snapshot?.lastOnlineAt ?? null;
-        if (!isHostRuntimeConnected(snapshot) || !lastOnlineAt) {
-          continue;
-        }
-        if (!firstOnlineAt || lastOnlineAt < firstOnlineAt) {
-          firstOnlineAt = lastOnlineAt;
-          firstOnlineServerId = serverId;
-        }
-      }
-      return firstOnlineServerId;
-    },
-  );
-}
-
 export interface WelcomeScreenProps {
   onHostAdded?: (profile: HostProfile) => void;
+  startupRecoveryHostServerId?: string | null;
 }
 
-export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
+export function WelcomeScreen({
+  onHostAdded,
+  startupRecoveryHostServerId = null,
+}: WelcomeScreenProps) {
   const { theme } = useUnistyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -163,19 +128,28 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
   const appVersionText = formatVersionWithPrefix(appVersion);
   const [isDirectOpen, setIsDirectOpen] = useState(false);
   const [isPasteLinkOpen, setIsPasteLinkOpen] = useState(false);
-  const hosts = useHosts();
-  const anyOnlineServerId = useAnyHostOnline(hosts.map((h) => h.serverId));
+
+  const navigateAfterHostConnect = useCallback(
+    (serverId: string, reason: "explicit-host-added" | "startup-recovery") => {
+      if (shouldNavigateAfterHostConnect(reason)) {
+        router.replace(buildHostRootRoute(serverId));
+      }
+    },
+    [router],
+  );
 
   useEffect(() => {
-    if (!anyOnlineServerId) return;
-    router.replace(buildHostRootRoute(anyOnlineServerId));
-  }, [anyOnlineServerId, router]);
+    if (!startupRecoveryHostServerId) {
+      return;
+    }
+    navigateAfterHostConnect(startupRecoveryHostServerId, "startup-recovery");
+  }, [navigateAfterHostConnect, startupRecoveryHostServerId]);
 
   const finishOnboarding = useCallback(
     (serverId: string) => {
-      router.replace(buildHostRootRoute(serverId));
+      navigateAfterHostConnect(serverId, "explicit-host-added");
     },
-    [router],
+    [navigateAfterHostConnect],
   );
 
   const handleOpenPaseoSite = useCallback(() => {

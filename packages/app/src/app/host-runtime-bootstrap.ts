@@ -2,6 +2,7 @@ import type { ActiveWorkspaceSelection } from "@/stores/navigation-active-worksp
 import type { DaemonStartResult } from "@/runtime/daemon-start-service";
 import type { Href } from "expo-router";
 import { buildHostRootRoute } from "@/utils/host-routes";
+import { shouldNavigateAfterHostConnect } from "@/utils/host-connect-navigation";
 
 export interface HostRuntimeBootstrapStore {
   boot: () => void;
@@ -56,7 +57,7 @@ export function startDaemonIfGateAllows(input: {
     });
 }
 
-export const WELCOME_ROUTE: Href = "/welcome";
+export const WELCOME_STARTUP_RECOVERY_ROUTE: Href = "/welcome?startupRecovery=1";
 
 export interface ResolveStartupRedirectInput {
   pathname: string;
@@ -97,11 +98,14 @@ export function resolveStartupRedirectRoute(input: ResolveStartupRedirectInput):
     if (resolveStartupWorkspaceSelection(input)) {
       return null;
     }
-    return buildHostRootRoute(input.anyOnlineHostServerId);
+    if (shouldNavigateAfterHostConnect("startup-index")) {
+      return buildHostRootRoute(input.anyOnlineHostServerId);
+    }
+    return null;
   }
 
   if (input.hasGivenUpWaitingForHost) {
-    return WELCOME_ROUTE;
+    return WELCOME_STARTUP_RECOVERY_ROUTE;
   }
 
   return null;
