@@ -3,7 +3,7 @@ import {
   resolveStartupRedirectRoute,
   resolveStartupWorkspaceSelection,
   startHostRuntimeBootstrap,
-  WELCOME_ROUTE,
+  WELCOME_STARTUP_RECOVERY_ROUTE,
 } from "./host-runtime-bootstrap";
 
 function createFakeStore() {
@@ -225,13 +225,13 @@ describe("resolveStartupRedirectRoute", () => {
   });
 
   describe("scenario: both-fail (no host comes online, give-up timer fires)", () => {
-    it("redirects to the welcome route", () => {
+    it("redirects to the startup recovery welcome route", () => {
       const route = resolveStartupRedirectRoute({
         ...baseInput,
         hasGivenUpWaitingForHost: true,
       });
 
-      expect(route).toBe(WELCOME_ROUTE);
+      expect(route).toBe(WELCOME_STARTUP_RECOVERY_ROUTE);
     });
 
     it("still redirects to the host when one comes online before the timer expires", () => {
