@@ -52,6 +52,22 @@ describe("applyMutableProviderConfigToOverrides", () => {
       },
     });
   });
+
+  test("removes providers from overrides", () => {
+    expect(
+      applyMutableProviderConfigToOverrides(
+        {
+          gemini: { extends: "acp", label: "Gemini", command: ["gemini", "--acp"] },
+          claude: { additionalModels: [{ id: "claude-custom", label: "claude-custom" }] },
+        },
+        {
+          gemini: { removed: true },
+        },
+      ),
+    ).toEqual({
+      claude: { additionalModels: [{ id: "claude-custom", label: "claude-custom" }] },
+    });
+  });
 });
 
 describe("DaemonConfigStore", () => {
@@ -386,5 +402,55 @@ describe("DaemonConfigStore", () => {
       command: ["npx", "-y", "--version"],
       env: {},
     });
+  });
+
+  test("patch removeProviders deletes custom provider overrides from config.json", () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+    tempDirs.push(paseoHome);
+
+    const configPath = path.join(paseoHome, "config.json");
+    writeFileSync(
+      configPath,
+      `${JSON.stringify(
+        {
+          version: 1,
+          agents: {
+            providers: {
+              "paseo-e2e-acp": {
+                extends: "acp",
+                label: "Paseo E2E ACP",
+                command: ["npx", "-y", "--version"],
+              },
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const store = new DaemonConfigStore(
+      paseoHome,
+      {
+        mcp: { injectIntoAgents: false },
+        providers: {
+          "paseo-e2e-acp": {
+            extends: "acp",
+            label: "Paseo E2E ACP",
+            command: ["npx", "-y", "--version"],
+          },
+        },
+        metadataGeneration: { providers: [] },
+        autoArchiveAfterMerge: false,
+        appendSystemPrompt: "",
+      },
+      undefined,
+    );
+
+    store.patch({ removeProviders: ["paseo-e2e-acp"] });
+
+    expect(store.get().providers["paseo-e2e-acp"]).toEqual({ removed: true });
+    const persisted = loadPersistedConfig(paseoHome);
+    expect(persisted.agents?.providers?.["paseo-e2e-acp"]).toBeUndefined();
   });
 });

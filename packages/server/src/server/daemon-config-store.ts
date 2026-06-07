@@ -31,6 +31,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isRemovedProviderConfig(value: unknown): boolean {
+  return isRecord(value) && value.removed === true;
+}
+
+function applyProviderRemovals(
+  current: MutableDaemonConfig,
+  providerIds: unknown,
+): MutableDaemonConfig {
+  if (!Array.isArray(providerIds) || providerIds.length === 0) {
+    return current;
+  }
+  const providers = { ...current.providers };
+  for (const providerId of providerIds) {
+    if (typeof providerId !== "string") {
+      continue;
+    }
+    providers[providerId] = { removed: true };
+  }
+  return { ...current, providers };
+}
+
+function getPatchForMerge(patch: MutableDaemonConfigPatch): MutableDaemonConfigPatch {
+  const patchForMerge = { ...patch };
+  delete patchForMerge.removeProviders;
+  return patchForMerge;
+}
+
 function deepMerge<T extends Record<string, unknown>>(
   current: T,
   patch: Record<string, unknown>,
@@ -50,7 +77,14 @@ function deepMerge<T extends Record<string, unknown>>(
       "metadataGeneration.commitMessage",
       "metadataGeneration.pullRequest",
     ]).has(nextPath.join("."));
-    if (isRecord(currentValue) && isRecord(patchValue) && !shouldReplaceObject) {
+    const shouldReplaceRemovedProvider =
+      nextPath.length === 2 && nextPath[0] === "providers" && isRemovedProviderConfig(currentValue);
+    if (
+      isRecord(currentValue) &&
+      isRecord(patchValue) &&
+      !shouldReplaceObject &&
+      !shouldReplaceRemovedProvider
+    ) {
       next[key] = deepMerge(currentValue, patchValue, nextPath);
       continue;
     }
@@ -80,6 +114,11 @@ export function applyMutableProviderConfigToOverrides(
 
   const nextOverrides: Record<string, ProviderOverride> = { ...baseOverrides };
   for (const [providerId, providerConfig] of Object.entries(mutableProviders ?? {})) {
+    if (isRemovedProviderConfig(providerConfig)) {
+      delete nextOverrides[providerId];
+      continue;
+    }
+
     nextOverrides[providerId] = {
       ...nextOverrides[providerId],
       ...ProviderOverrideSchema.strip().parse(providerConfig),
@@ -108,7 +147,10 @@ export class DaemonConfigStore {
 
   public patch(partial: MutableDaemonConfigPatch): MutableDaemonConfig {
     const parsedPatch = MutableDaemonConfigPatchSchema.parse(partial);
-    const next = MutableDaemonConfigSchema.parse(deepMerge(this.current, parsedPatch));
+    const baseConfig = applyProviderRemovals(this.current, parsedPatch.removeProviders);
+    const next = MutableDaemonConfigSchema.parse(
+      deepMerge(baseConfig, getPatchForMerge(parsedPatch)),
+    );
 
     const changedFieldPaths = Array.from(this.fieldChangeHandlers.keys()).filter((path) => {
       return !isEqualValue(getValueAtPath(this.current, path), getValueAtPath(next, path));
@@ -194,17 +236,15 @@ function mergeMutableConfigIntoPersistedConfig(params: {
     metadataGeneration.pullRequest !== undefined ||
     persisted.agents?.metadataGeneration !== undefined;
 
+  const shouldPersistProviders =
+    providerOverrides !== undefined || persisted.agents?.providers !== undefined;
+
   let nextAgents = persisted.agents as PersistedConfig["agents"];
-  if (providerOverrides && Object.keys(providerOverrides).length > 0) {
+  if (shouldPersistProviders || shouldPersistMetadataGeneration) {
     nextAgents = {
       ...persistedAgents,
-      providers: providerOverrides,
+      ...(shouldPersistProviders ? { providers: providerOverrides ?? {} } : {}),
       ...(shouldPersistMetadataGeneration ? { metadataGeneration } : {}),
-    } as PersistedConfig["agents"];
-  } else if (shouldPersistMetadataGeneration) {
-    nextAgents = {
-      ...persistedAgents,
-      metadataGeneration,
     } as PersistedConfig["agents"];
   }
 

@@ -208,7 +208,7 @@ export class ProviderSnapshotManager {
   }
 
   hasProvider(provider: AgentProvider): boolean {
-    return Object.prototype.hasOwnProperty.call(this.providerRegistry, provider);
+    return Object.hasOwn(this.providerRegistry, provider);
   }
 
   getProviderLabel(provider: AgentProvider): string {
@@ -449,6 +449,7 @@ export class ProviderSnapshotManager {
         label: definition?.label,
         description: definition?.description,
         defaultModeId: definition?.defaultModeId ?? null,
+        canRemove: definition?.canRemove ?? false,
       });
     }
     return entries;
@@ -467,6 +468,7 @@ export class ProviderSnapshotManager {
         label: definition?.label,
         description: definition?.description,
         defaultModeId: definition?.defaultModeId ?? null,
+        canRemove: definition?.canRemove ?? false,
       };
 
       if (!definition?.enabled || !current || current.status === "loading") {
@@ -599,6 +601,7 @@ export class ProviderSnapshotManager {
       label: definition.label,
       description: definition.description,
       defaultModeId: definition.defaultModeId,
+      canRemove: definition.canRemove,
     };
     const setEntry = (entry: ProviderSnapshotEntry) => {
       if (!this.isCurrentProviderLoad(cwd, provider, load)) {

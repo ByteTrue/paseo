@@ -337,7 +337,7 @@ describe("ProviderSnapshotManager public surface", () => {
           async listModes() {
             return childModes;
           },
-          async resolveCreateConfig(input) {
+          resolveCreateConfig(input) {
             resolverInputs.push(input);
             return {
               modeId: input.parent?.isUnattended ? "child-unattended" : undefined,
@@ -365,7 +365,7 @@ describe("ProviderSnapshotManager public surface", () => {
         currentModeId: "parent-unattended",
         availableModes: parentModes,
         config: { provider: "claude", cwd: "/tmp/project" },
-      } as ManagedAgent;
+      } as unknown as ManagedAgent;
 
       const resolved = await manager.resolveCreateConfig({
         cwd: "/tmp/project",
@@ -415,7 +415,7 @@ describe("ProviderSnapshotManager public surface", () => {
           async listModes() {
             return modes;
           },
-          async resolveCreateConfig(input) {
+          resolveCreateConfig(input) {
             resolverInputs.push(input);
             return {
               modeId: input.unattended ? "worker" : undefined,
@@ -490,7 +490,7 @@ describe("ProviderSnapshotManager public surface", () => {
           cwd: "/tmp/project",
           featureValues: { auto_accept: true },
         },
-      } as ManagedAgent;
+      } as unknown as ManagedAgent;
 
       const resolved = await manager.resolveCreateConfig({
         cwd: "/tmp/project",
@@ -529,6 +529,9 @@ describe("ProviderSnapshotManager applyMutableProviderConfig", () => {
 
       expect(manager.hasProvider("zai-claude")).toBe(true);
       expect(state.providerDefinitions["zai-claude"]).toMatchObject({ enabled: true });
+      expect(
+        manager.getSnapshot("/tmp/project").find((entry) => entry.provider === "zai-claude"),
+      ).toMatchObject({ canRemove: true });
       expect(manager.listRegisteredProviderIds()).toContain("zai-claude");
     } finally {
       manager.destroy();

@@ -28,6 +28,7 @@ const IS_WEB = platformIsWeb;
 import { Combobox, ComboboxItem, type ComboboxOption } from "@/components/ui/combobox";
 
 const EMPTY_COMBOBOX_OPTIONS: ComboboxOption[] = [];
+const EMPTY_TOP_OPTIONS: readonly CombinedModelSelectorTopOption[] = [];
 
 function noop() {}
 
@@ -74,6 +75,13 @@ type SelectorView =
   | { kind: "all" }
   | { kind: "provider"; providerId: string; providerLabel: string };
 
+export interface CombinedModelSelectorTopOption {
+  id: string;
+  label: string;
+  description?: string;
+  leadingSlot?: React.ReactNode;
+  testID?: string;
+}
 interface CombinedModelSelectorProps {
   providers: ProviderSelectorProvider[];
   selectedProvider: string;
@@ -82,6 +90,9 @@ interface CombinedModelSelectorProps {
   isLoading: boolean;
   favoriteKeys?: Set<string>;
   onToggleFavorite?: (provider: string, modelId: string) => void;
+  topOptions?: readonly CombinedModelSelectorTopOption[];
+  selectedTopOptionId?: string;
+  onSelectTopOption?: (optionId: string) => void;
   renderTrigger?: (input: {
     selectedModelLabel: string;
     onPress: () => void;
@@ -108,6 +119,9 @@ interface SelectorContentProps {
   onDrillDown: (providerId: string, providerLabel: string) => void;
   onRetryProvider?: (provider: AgentProvider) => void;
   isRetryingProvider: boolean;
+  topOptions: readonly CombinedModelSelectorTopOption[];
+  selectedTopOptionId?: string;
+  onSelectTopOption: (optionId: string) => void;
 }
 
 function normalizeSearchQuery(value: string): string {
@@ -242,6 +256,56 @@ function SelectableModelRow({
       onPress={handlePress}
       onToggleFavorite={onToggleFavorite}
     />
+  );
+}
+
+interface TopOptionRowProps {
+  option: CombinedModelSelectorTopOption;
+  selected: boolean;
+  onSelect: (optionId: string) => void;
+}
+
+function TopOptionRow({ option, selected, onSelect }: TopOptionRowProps) {
+  const handlePress = useCallback(() => {
+    onSelect(option.id);
+  }, [onSelect, option.id]);
+
+  return (
+    <ComboboxItem
+      label={option.label}
+      description={option.description}
+      selected={selected}
+      onPress={handlePress}
+      leadingSlot={option.leadingSlot}
+      testID={option.testID}
+    />
+  );
+}
+
+function TopOptionsSection({
+  options,
+  selectedOptionId,
+  onSelect,
+}: {
+  options: readonly CombinedModelSelectorTopOption[];
+  selectedOptionId?: string;
+  onSelect: (optionId: string) => void;
+}) {
+  if (options.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.topOptionsContainer}>
+      {options.map((option) => (
+        <TopOptionRow
+          key={option.id}
+          option={option}
+          selected={option.id === selectedOptionId}
+          onSelect={onSelect}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -463,6 +527,9 @@ function SelectorContent({
   onDrillDown,
   onRetryProvider,
   isRetryingProvider,
+  topOptions,
+  selectedTopOptionId,
+  onSelectTopOption,
 }: SelectorContentProps) {
   const { theme } = useUnistyles();
   const normalizedQuery = useMemo(() => normalizeSearchQuery(searchQuery), [searchQuery]);
@@ -484,7 +551,7 @@ function SelectorContent({
     () => getAllProviderModelRows(providers).filter((row) => favoriteKeys.has(row.favoriteKey)),
     [favoriteKeys, providers],
   );
-  const hasResults = favoriteRows.length > 0 || providers.length > 0;
+  const hasResults = topOptions.length > 0 || favoriteRows.length > 0 || providers.length > 0;
   const emptyState = (
     <View style={styles.emptyState}>
       <Search size={theme.iconSize.md} color={theme.colors.foregroundMuted} />
@@ -538,6 +605,12 @@ function SelectorContent({
 
   return (
     <View>
+      <TopOptionsSection
+        options={topOptions}
+        selectedOptionId={selectedTopOptionId}
+        onSelect={onSelectTopOption}
+      />
+
       <FavoritesSection
         favoriteRows={favoriteRows}
         selectedProvider={selectedProvider}
@@ -564,6 +637,9 @@ export function CombinedModelSelector({
   isLoading,
   favoriteKeys = new Set<string>(),
   onToggleFavorite,
+  topOptions = EMPTY_TOP_OPTIONS,
+  selectedTopOptionId,
+  onSelectTopOption,
   renderTrigger,
   onOpen,
   onClose,
@@ -582,11 +658,11 @@ export function CombinedModelSelector({
 
   // Single-provider mode: only one provider → skip Level 1 entirely
   const singleProviderView = useMemo<SelectorView | null>(() => {
-    if (providers.length !== 1) return null;
+    if (topOptions.length > 0 || providers.length !== 1) return null;
     const provider = providers[0];
     if (!provider) return null;
     return { kind: "provider", providerId: provider.id, providerLabel: provider.label };
-  }, [providers]);
+  }, [providers, topOptions.length]);
 
   const computeInitialView = useCallback((): SelectorView => {
     if (singleProviderView) return singleProviderView;
@@ -616,27 +692,48 @@ export function CombinedModelSelector({
     [onOpen, onClose, computeInitialView],
   );
 
+  const closeSelector = useCallback(() => {
+    setIsOpen(false);
+    setSearchQuery("");
+    bumpSearchResetKey();
+  }, []);
+
   const handleSelect = useCallback(
     (provider: string, modelId: string) => {
       onSelect(provider, modelId);
-      setIsOpen(false);
-      setSearchQuery("");
-      bumpSearchResetKey();
+      closeSelector();
     },
-    [onSelect],
+    [closeSelector, onSelect],
+  );
+
+  const handleSelectTopOption = useCallback(
+    (optionId: string) => {
+      onSelectTopOption?.(optionId);
+      closeSelector();
+    },
+    [closeSelector, onSelectTopOption],
   );
 
   const hasSelectedProvider = selectedProvider.trim().length > 0;
   const ProviderIcon = hasSelectedProvider ? getProviderIcon(selectedProvider) : null;
 
+  const selectedTopOption = useMemo(
+    () => topOptions.find((option) => option.id === selectedTopOptionId),
+    [selectedTopOptionId, topOptions],
+  );
+
   const selectedModelLabel = useMemo(() => {
+    if (selectedTopOption) {
+      return selectedTopOption.label;
+    }
+
     return resolveSelectedModelLabel({
       providers,
       selectedProvider,
       selectedModel,
       isLoading,
     });
-  }, [isLoading, providers, selectedModel, selectedProvider]);
+  }, [isLoading, providers, selectedModel, selectedProvider, selectedTopOption]);
 
   const desktopFixedHeight = useMemo(() => {
     if (view.kind !== "provider") {
@@ -828,6 +925,9 @@ export function CombinedModelSelector({
             onDrillDown={handleDrillDown}
             onRetryProvider={onRetryProvider}
             isRetryingProvider={isRetryingProvider}
+            topOptions={topOptions}
+            selectedTopOptionId={selectedTopOptionId}
+            onSelectTopOption={handleSelectTopOption}
           />
         ) : (
           <View style={styles.sheetLoadingState}>
@@ -860,6 +960,11 @@ const styles = StyleSheet.create((theme) => ({
   },
   triggerDisabled: {
     opacity: 0.5,
+  },
+  topOptionsContainer: {
+    backgroundColor: theme.colors.surface1,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   triggerText: {
     minWidth: 0,
