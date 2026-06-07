@@ -62,6 +62,7 @@ export interface ProviderDefinition extends AgentProviderDefinition {
    * generic ACP providers (which only extend the literal "acp" sentinel).
    */
   derivedFromProviderId: string | null;
+  canRemove: boolean;
   createClient: (logger: Logger) => AgentClient;
   resolveCreateConfig: (input: ResolveAgentCreateConfigInput) => ResolveAgentCreateConfigResult;
   isCreateConfigUnattended: (input: AgentCreateConfigUnattendedInput) => boolean;
@@ -103,6 +104,7 @@ interface ResolvedProvider {
   profileModelsAreAdditive: boolean;
   enabled: boolean;
   derivedFromProviderId: string | null;
+  canRemove: boolean;
   createBaseClient: (logger: Logger) => AgentClient;
 }
 
@@ -446,6 +448,7 @@ function createRegistryEntry(
     ...resolved.definition,
     enabled: resolved.enabled,
     derivedFromProviderId: resolved.derivedFromProviderId,
+    canRemove: resolved.canRemove,
     createClient: (providerLogger: Logger) =>
       createResolvedProviderClient(providerLogger, provider, resolved),
     resolveCreateConfig: modelClient.resolveCreateConfig ?? resolveDefaultAgentCreateConfig,
@@ -526,6 +529,7 @@ function buildResolvedBuiltinProviders(
       profileModelsAreAdditive: definition.id === "claude",
       enabled: override?.enabled !== false,
       derivedFromProviderId: null,
+      canRemove: false,
       createBaseClient: (logger) =>
         factory(logger, mergedRuntimeSettings, {
           workspaceGitService: options.workspaceGitService,
@@ -574,6 +578,7 @@ function addDerivedProviders(
         profileModelsAreAdditive: false,
         enabled: override.enabled !== false,
         derivedFromProviderId: null,
+        canRemove: true,
         createBaseClient: (logger) =>
           providerId === "cursor"
             ? new CursorACPAgentClient({
@@ -617,6 +622,7 @@ function addDerivedProviders(
       profileModelsAreAdditive: false,
       enabled: override.enabled !== false,
       derivedFromProviderId: baseProviderId,
+      canRemove: true,
       createBaseClient: (logger) =>
         baseFactory(logger, mergedRuntimeSettings, {
           customProvider: {

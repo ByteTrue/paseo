@@ -1,9 +1,19 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, Text, View, type PressableStateCallbackType } from "react-native";
+import {
+  Alert,
+  Pressable,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type PressableStateCallbackType,
+} from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import type { AgentProvider } from "@bytetrue/protocol/agent-types";
 import type { MutableDaemonConfig, MutableDaemonConfigPatch } from "@bytetrue/protocol/messages";
-import { CombinedModelSelector } from "@/components/combined-model-selector";
+import {
+  CombinedModelSelector,
+  type CombinedModelSelectorTopOption,
+} from "@/components/combined-model-selector";
 import { getProviderIcon } from "@/components/provider-icons";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Switch } from "@/components/ui/switch";
@@ -20,10 +30,21 @@ import { useSessionStore } from "@/stores/session-store";
 import { settingsStyles } from "@/styles/settings";
 import { buildProviderDefinitions } from "@/utils/provider-definitions";
 import { AddProviderModal } from "@/components/add-provider-modal";
-import { ChevronRight, Plus } from "lucide-react-native";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronRight, MoreVertical, Plus, Trash2 } from "lucide-react-native";
+import { confirmDialog } from "@/utils/confirm-dialog";
 
 type ProviderDefinition = ReturnType<typeof buildProviderDefinitions>[number];
 type ProviderEntry = NonNullable<ReturnType<typeof useProvidersSnapshot>["entries"]>[number];
+
+const METADATA_TOP_OPTION_AUTOMATIC = "automatic";
+const METADATA_TOP_OPTION_OFF = "off";
+
 interface AgentTitleGenerationConfig {
   enabled?: boolean;
   provider?: string;
@@ -54,14 +75,27 @@ function getProviderStatus(status: string, enabled: boolean, modelCount: number)
   return { tone: "warning", label: "Not installed", modelCount: null };
 }
 
+function providerMenuButtonStyle({
+  hovered,
+  pressed,
+}: PressableStateCallbackType & { hovered?: boolean }) {
+  return [
+    styles.providerMenuButton,
+    Boolean(hovered) && styles.providerMenuButtonHovered,
+    pressed && styles.providerMenuButtonPressed,
+  ];
+}
+
 interface ProviderRowProps {
   def: ProviderDefinition;
   entry: ProviderEntry;
   enabled: boolean;
   isToggling: boolean;
   isFirst: boolean;
+  canRemove: boolean;
   onPress: (providerId: string) => void;
   onToggleEnabled: (providerId: string, enabled: boolean) => void;
+  onRemove: (providerId: string, label: string) => void;
 }
 
 function ProviderRow({
@@ -70,8 +104,10 @@ function ProviderRow({
   enabled,
   isToggling,
   isFirst,
+  canRemove,
   onPress,
   onToggleEnabled,
+  onRemove,
 }: ProviderRowProps) {
   const { theme } = useUnistyles();
   const ProviderIcon = getProviderIcon(def.id);
@@ -84,6 +120,10 @@ function ProviderRow({
       : null;
   const modelCount = entry.models?.length ?? 0;
   const providerStatus = getProviderStatus(entry.status, enabled, modelCount);
+  const removeLeading = useMemo(
+    () => <Trash2 size={14} color={theme.colors.foregroundMuted} />,
+    [theme.colors.foregroundMuted],
+  );
 
   const handlePress = useCallback(() => {
     onPress(def.id);
@@ -94,6 +134,12 @@ function ProviderRow({
     },
     [def.id, onToggleEnabled],
   );
+  const handleRemove = useCallback(() => {
+    onRemove(def.id, def.label);
+  }, [def.id, def.label, onRemove]);
+  const stopMenuPressInPropagation = useCallback((event: GestureResponderEvent) => {
+    event.stopPropagation();
+  }, []);
   const rowStyle = useCallback(
     ({ pressed, hovered }: PressableStateCallbackType & { hovered?: boolean }) => [
       settingsStyles.row,
@@ -141,6 +187,30 @@ function ProviderRow({
             disabled={isToggling}
             accessibilityLabel={`Enable ${def.label}`}
           />
+          {canRemove ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                hitSlop={8}
+                onPressIn={stopMenuPressInPropagation}
+                style={providerMenuButtonStyle}
+                accessibilityLabel={`${def.label} provider menu`}
+                testID={`provider-menu-${def.id}`}
+              >
+                <MoreVertical size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" width={180}>
+                <DropdownMenuItem
+                  destructive
+                  disabled={isToggling}
+                  leading={removeLeading}
+                  onSelect={handleRemove}
+                  testID={`remove-provider-${def.id}`}
+                >
+                  Remove
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </>
       )}
     </Pressable>
@@ -236,6 +306,32 @@ function MetadataTargetRow({
     if (!selectedProvider) return "Automatic";
     return resolveSelectedModelLabel({ providers, selectedProvider, selectedModel, isLoading });
   }, [isDisabled, selectedProvider, selectedModel, providers, isLoading]);
+  const topOptions = useMemo<readonly CombinedModelSelectorTopOption[]>(
+    () => [
+      {
+        id: METADATA_TOP_OPTION_AUTOMATIC,
+        label: "Automatic",
+        description: "Use the host default fallback chain",
+        testID: `metadata-${targetKey}-automatic-option`,
+      },
+      {
+        id: METADATA_TOP_OPTION_OFF,
+        label: "Off",
+        description: "Disable generation for this metadata",
+        testID: `metadata-${targetKey}-off-option`,
+      },
+    ],
+    [targetKey],
+  );
+  const selectedTopOptionId = useMemo(() => {
+    if (isDisabled) {
+      return METADATA_TOP_OPTION_OFF;
+    }
+    if (selectedProvider) {
+      return undefined;
+    }
+    return METADATA_TOP_OPTION_AUTOMATIC;
+  }, [isDisabled, selectedProvider]);
 
   const patchTarget = useCallback(
     async (patch: AgentTitleGenerationConfig) => {
@@ -254,13 +350,19 @@ function MetadataTargetRow({
     [patchConfig, setTargetPending, targetKey],
   );
 
-  const handleSelectOff = useCallback(() => {
-    void patchTarget({ enabled: false });
-  }, [patchTarget]);
+  const handleSelectTopOption = useCallback(
+    (optionId: string) => {
+      if (optionId === METADATA_TOP_OPTION_AUTOMATIC) {
+        void patchTarget({ enabled: true });
+        return;
+      }
 
-  const handleSelectAutomatic = useCallback(() => {
-    void patchTarget({ enabled: true });
-  }, [patchTarget]);
+      if (optionId === METADATA_TOP_OPTION_OFF) {
+        void patchTarget({ enabled: false });
+      }
+    },
+    [patchTarget],
+  );
 
   const handleSelectModel = useCallback(
     (provider: AgentProvider, modelId: string) => {
@@ -278,41 +380,18 @@ function MetadataTargetRow({
         </Text>
       </View>
       <View style={styles.titleModelActions}>
-        {selectedProvider || isDisabled ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Reset ${METADATA_TARGET_LABELS[targetKey]} to automatic`}
-            testID={`metadata-${targetKey}-automatic-button`}
-            disabled={isPending}
-            onPress={handleSelectAutomatic}
-            style={styles.automaticButton}
-          >
-            <Text style={styles.automaticButtonText}>Automatic</Text>
-          </Pressable>
-        ) : null}
-        {!isDisabled ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Disable ${METADATA_TARGET_LABELS[targetKey]} generation`}
-            testID={`metadata-${targetKey}-off-button`}
-            disabled={isPending}
-            onPress={handleSelectOff}
-            style={styles.automaticButton}
-          >
-            <Text style={styles.automaticButtonText}>Off</Text>
-          </Pressable>
-        ) : null}
-        {!isDisabled ? (
-          <CombinedModelSelector
-            serverId={serverId}
-            providers={providers}
-            selectedProvider={selectedProvider}
-            selectedModel={selectedModel}
-            onSelect={handleSelectModel}
-            isLoading={isLoading}
-            disabled={isPending}
-          />
-        ) : null}
+        <CombinedModelSelector
+          serverId={serverId}
+          providers={providers}
+          selectedProvider={selectedProvider}
+          selectedModel={selectedModel}
+          onSelect={handleSelectModel}
+          isLoading={isLoading}
+          disabled={isPending}
+          topOptions={topOptions}
+          selectedTopOptionId={selectedTopOptionId}
+          onSelectTopOption={handleSelectTopOption}
+        />
       </View>
     </View>
   );
@@ -390,6 +469,12 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
       features?.metadataGenerationSettings === true || features?.titleGenerationSettings === true
     );
   });
+  const supportsProviderRemovalSettings = useSessionStore((state) => {
+    const features = state.sessions[serverId]?.serverInfo?.features as
+      | Record<string, unknown>
+      | undefined;
+    return features?.providerRemovalSettings === true;
+  });
   const openProviderSettings = useProviderSettingsStore((state) => state.open);
   const [isAddProviderOpen, setIsAddProviderOpen] = useState(false);
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
@@ -413,6 +498,32 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
       } catch (error) {
         Alert.alert(
           "Unable to update provider",
+          error instanceof Error ? error.message : String(error),
+        );
+      } finally {
+        setPendingProviderId((current) => (current === providerId ? null : current));
+      }
+    },
+    [patchConfig],
+  );
+  const handleRemoveProvider = useCallback(
+    async (providerId: string, label: string) => {
+      const confirmed = await confirmDialog({
+        title: "Remove provider?",
+        message: `Remove "${label}" from this host? You can add it again later.`,
+        confirmLabel: "Remove",
+        destructive: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+
+      setPendingProviderId(providerId);
+      try {
+        await patchConfig({ removeProviders: [providerId] });
+      } catch (error) {
+        Alert.alert(
+          "Unable to remove provider",
           error instanceof Error ? error.message : String(error),
         );
       } finally {
@@ -492,6 +603,8 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
                   isFirst={index === 0}
                   onPress={handleOpenProviderSettings}
                   onToggleEnabled={handleToggleEnabled}
+                  canRemove={supportsProviderRemovalSettings && entry.canRemove === true}
+                  onRemove={handleRemoveProvider}
                 />
               );
             })}
@@ -538,6 +651,19 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
+  },
+  providerMenuButton: {
+    width: 28,
+    height: 28,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  providerMenuButtonHovered: {
+    backgroundColor: theme.colors.surface2,
+  },
+  providerMenuButtonPressed: {
+    backgroundColor: theme.colors.surface3,
   },
   textColumn: {
     flex: 1,

@@ -149,6 +149,7 @@ export const MutableDaemonConfigPatchSchema = z
     providers: z
       .record(z.string(), MutableDaemonProviderConfigSchema.partial().passthrough())
       .optional(),
+    removeProviders: z.array(z.string().min(1)).optional(),
     metadataGeneration: MutableMetadataGenerationConfigSchema.partial().optional(),
     autoArchiveAfterMerge: z.boolean().optional(),
     appendSystemPrompt: z.string().optional(),
@@ -248,6 +249,7 @@ export const ProviderSnapshotEntrySchema = z.object({
   label: z.string().optional(),
   description: z.string().optional(),
   defaultModeId: z.string().nullable().optional(),
+  canRemove: z.boolean().optional(),
 });
 
 const AgentCapabilityFlagsSchema: z.ZodType<AgentCapabilityFlags> = z.object({
@@ -2195,6 +2197,8 @@ export const ServerInfoStatusPayloadSchema = z
         titleGenerationSettings: z.boolean().optional(),
         // COMPAT(metadataGenerationSettings): added in v0.1.92, remove gate after 2026-12-06.
         metadataGenerationSettings: z.boolean().optional(),
+        // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-07.
+        providerRemovalSettings: z.boolean().optional(),
         // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
         checkoutMetadataDrafts: z.boolean().optional(),
       })

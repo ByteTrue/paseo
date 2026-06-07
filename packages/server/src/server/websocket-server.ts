@@ -1653,6 +1653,8 @@ export class VoiceAssistantWebSocketServer {
         titleGenerationSettings: true,
         // COMPAT(metadataGenerationSettings): added in v0.1.92, remove gate after 2026-12-06.
         metadataGenerationSettings: true,
+        // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-07.
+        providerRemovalSettings: true,
         // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
         checkoutMetadataDrafts: true,
       },

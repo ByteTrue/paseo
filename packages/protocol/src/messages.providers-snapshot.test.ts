@@ -38,6 +38,17 @@ describe("provider snapshot message schemas", () => {
     expect(parsed.enabled).toBe(true);
   });
 
+  test("preserves provider removal capability in snapshot entries", () => {
+    const parsed = ProviderSnapshotEntrySchema.parse({
+      provider: "claude",
+      status: "ready",
+      label: "Custom Claude",
+      canRemove: true,
+    });
+
+    expect(parsed.canRemove).toBe(true);
+  });
+
   test("normalizes thinking option defaults on provider snapshot models", () => {
     const parsed = ProviderSnapshotEntrySchema.parse({
       provider: "claude",

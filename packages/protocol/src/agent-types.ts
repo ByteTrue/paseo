@@ -90,6 +90,7 @@ export interface ProviderSnapshotEntry {
   label?: string;
   description?: string;
   defaultModeId?: string | null;
+  canRemove?: boolean;
 }
 
 export interface AgentFeatureToggle {

@@ -16,6 +16,7 @@ const {
   sessionState,
   patchConfigMock,
   openProviderSettingsMock,
+  confirmDialogMock,
 } = vi.hoisted(() => ({
   theme: {
     spacing: { 1: 4, "1.5": 6, 2: 8, 3: 12, 4: 16, 6: 24 },
@@ -49,9 +50,11 @@ const {
   sessionState: {
     titleGenerationSettings: false,
     metadataGenerationSettings: false,
+    providerRemovalSettings: false,
   },
   patchConfigMock: vi.fn(async () => undefined),
   openProviderSettingsMock: vi.fn(),
+  confirmDialogMock: vi.fn(async () => true),
 }));
 
 vi.mock("react-native", () => ({
@@ -113,6 +116,8 @@ vi.mock("lucide-react-native", () => {
   return {
     ChevronRight: icon("ChevronRight"),
     Plus: icon("Plus"),
+    MoreVertical: icon("MoreVertical"),
+    Trash2: icon("Trash2"),
   };
 });
 
@@ -167,23 +172,97 @@ vi.mock("@/components/combined-model-selector", () => ({
     selectedProvider,
     selectedModel,
     onSelect,
+    onSelectTopOption,
+    topOptions = [],
     disabled,
   }: {
     selectedProvider: string;
     selectedModel: string;
     onSelect: (provider: string, modelId: string) => void;
+    onSelectTopOption?: (optionId: string) => void;
+    topOptions?: Array<{ id: string; label: string; testID?: string }>;
+    disabled?: boolean;
+  }) =>
+    React.createElement(
+      "div",
+      null,
+      React.createElement(
+        "button",
+        {
+          type: "button",
+          "data-testid": "combined-model-selector",
+          disabled,
+          onClick: () => onSelect("claude", "claude-sonnet-4-6"),
+        },
+        selectedProvider ? `${selectedProvider}:${selectedModel || "default"}` : "Select model",
+      ),
+      topOptions.map((option) =>
+        React.createElement(
+          "button",
+          {
+            key: option.id,
+            type: "button",
+            "data-testid": option.testID,
+            "aria-disabled": disabled ? "true" : undefined,
+            disabled,
+            onClick: () => onSelectTopOption?.(option.id),
+          },
+          option.label,
+        ),
+      ),
+    ),
+}));
+
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement("div", null, children),
+  DropdownMenuTrigger: ({
+    children,
+    testID,
+    accessibilityLabel,
+  }: {
+    children?: React.ReactNode;
+    testID?: string;
+    accessibilityLabel?: string;
+  }) =>
+    React.createElement(
+      "button",
+      { type: "button", "data-testid": testID, "aria-label": accessibilityLabel },
+      children,
+    ),
+  DropdownMenuContent: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement("div", null, children),
+  DropdownMenuItem: ({
+    children,
+    leading,
+    onSelect,
+    testID,
+    disabled,
+  }: {
+    children?: React.ReactNode;
+    leading?: React.ReactNode;
+    onSelect?: () => void;
+    testID?: string;
     disabled?: boolean;
   }) =>
     React.createElement(
       "button",
       {
         type: "button",
-        "data-testid": "combined-model-selector",
+        "data-testid": testID,
         disabled,
-        onClick: () => onSelect("claude", "claude-sonnet-4-6"),
+        onClick: (event: React.MouseEvent) => {
+          event.stopPropagation();
+          onSelect?.();
+        },
       },
-      selectedProvider ? `${selectedProvider}:${selectedModel || "default"}` : "Select model",
+      leading,
+      children,
     ),
+}));
+
+vi.mock("@/utils/confirm-dialog", () => ({
+  confirmDialog: confirmDialogMock,
 }));
 
 vi.mock("@/hooks/use-providers-snapshot", () => ({
@@ -213,11 +292,15 @@ vi.mock("@/runtime/host-runtime", () => ({
 
 vi.mock("@/stores/session-store", () => ({
   useSessionStore: (selector: (state: unknown) => unknown) => {
-    let features: Record<string, boolean> = {};
+    const features: Record<string, boolean> = {};
     if (sessionState.metadataGenerationSettings) {
-      features = { metadataGenerationSettings: true, titleGenerationSettings: true };
+      features.metadataGenerationSettings = true;
+      features.titleGenerationSettings = true;
     } else if (sessionState.titleGenerationSettings) {
-      features = { titleGenerationSettings: true };
+      features.titleGenerationSettings = true;
+    }
+    if (sessionState.providerRemovalSettings) {
+      features.providerRemovalSettings = true;
     }
     return selector({
       sessions: {
@@ -255,6 +338,17 @@ const disabledCodexEntry: ProviderSnapshotEntry = {
   defaultModeId: null,
   modes: [],
 };
+
+const customClaudeEntry = {
+  provider: "zai-claude",
+  status: "ready",
+  enabled: true,
+  label: "ZAI Claude",
+  description: "Custom Claude-compatible provider",
+  defaultModeId: null,
+  canRemove: true,
+  modes: [],
+} as ProviderSnapshotEntry;
 
 function makeConfig(
   providers: MutableDaemonConfig["providers"] = {},
@@ -301,6 +395,10 @@ describe("ProvidersSection", () => {
     patchConfigMock.mockResolvedValue(undefined);
     openProviderSettingsMock.mockReset();
     sessionState.titleGenerationSettings = false;
+    confirmDialogMock.mockReset();
+    confirmDialogMock.mockResolvedValue(true);
+    sessionState.metadataGenerationSettings = false;
+    sessionState.providerRemovalSettings = false;
   });
 
   afterEach(() => {
@@ -415,6 +513,36 @@ describe("ProvidersSection", () => {
     });
   });
 
+  it("removes a custom provider after confirmation", async () => {
+    sessionState.providerRemovalSettings = true;
+    snapshotState.entries = [claudeEntry, customClaudeEntry];
+    configState.config = makeConfig();
+
+    render();
+
+    expect(container?.querySelector('[data-testid="remove-provider-claude"]')).toBeNull();
+    const removeItem = container?.querySelector<HTMLElement>(
+      '[data-testid="remove-provider-zai-claude"]',
+    );
+    expect(removeItem).not.toBeNull();
+
+    await act(async () => {
+      removeItem?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(confirmDialogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Remove provider?",
+        confirmLabel: "Remove",
+        destructive: true,
+      }),
+    );
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      removeProviders: ["zai-claude"],
+    });
+  });
+
   it("hides metadata generation settings when the host does not support them", () => {
     sessionState.metadataGenerationSettings = false;
     sessionState.titleGenerationSettings = false;
@@ -447,7 +575,7 @@ describe("ProvidersSection", () => {
     expect(container?.querySelector('[data-testid="metadata-generation-card"]')).not.toBeNull();
   });
 
-  it("clicking Off patches agentTitle enabled:false through daemon config", async () => {
+  it("selecting Off patches agentTitle enabled:false through daemon config", async () => {
     sessionState.metadataGenerationSettings = true;
     snapshotState.entries = [claudeEntry];
     configState.config = makeConfig();
@@ -455,7 +583,7 @@ describe("ProvidersSection", () => {
     render();
 
     const offBtn = container?.querySelector<HTMLElement>(
-      '[data-testid="metadata-agentTitle-off-button"]',
+      '[data-testid="metadata-agentTitle-off-option"]',
     );
     expect(offBtn).not.toBeNull();
 
@@ -486,7 +614,7 @@ describe("ProvidersSection", () => {
     render();
 
     const automaticBtn = container?.querySelector<HTMLElement>(
-      '[data-testid="metadata-commitMessage-automatic-button"]',
+      '[data-testid="metadata-commitMessage-automatic-option"]',
     );
     expect(automaticBtn).not.toBeNull();
 
@@ -514,7 +642,7 @@ describe("ProvidersSection", () => {
     render();
 
     const agentTitleOffBtn = container?.querySelector<HTMLElement>(
-      '[data-testid="metadata-agentTitle-off-button"]',
+      '[data-testid="metadata-agentTitle-off-option"]',
     );
     expect(agentTitleOffBtn).not.toBeNull();
 
@@ -524,10 +652,10 @@ describe("ProvidersSection", () => {
     });
 
     const pendingAgentTitleOffBtn = container?.querySelector<HTMLElement>(
-      '[data-testid="metadata-agentTitle-off-button"]',
+      '[data-testid="metadata-agentTitle-off-option"]',
     );
     const branchNameOffBtn = container?.querySelector<HTMLElement>(
-      '[data-testid="metadata-branchName-off-button"]',
+      '[data-testid="metadata-branchName-off-option"]',
     );
     expect(pendingAgentTitleOffBtn?.getAttribute("aria-disabled")).toBe("true");
     expect(branchNameOffBtn?.getAttribute("aria-disabled")).toBeNull();
