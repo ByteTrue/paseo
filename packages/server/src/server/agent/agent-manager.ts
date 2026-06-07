@@ -469,6 +469,25 @@ export class AgentManager {
     providerDefinitions: ProviderEnabledMap;
     clients: ProviderClientMap;
   }): void {
+    const nextProviders = new Set(Object.keys(input.providerDefinitions));
+    const nextClients = new Set(Object.keys(input.clients));
+
+    for (const provider of Array.from(this.providerEnabled.keys())) {
+      if (!nextProviders.has(provider)) {
+        this.providerEnabled.delete(provider);
+      }
+    }
+    for (const provider of Array.from(this.providerDerivedFromId.keys())) {
+      if (!nextProviders.has(provider)) {
+        this.providerDerivedFromId.delete(provider);
+      }
+    }
+    for (const provider of Array.from(this.clients.keys())) {
+      if (!nextClients.has(provider)) {
+        this.clients.delete(provider);
+      }
+    }
+
     for (const [provider, definition] of Object.entries(input.providerDefinitions)) {
       if (definition) {
         this.providerEnabled.set(provider, definition.enabled);

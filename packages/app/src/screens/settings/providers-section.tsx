@@ -459,7 +459,7 @@ export interface ProvidersSectionProps {
 export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   const { theme } = useUnistyles();
   const isConnected = useHostRuntimeIsConnected(serverId);
-  const { entries, isLoading } = useProvidersSnapshot(serverId);
+  const { entries, isLoading, refresh } = useProvidersSnapshot(serverId);
   const { config, patchConfig } = useDaemonConfig(serverId);
   const supportsMetadataGenerationSettings = useSessionStore((state) => {
     const features = state.sessions[serverId]?.serverInfo?.features as
@@ -495,6 +495,9 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
       setPendingProviderId(providerId);
       try {
         await patchConfig({ providers: { [providerId]: { enabled } } });
+        if (enabled) {
+          await refresh([providerId]);
+        }
       } catch (error) {
         Alert.alert(
           "Unable to update provider",
@@ -504,7 +507,7 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
         setPendingProviderId((current) => (current === providerId ? null : current));
       }
     },
-    [patchConfig],
+    [patchConfig, refresh],
   );
   const handleRemoveProvider = useCallback(
     async (providerId: string, label: string) => {

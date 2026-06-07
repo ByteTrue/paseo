@@ -17,6 +17,7 @@ const {
   patchConfigMock,
   openProviderSettingsMock,
   confirmDialogMock,
+  refreshSnapshotMock,
 } = vi.hoisted(() => ({
   theme: {
     spacing: { 1: 4, "1.5": 6, 2: 8, 3: 12, 4: 16, 6: 24 },
@@ -55,6 +56,7 @@ const {
   patchConfigMock: vi.fn(async () => undefined),
   openProviderSettingsMock: vi.fn(),
   confirmDialogMock: vi.fn(async () => true),
+  refreshSnapshotMock: vi.fn(async () => undefined),
 }));
 
 vi.mock("react-native", () => ({
@@ -273,7 +275,7 @@ vi.mock("@/hooks/use-providers-snapshot", () => ({
     isRefreshing: snapshotState.isRefreshing,
     error: null,
     supportsSnapshot: true,
-    refresh: vi.fn(async () => {}),
+    refresh: refreshSnapshotMock,
     refetchIfStale: vi.fn(),
   }),
 }));
@@ -397,6 +399,8 @@ describe("ProvidersSection", () => {
     sessionState.titleGenerationSettings = false;
     confirmDialogMock.mockReset();
     confirmDialogMock.mockResolvedValue(true);
+    refreshSnapshotMock.mockReset();
+    refreshSnapshotMock.mockResolvedValue(undefined);
     sessionState.metadataGenerationSettings = false;
     sessionState.providerRemovalSettings = false;
   });
@@ -511,6 +515,28 @@ describe("ProvidersSection", () => {
     expect(patchConfigMock).toHaveBeenCalledWith({
       providers: { claude: { enabled: false } },
     });
+  });
+
+  it("refreshes a provider after enabling it", async () => {
+    snapshotState.entries = [disabledCodexEntry];
+    configState.config = makeConfig({ codex: { enabled: false } });
+
+    render();
+
+    const row = findRow("Codex provider details");
+    const switchEl = row.querySelector<HTMLElement>('[role="switch"]');
+    expect(switchEl).not.toBeNull();
+    expect(switchEl?.getAttribute("aria-checked")).toBe("false");
+
+    await act(async () => {
+      switchEl?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(patchConfigMock).toHaveBeenCalledWith({
+      providers: { codex: { enabled: true } },
+    });
+    expect(refreshSnapshotMock).toHaveBeenCalledWith(["codex"]);
   });
 
   it("removes a custom provider after confirmation", async () => {
