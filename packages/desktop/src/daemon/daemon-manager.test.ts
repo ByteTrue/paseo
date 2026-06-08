@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_DESKTOP_SETTINGS } from "../settings/desktop-settings";
@@ -333,11 +334,9 @@ describe("daemon-manager commands", () => {
   });
 
   it("starts the managed daemon detached from desktop stdio and reports daemon log failures", async () => {
+    const logFile = join(mocks.paseoHome, "daemon.log");
     mkdirSync(mocks.paseoHome, { recursive: true });
-    writeFileSync(
-      `${mocks.paseoHome}/daemon.log`,
-      ["old log line", "recent daemon failure"].join("\n"),
-    );
+    writeFileSync(logFile, ["old log line", "recent daemon failure"].join("\n"));
     mocks.runExternalCliJsonCommand.mockResolvedValue({
       localDaemon: "stopped",
       connectedDaemon: "unreachable",
@@ -360,7 +359,7 @@ describe("daemon-manager commands", () => {
     expect(thrown).toBeInstanceOf(Error);
     const message = thrown?.message ?? "";
     expect(message).toContain("Daemon failed to start: exit code 1");
-    expect(message).toContain(`Recent logs (${mocks.paseoHome}/daemon.log):`);
+    expect(message).toContain(`Recent logs (${logFile}):`);
     expect(message).toContain("recent daemon failure");
     expect(mocks.spawnProcess).toHaveBeenCalledWith(
       "node",
