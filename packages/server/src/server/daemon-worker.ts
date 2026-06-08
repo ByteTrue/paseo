@@ -21,6 +21,8 @@ type SupervisorLifecycleMessage =
 
 interface SupervisorHeartbeatMessage {
   type: "paseo:supervisor-heartbeat";
+  pid: number;
+  seq: number;
 }
 
 interface BootstrapResult {
@@ -100,6 +102,15 @@ async function main() {
         const forceExit = setTimeout(() => {
           logger.warn("Forcing shutdown - HTTP server didn't close in time");
           process.exit(1);
+          // If process.exit() hangs (undrainable event-loop handles),
+          // self-SIGKILL as a last resort after 2 extra seconds.
+          setTimeout(() => {
+            try {
+              process.kill(process.pid, "SIGKILL");
+            } catch {
+              // Nothing further possible
+            }
+          }, 2000).unref();
         }, 10000);
 
         try {
@@ -173,6 +184,7 @@ async function main() {
 
     const supervisorPid = process.ppid;
     let lastSupervisorHeartbeatAt = Date.now();
+    let lastHeartbeatSeq = 0;
     let supervisorShutdownRequested = false;
     const requestSupervisorShutdown = (reason: string) => {
       if (supervisorShutdownRequested) {
@@ -189,7 +201,14 @@ async function main() {
         "type" in message &&
         (message as SupervisorHeartbeatMessage).type === "paseo:supervisor-heartbeat"
       ) {
-        lastSupervisorHeartbeatAt = Date.now();
+        const seq = (message as SupervisorHeartbeatMessage).seq;
+        // Only update the heartbeat timestamp when the sequence advances,
+        // avoiding stale buffered messages from a dead supervisor from
+        // resetting the expiry timer indefinitely.
+        if (typeof seq === "number" && seq > lastHeartbeatSeq) {
+          lastHeartbeatSeq = seq;
+          lastSupervisorHeartbeatAt = Date.now();
+        }
       }
     });
     process.on("disconnect", () => {
@@ -203,10 +222,14 @@ async function main() {
       const ipcConnected = typeof process.connected === "boolean" ? process.connected : true;
       const heartbeatExpired = Date.now() - lastSupervisorHeartbeatAt > 3500;
       const supervisorAlive = isPidAlive(supervisorPid);
+      // On platforms where zombies respond to signal 0 (e.g. macOS), also
+      // check if the worker has been reparented to PID 1 (init/launchd),
+      // which only happens when the original parent (supervisor) has died.
+      const reparentedToInit = process.ppid === 1 && supervisorPid !== 1;
       process.stderr.write(
-        `[daemon-worker] heartbeat: connected=${ipcConnected} supervisorAlive=${supervisorAlive} heartbeatExpired=${heartbeatExpired}\n`,
+        `[daemon-worker] heartbeat: connected=${ipcConnected} supervisorAlive=${supervisorAlive} heartbeatExpired=${heartbeatExpired} reparented=${reparentedToInit}\n`,
       );
-      if (ipcConnected === false || !supervisorAlive || heartbeatExpired) {
+      if (ipcConnected === false || !supervisorAlive || heartbeatExpired || reparentedToInit) {
         requestSupervisorShutdown("supervisor disconnect");
       }
     }, 1000);
