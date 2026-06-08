@@ -187,6 +187,10 @@ try {
 
 if (recentSupervisorLogs.trim().length === 0) {
   console.log("(no supervisor logs captured)");
+} else {
+  console.log("\n--- Supervisor logs ---");
+  console.log(recentSupervisorLogs);
+  console.log("--- End supervisor logs ---\n");
 }
 
 console.log("=== Worker supervisor disconnect regression test passed ===");
