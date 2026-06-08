@@ -1170,9 +1170,11 @@ export class VoiceAssistantWebSocketServer {
     const passwordConfigured = Boolean(this.authPasswordHash);
     let error: string | null = null;
     if (!passwordConfigured) {
-      error = "Set a daemon administrator password locally before enrolling remote clients";
-    } else if (!pending.authAdminAllowed) {
-      error = "Enrollment requires relay E2EE, localhost, IPC, or trusted TLS direct transport";
+      if (!pending.authAdminAllowed) {
+        error = "Enrollment requires relay E2EE, localhost, IPC, or trusted TLS direct transport";
+      } else {
+        error = "Set a daemon administrator password locally before enrolling remote clients";
+      }
     }
     this.sendToClient(
       ws,
@@ -1185,7 +1187,7 @@ export class VoiceAssistantWebSocketServer {
           challengeB64: challenge.challengeB64,
           expiresAt: new Date(challenge.expiresAtMs).toISOString(),
           adminPasswordConfigured: passwordConfigured,
-          enrollmentAllowed: passwordConfigured && pending.authAdminAllowed,
+          enrollmentAllowed: passwordConfigured,
           transport: pending.transport,
           error,
         },
@@ -1281,7 +1283,9 @@ export class VoiceAssistantWebSocketServer {
     pending: PendingConnection,
     message: Extract<SessionInboundMessage, { type: "daemon.auth.enroll.request" }>,
   ): Promise<void> {
-    if (!pending.authAdminAllowed) {
+    // Admin password authorizes enrollment on non-trusted transports.
+    // If no password is configured AND the transport is not trusted, reject.
+    if (!pending.authAdminAllowed && !this.authPasswordHash) {
       this.sendPreAuthEnrollFailure(ws, message.requestId, {
         code: "transport_not_allowed",
         error: "Enrollment requires relay E2EE, localhost, IPC, or trusted TLS direct transport",

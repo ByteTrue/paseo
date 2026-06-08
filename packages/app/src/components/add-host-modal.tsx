@@ -215,6 +215,9 @@ function buildConnectionFailureCopy(
     detail = "Host not found. Check the hostname and try again.";
   } else if (rawLower.includes("ehostunreach") || rawLower.includes("host is unreachable")) {
     detail = "Host is unreachable. Check your network and firewall.";
+  } else if (rawLower.includes("enrollment requires")) {
+    detail =
+      "Direct connections require TLS or relay for enrollment. Enable SSL or use relay pairing instead.";
   } else if (
     rawLower.includes("certificate") ||
     rawLower.includes("tls") ||
