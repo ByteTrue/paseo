@@ -1,6 +1,6 @@
 ---
 name: paseo-upstream-sync
-description: Review upstream getpaseo/paseo changes with an upstream cursor branch, reuse selected commits in the ByteTrue fork, and preserve fork-specific package, deployment, and release behavior.
+description: Sync upstream getpaseo/paseo commits into the ByteTrue fork via cherry-pick. Cursor is auto-discovered from the last merged sync PR — no file or tracking branch to maintain.
 user-invocable: true
 ---
 
@@ -48,7 +48,15 @@ Preserve these unless the user explicitly changes strategy:
 2. Find the cursor from the last merged upstream-sync PR body:
    ```bash
    LAST_PR=$(gh pr list --repo ByteTrue/paseo --search "Upstream sync:" --state merged --limit 1 --json body -q '.[0].body')
-   CURSOR=$(echo "$LAST_PR" | sed -n 's/.*cursor: \([0-9a-f]\+\).*/\1/p')
+   # Extract the commit hash that follows "cursor" in the PR body.
+   # Matches both "cursor: <hash>" (full) and "cursor advanced → <hash>" (short).
+   # Uses git rev-parse to resolve short hashes to full 40-char form.
+   CURSOR_FRAGMENT=$(echo "$LAST_PR" | grep -oE 'cursor[^0-9a-f]*[0-9a-f]{7,40}' | grep -oE '[0-9a-f]{7,40}$' | head -1)
+   if [ -z "$CURSOR_FRAGMENT" ]; then
+     echo "ERROR: could not find cursor hash in last sync PR body"
+     exit 1
+   fi
+   CURSOR=$(git rev-parse --verify "$CURSOR_FRAGMENT")
    echo "Last reviewed upstream commit: $CURSOR"
    ```
    If no previous sync PR exists (first sync), use the fork/upstream merge-base instead:
@@ -98,11 +106,17 @@ Preserve these unless the user explicitly changes strategy:
     npm run release:check
     npm run test:unit --workspace=@bytetrue/server -- src/server/bootstrap.smoke.test.ts
     ```
-11. Push the candidate branch and open a PR to `ByteTrue/paseo:main`:
-    ```bash
-    git push origin reuse-upstream-YYYYMMDD
-    gh pr create --repo ByteTrue/paseo --base main --head reuse-upstream-YYYYMMDD
-    ```
+11. Push the candidate branch and open a PR to `ByteTrue/paseo:main`.
+    Include `cursor: <last-reviewed-upstream-hash>` in the PR body:
+
+```bash
+git push origin reuse-upstream-YYYYMMDD
+LAST_UPSTREAM=$(git rev-parse upstream/main)
+gh pr create --repo ByteTrue/paseo --base main --head reuse-upstream-YYYYMMDD \
+  --title "Upstream sync: YYYY-MM-DD (vA.B.C → vX.Y.Z)" \
+  --body "...cursor: $LAST_UPSTREAM"
+```
+
 12. Wait for CI. If CI fails, use job logs, reproduce locally with a clean clone and Node 22 when needed, patch the candidate branch, and rerun checks.
 13. Merge the PR only after CI is green.
 14. Record the cursor in the PR body so the next sync run can discover it. The PR template must include:
@@ -135,4 +149,4 @@ Preserve these unless the user explicitly changes strategy:
 | 2   | #6  | `reuse-upstream-20260605` | `0d98df4a`..`b5192e57` | `b5192e57`             |
 | 3   | #9  | `reuse-upstream-20260608` | `b5192e57`..`06a8f952` | `06a8f952`             |
 
-The cursor for the next sync is in the PR #9 body (`cursor: 06a8f952`).
+Historical reference only. The actual cursor for the next sync is read live from the most recent merged "Upstream sync:" PR body by step 2.
