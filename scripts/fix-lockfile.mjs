@@ -39,7 +39,7 @@ let fixed = 0;
 for (const [key, val] of Object.entries(lock.packages || {})) {
   if (
     !key || // root package
-    key.startsWith("node_modules/") && (val.resolved && val.integrity) || // top-level complete entries
+    (key.startsWith("node_modules/") && val.resolved && val.integrity) || // top-level complete entries
     val.link || // workspace link entry
     (val.resolved && val.integrity) || // already complete
     !val.version || // no version to look up

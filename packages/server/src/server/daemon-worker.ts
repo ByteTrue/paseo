@@ -193,7 +193,9 @@ async function main() {
       }
     });
     process.on("disconnect", () => {
-      process.stderr.write(`[daemon-worker] IPC disconnect detected (connected=${process.connected})\n`);
+      process.stderr.write(
+        `[daemon-worker] IPC disconnect detected (connected=${process.connected})\n`,
+      );
       requestSupervisorShutdown("supervisor disconnect");
     });
 
