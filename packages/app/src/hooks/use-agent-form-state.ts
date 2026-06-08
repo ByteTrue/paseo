@@ -168,8 +168,6 @@ export function useAgentFormState(options: UseAgentFormStateOptions = {}): UseAg
     onlineServerIds = [],
   } = options;
 
-  const { preferences, isLoading: isPreferencesLoading, updatePreferences } = useFormPreferences();
-
   const daemons = useHosts();
 
   const validServerIds = useMemo(() => new Set(daemons.map((d) => d.serverId)), [daemons]);
@@ -189,6 +187,12 @@ export function useAgentFormState(options: UseAgentFormStateOptions = {}): UseAg
       userModified: INITIAL_USER_MODIFIED,
     }),
   );
+
+  const {
+    preferences,
+    isLoading: isPreferencesLoading,
+    updatePreferences,
+  } = useFormPreferences(formState.serverId);
 
   const reducerStateRef = useRef({ form: formState, userModified });
   useEffect(() => {

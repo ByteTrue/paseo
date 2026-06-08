@@ -129,8 +129,35 @@ const MutableMetadataGenerationConfigSchema = z
   })
   .passthrough();
 
+const MutableAgentFormProviderPreferencesSchema = z
+  .object({
+    model: z.string().min(1).optional(),
+    mode: z.string().min(1).optional(),
+    thinkingByModel: z.record(z.string()).optional(),
+    featureValues: z.record(z.unknown()).optional(),
+  })
+  .passthrough();
+
+const MutableAgentFormPreferencesSchema = z
+  .object({
+    provider: z.string().min(1).optional(),
+    providerPreferences: z.record(z.string(), MutableAgentFormProviderPreferencesSchema).optional(),
+    favoriteModels: z
+      .array(
+        z
+          .object({
+            provider: z.string().min(1),
+            modelId: z.string().min(1),
+          })
+          .passthrough(),
+      )
+      .optional(),
+  })
+  .passthrough();
+
 export const MutableDaemonConfigSchema = z
   .object({
+    displayName: z.string().optional(),
     mcp: z
       .object({
         injectIntoAgents: z.boolean(),
@@ -138,6 +165,7 @@ export const MutableDaemonConfigSchema = z
       .passthrough(),
     providers: z.record(z.string(), MutableDaemonProviderConfigSchema).default({}),
     metadataGeneration: MutableMetadataGenerationConfigSchema.default({ providers: [] }),
+    agentFormPreferences: MutableAgentFormPreferencesSchema.optional(),
     autoArchiveAfterMerge: z.boolean().default(false),
     appendSystemPrompt: z.string().default(""),
   })
@@ -145,12 +173,14 @@ export const MutableDaemonConfigSchema = z
 
 export const MutableDaemonConfigPatchSchema = z
   .object({
+    displayName: z.string().optional(),
     mcp: MutableDaemonConfigSchema.shape.mcp.partial().optional(),
     providers: z
       .record(z.string(), MutableDaemonProviderConfigSchema.partial().passthrough())
       .optional(),
     removeProviders: z.array(z.string().min(1)).optional(),
     metadataGeneration: MutableMetadataGenerationConfigSchema.partial().optional(),
+    agentFormPreferences: MutableAgentFormPreferencesSchema.partial().optional(),
     autoArchiveAfterMerge: z.boolean().optional(),
     appendSystemPrompt: z.string().optional(),
   })
@@ -250,6 +280,9 @@ export const ProviderSnapshotEntrySchema = z.object({
   description: z.string().optional(),
   defaultModeId: z.string().nullable().optional(),
   canRemove: z.boolean().optional(),
+  cacheState: z.enum(["live", "cached"]).optional(),
+  cacheGeneratedAt: z.string().optional(),
+  lastRefreshError: z.string().optional(),
 });
 
 const AgentCapabilityFlagsSchema: z.ZodType<AgentCapabilityFlags> = z.object({
@@ -2176,6 +2209,7 @@ export const ServerInfoStatusPayloadSchema = z
     status: z.literal("server_info"),
     serverId: z.string().trim().min(1),
     hostname: ServerInfoHostnameSchema.optional(),
+    displayName: z.string().nullable().optional(),
     version: ServerInfoVersionSchema.optional(),
     capabilities: ServerCapabilitiesFromUnknownSchema,
     // COMPAT(providersSnapshot): added in v0.1.48, remove gating when all clients use snapshot
@@ -2199,6 +2233,12 @@ export const ServerInfoStatusPayloadSchema = z
         metadataGenerationSettings: z.boolean().optional(),
         // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-07.
         providerRemovalSettings: z.boolean().optional(),
+        // COMPAT(daemonDisplayName): added in v0.1.94, remove gate after 2026-12-08.
+        daemonDisplayName: z.boolean().optional(),
+        // COMPAT(daemonAgentFormPreferences): added in v0.1.94, remove gate after 2026-12-08.
+        daemonAgentFormPreferences: z.boolean().optional(),
+        // COMPAT(providerSnapshotCache): added in v0.1.94, remove gate after 2026-12-08.
+        providerSnapshotCache: z.boolean().optional(),
         // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
         checkoutMetadataDrafts: z.boolean().optional(),
       })
@@ -2208,6 +2248,7 @@ export const ServerInfoStatusPayloadSchema = z
   .transform((payload) => ({
     ...payload,
     hostname: payload.hostname ?? null,
+    displayName: payload.displayName ?? null,
     version: payload.version ?? null,
   }));
 

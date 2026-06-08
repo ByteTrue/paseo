@@ -32,7 +32,13 @@ const DEFAULT_REFRESH_TIMEOUT_MS = 30_000;
 
 type ProviderSnapshotChangeListener = (entries: ProviderSnapshotEntry[], cwd: string) => void;
 
-export interface ProviderSnapshotManagerOptions {
+export interface ProviderSnapshotCache {
+  read(cwd: string): ProviderSnapshotEntry[] | null;
+  write(cwd: string, entries: ProviderSnapshotEntry[]): void;
+  retainProviders(providerIds: AgentProvider[]): void;
+}
+
+interface ProviderSnapshotManagerOptions {
   logger: Logger;
   runtimeSettings?: AgentProviderRuntimeSettingsMap;
   providerOverrides?: Record<string, ProviderOverride>;
@@ -40,6 +46,7 @@ export interface ProviderSnapshotManagerOptions {
   isDev?: boolean;
   extraClients?: Partial<Record<AgentProvider, AgentClient>>;
   refreshTimeoutMs?: number;
+  cacheStore?: ProviderSnapshotCache;
 }
 
 interface ProviderSnapshotRefreshOptions {
@@ -113,6 +120,7 @@ export class ProviderSnapshotManager {
   private runtimeSettings: AgentProviderRuntimeSettingsMap | undefined;
   private providerOverrides: Record<string, ProviderOverride> | undefined;
   private readonly baseProviderOverrides: Record<string, ProviderOverride> | undefined;
+  private readonly cacheStore: ProviderSnapshotCache | undefined;
   private providerRegistry: Record<AgentProvider, ProviderDefinition>;
   private providerClients: Record<AgentProvider, AgentClient>;
 
@@ -124,6 +132,7 @@ export class ProviderSnapshotManager {
     this.runtimeSettings = options.runtimeSettings;
     this.providerOverrides = options.providerOverrides;
     this.baseProviderOverrides = options.providerOverrides;
+    this.cacheStore = options.cacheStore;
     this.refreshTimeoutMs = options.refreshTimeoutMs ?? DEFAULT_REFRESH_TIMEOUT_MS;
     this.providerRegistry = this.buildRegistry();
     this.providerClients = { ...this.extraClients } as Record<AgentProvider, AgentClient>;
@@ -133,6 +142,11 @@ export class ProviderSnapshotManager {
     const resolvedCwd = resolveSnapshotCwd(cwd);
     const entries = this.snapshots.get(resolvedCwd);
     if (!entries) {
+      const cachedEntries = this.seedSnapshotFromCache(resolvedCwd);
+      if (cachedEntries) {
+        void this.warmUp(resolvedCwd);
+        return entriesToArray(cachedEntries);
+      }
       const loadingEntries = this.resetSnapshotToLoading(resolvedCwd);
       void this.warmUp(resolvedCwd);
       return entriesToArray(loadingEntries);
@@ -334,6 +348,7 @@ export class ProviderSnapshotManager {
     );
     this.providerRegistry = this.buildRegistry();
     this.providerClients = { ...this.extraClients } as Record<AgentProvider, AgentClient>;
+    this.cacheStore?.retainProviders(this.getProviderIds());
 
     for (const cwd of this.snapshots.keys()) {
       this.providerLoads.delete(cwd);
@@ -452,6 +467,34 @@ export class ProviderSnapshotManager {
         canRemove: definition?.canRemove ?? false,
       });
     }
+    return entries;
+  }
+
+  private seedSnapshotFromCache(cwd: string): Map<AgentProvider, ProviderSnapshotEntry> | null {
+    const cachedEntries = this.cacheStore?.read(cwd);
+    if (!cachedEntries || cachedEntries.length === 0) {
+      return null;
+    }
+
+    const cachedByProvider = new Map(cachedEntries.map((entry) => [entry.provider, entry]));
+    const entries = this.createLoadingEntries();
+    for (const provider of this.getProviderIds()) {
+      const cached = cachedByProvider.get(provider);
+      const metadata = entries.get(provider);
+      if (!cached || !metadata) {
+        continue;
+      }
+      entries.set(provider, {
+        ...cached,
+        provider,
+        enabled: metadata.enabled,
+        label: metadata.label,
+        description: metadata.description,
+        defaultModeId: metadata.defaultModeId,
+        canRemove: metadata.canRemove,
+      });
+    }
+    this.snapshots.set(cwd, entries);
     return entries;
   }
 
@@ -607,8 +650,10 @@ export class ProviderSnapshotManager {
       if (!this.isCurrentProviderLoad(cwd, provider, load)) {
         return false;
       }
-      snapshot.set(provider, entry);
+      const nextEntry = this.mergeCachedLastKnownOnRefreshFailure(snapshot.get(provider), entry);
+      snapshot.set(provider, nextEntry);
       this.emitChange(cwd);
+      this.cacheStore?.write(cwd, entriesToArray(snapshot));
       return true;
     };
 
@@ -657,6 +702,37 @@ export class ProviderSnapshotManager {
         this.logger.warn({ err: error, provider, cwd }, "Failed to refresh provider snapshot");
       }
     }
+  }
+
+  private mergeCachedLastKnownOnRefreshFailure(
+    current: ProviderSnapshotEntry | undefined,
+    next: ProviderSnapshotEntry,
+  ): ProviderSnapshotEntry {
+    const currentSnapshot = current as
+      | (ProviderSnapshotEntry & {
+          cacheState?: "live" | "cached";
+          lastRefreshError?: string;
+        })
+      | undefined;
+    const hasCachedLastKnown =
+      currentSnapshot?.cacheState === "cached" &&
+      currentSnapshot.status === "ready" &&
+      ((currentSnapshot.models?.length ?? 0) > 0 || (currentSnapshot.modes?.length ?? 0) > 0);
+    const isEnabledRefreshFailure =
+      next.enabled === true && (next.status === "error" || next.status === "unavailable");
+    if (!hasCachedLastKnown || !isEnabledRefreshFailure) {
+      return next;
+    }
+    return {
+      ...currentSnapshot,
+      provider: next.provider,
+      label: next.label,
+      description: next.description,
+      enabled: next.enabled,
+      defaultModeId: next.defaultModeId,
+      canRemove: next.canRemove,
+      lastRefreshError: next.status === "error" ? next.error : "Provider unavailable",
+    } as ProviderSnapshotEntry & { lastRefreshError?: string };
   }
 
   private getProviderLoad(cwdKey: string, provider: AgentProvider): ProviderLoad | undefined {

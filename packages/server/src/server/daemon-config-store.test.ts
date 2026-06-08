@@ -6,6 +6,14 @@ import { afterEach, describe, expect, test } from "vitest";
 import { DaemonConfigStore, applyMutableProviderConfigToOverrides } from "./daemon-config-store.js";
 import { loadPersistedConfig } from "./persisted-config.js";
 
+const topLevelTempDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of topLevelTempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 describe("applyMutableProviderConfigToOverrides", () => {
   test("merges mutable provider fields onto provider overrides", () => {
     expect(
@@ -452,5 +460,77 @@ describe("DaemonConfigStore", () => {
     expect(store.get().providers["paseo-e2e-acp"]).toEqual({ removed: true });
     const persisted = loadPersistedConfig(paseoHome);
     expect(persisted.agents?.providers?.["paseo-e2e-acp"]).toBeUndefined();
+  });
+});
+
+test("patch persists daemon display name into config.json", () => {
+  const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+  topLevelTempDirs.push(paseoHome);
+
+  const store = new DaemonConfigStore(
+    paseoHome,
+    {
+      mcp: { injectIntoAgents: false },
+      providers: {},
+      metadataGeneration: { providers: [] },
+      agentFormPreferences: {},
+      autoArchiveAfterMerge: false,
+      appendSystemPrompt: "",
+      displayName: "",
+    },
+    undefined,
+  );
+
+  store.patch({ displayName: "Studio Mac" });
+
+  const persisted = loadPersistedConfig(paseoHome);
+  expect(persisted.daemon?.displayName).toBe("Studio Mac");
+});
+
+test("patch persists agent form preferences into config.json", () => {
+  const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+  topLevelTempDirs.push(paseoHome);
+
+  const store = new DaemonConfigStore(
+    paseoHome,
+    {
+      mcp: { injectIntoAgents: false },
+      providers: {},
+      metadataGeneration: { providers: [] },
+      agentFormPreferences: {},
+      autoArchiveAfterMerge: false,
+      appendSystemPrompt: "",
+      displayName: "",
+    },
+    undefined,
+  );
+
+  store.patch({
+    agentFormPreferences: {
+      provider: "codex",
+      providerPreferences: {
+        codex: {
+          model: "gpt-5.4-mini",
+          mode: "auto",
+          thinkingByModel: { "gpt-5.4-mini": "low" },
+          featureValues: { webSearch: true },
+        },
+      },
+      favoriteModels: [{ provider: "codex", modelId: "gpt-5.4-mini" }],
+    },
+  });
+
+  const persisted = loadPersistedConfig(paseoHome);
+  expect(persisted.agents?.formPreferences).toEqual({
+    provider: "codex",
+    providerPreferences: {
+      codex: {
+        model: "gpt-5.4-mini",
+        mode: "auto",
+        thinkingByModel: { "gpt-5.4-mini": "low" },
+        featureValues: { webSearch: true },
+      },
+    },
+    favoriteModels: [{ provider: "codex", modelId: "gpt-5.4-mini" }],
   });
 });

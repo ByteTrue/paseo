@@ -605,3 +605,31 @@ describe.skipIf(process.platform === "win32")("persisted config file permissions
     }
   });
 });
+
+test("persisted config accepts daemon display name and agent form preferences", () => {
+  const parsed = PersistedConfigSchema.parse({
+    daemon: {
+      displayName: "Studio Mac",
+    },
+    agents: {
+      formPreferences: {
+        provider: "codex",
+        providerPreferences: {
+          codex: {
+            model: "gpt-5.4-mini",
+            mode: "auto",
+            thinkingByModel: { "gpt-5.4-mini": "medium" },
+            featureValues: { webSearch: true },
+          },
+        },
+        favoriteModels: [{ provider: "codex", modelId: "gpt-5.4-mini" }],
+      },
+    },
+  });
+
+  expect(parsed.daemon?.displayName).toBe("Studio Mac");
+  expect(parsed.agents?.formPreferences?.provider).toBe("codex");
+  expect(parsed.agents?.formPreferences?.favoriteModels).toEqual([
+    { provider: "codex", modelId: "gpt-5.4-mini" },
+  ]);
+});
