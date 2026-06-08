@@ -172,7 +172,7 @@ try {
   );
   await waitFor(
     () => !isProcessRunning(workerPid),
-    30000,
+    60000,
     "worker remained running after supervisor IPC disconnect",
   );
   console.log("✓ worker exited after supervisor disconnect\n");

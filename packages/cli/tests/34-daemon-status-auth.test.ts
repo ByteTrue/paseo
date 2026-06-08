@@ -35,7 +35,9 @@ try {
   );
 
   {
-    console.log("Test 1: localhost status is reachable even without a password (trusted local transport)");
+    console.log(
+      "Test 1: localhost status is reachable even without a password (trusted local transport)",
+    );
     const result = await runLocalPaseo(["daemon", "status", "--json"], {
       PASEO_HOME: daemon.paseoHome,
       PASEO_HOST: "",
