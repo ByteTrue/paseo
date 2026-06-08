@@ -24,6 +24,12 @@ type WorkerLifecycleMessage =
       reason?: string;
     };
 
+interface SupervisorHeartbeatMessage {
+  type: "paseo:supervisor-heartbeat";
+  pid: number;
+  seq: number;
+}
+
 interface SupervisorOptions {
   name: string;
   startupMessage: string;
@@ -183,6 +189,20 @@ export function runSupervisor(options: SupervisorOptions): void {
       });
     }
 
+    const currentChild = child;
+    let heartbeatSeq = 0;
+    const heartbeat = setInterval(() => {
+      const message: SupervisorHeartbeatMessage = {
+        type: "paseo:supervisor-heartbeat",
+        pid: process.pid,
+        seq: ++heartbeatSeq,
+      };
+      if (currentChild.connected) {
+        currentChild.send?.(message, () => undefined);
+      }
+    }, 1000);
+    heartbeat.unref();
+
     child.stdout?.on("data", (chunk: Buffer) => {
       process.stdout.write(chunk);
       writeDurableChunk(chunk);
@@ -224,6 +244,7 @@ export function runSupervisor(options: SupervisorOptions): void {
     });
 
     child.on("close", (code, signal) => {
+      clearInterval(heartbeat);
       const exitDescriptor = describeExit(code, signal);
       writeLifecycleLog("Worker exited", { code, signal, exit: exitDescriptor });
 

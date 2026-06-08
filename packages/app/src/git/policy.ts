@@ -333,9 +333,6 @@ function getPrimaryActionId(input: BuildGitActionsInput): GitActionId | null {
   if (canPull(input)) {
     return "pull";
   }
-  if (canPush(input)) {
-    return "push";
-  }
   if (canMergePr(input)) {
     return getDefaultDirectPullRequestMergeActionId(input);
   }
@@ -344,6 +341,12 @@ function getPrimaryActionId(input: BuildGitActionsInput): GitActionId | null {
   }
   if (hasEnabledPrAutoMerge(input)) {
     return "pr";
+  }
+  if (input.shipDefault === "pr" && canUsePullRequestActionAsShipDefault(input)) {
+    return "pr";
+  }
+  if (canPush(input)) {
+    return "push";
   }
   if (!input.isOnBaseBranch && input.aheadCount > 0) {
     return "merge-branch";
@@ -502,6 +505,16 @@ function canMergeFromBase(input: BuildGitActionsInput): boolean {
   );
 }
 
+function canUsePullRequestActionAsShipDefault(input: BuildGitActionsInput): boolean {
+  if (input.isOnBaseBranch || !input.githubFeaturesEnabled) {
+    return false;
+  }
+  if (input.hasPullRequest) {
+    return input.pullRequestUrl !== null;
+  }
+  return input.aheadCount > 0;
+}
+
 function canMergePr(input: BuildGitActionsInput): boolean {
   const github = input.pullRequestGithub;
   const canMergeFromPullRequestStatus =
@@ -602,6 +615,12 @@ function getPullAndPushUnavailableMessage(input: BuildGitActionsInput): string |
   }
   if (input.behindOfOrigin === 0 && input.aheadOfOrigin === 0) {
     return "Pull and push isn't available because this branch is already in sync";
+  }
+  if (input.behindOfOrigin === 0) {
+    return "Pull and push isn't available because there are no incoming changes to pull first";
+  }
+  if (input.aheadOfOrigin === 0) {
+    return "Pull and push isn't available because there is nothing new to send after pulling";
   }
   return undefined;
 }

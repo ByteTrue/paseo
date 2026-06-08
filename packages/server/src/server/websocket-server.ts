@@ -26,7 +26,7 @@ import {
   type WSOutboundMessage,
   wrapSessionMessage,
 } from "./messages.js";
-import { asUint8Array, decodeTerminalStreamFrame } from "@bytetrue/protocol/binary-frames/index";
+import { asUint8Array, decodeBinaryFrame } from "@bytetrue/protocol/binary-frames/index";
 import type { HostnamesConfig } from "./hostnames.js";
 import { isHostnameAllowed } from "./hostnames.js";
 import { Session, type SessionLifecycleIntent, type SessionRuntimeMetrics } from "./session.js";
@@ -361,6 +361,7 @@ export class VoiceAssistantWebSocketServer {
   private readonly pendingConnections: Map<WebSocketLike, PendingConnection> = new Map();
   private readonly sessions: Map<WebSocketLike, SessionConnection> = new Map();
   private readonly externalSessionsByKey: Map<string, SessionConnection> = new Map();
+  private readonly socketMessageQueues: Map<WebSocketLike, Promise<void>> = new Map();
   private readonly serverId: string;
   private readonly daemonVersion: string;
   private readonly daemonRuntimeConfig:
@@ -1696,7 +1697,7 @@ export class VoiceAssistantWebSocketServer {
   private bindSocketHandlers(ws: WebSocketLike): void {
     ws.on("message", (...args: unknown[]) => {
       const data = args[0] as Buffer | ArrayBuffer | Buffer[] | string;
-      void this.handleRawMessage(ws, data);
+      this.enqueueRawMessage(ws, data);
     });
 
     ws.on("close", async (...args: unknown[]) => {
@@ -1717,6 +1718,25 @@ export class VoiceAssistantWebSocketServer {
       log.error({ err }, "Client error");
       await this.detachSocket(ws, { error: err });
     });
+  }
+
+  private enqueueRawMessage(
+    ws: WebSocketLike,
+    data: Buffer | ArrayBuffer | Buffer[] | string,
+  ): void {
+    const previous = this.socketMessageQueues.get(ws) ?? Promise.resolve();
+    const next = previous.then(
+      () => this.handleRawMessage(ws, data),
+      () => this.handleRawMessage(ws, data),
+    );
+    this.socketMessageQueues.set(ws, next);
+    void next
+      .catch(() => undefined)
+      .finally(() => {
+        if (this.socketMessageQueues.get(ws) === next) {
+          this.socketMessageQueues.delete(ws);
+        }
+      });
   }
 
   public resolveVoiceSpeakHandler(callerAgentId: string): VoiceSpeakHandler | null {
@@ -1898,19 +1918,19 @@ export class VoiceAssistantWebSocketServer {
     );
   }
 
-  private maybeHandleBinaryFrame(params: {
+  private async maybeHandleBinaryFrame(params: {
     ws: WebSocketLike;
     buffer: Buffer;
     activeConnection: SessionConnection | undefined;
     log: pino.Logger;
-  }): boolean {
+  }): Promise<boolean> {
     const { ws, buffer, activeConnection, log } = params;
     const asBytes = asUint8Array(buffer);
     if (!asBytes) {
       return false;
     }
-    const frame = decodeTerminalStreamFrame(asBytes);
-    if (!frame) {
+    const decodedFrame = decodeBinaryFrame(asBytes);
+    if (!decodedFrame) {
       return false;
     }
     if (!activeConnection) {
@@ -1924,7 +1944,7 @@ export class VoiceAssistantWebSocketServer {
       }
       return true;
     }
-    activeConnection.session.handleBinaryFrame(frame);
+    await activeConnection.session.handleBinaryFrame(decodedFrame);
     return true;
   }
 
@@ -1980,7 +2000,7 @@ export class VoiceAssistantWebSocketServer {
 
     try {
       const buffer = bufferFromWsData(data);
-      const binaryHandled = this.maybeHandleBinaryFrame({
+      const binaryHandled = await this.maybeHandleBinaryFrame({
         ws,
         buffer,
         activeConnection,

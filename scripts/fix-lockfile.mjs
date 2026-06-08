@@ -39,7 +39,7 @@ let fixed = 0;
 for (const [key, val] of Object.entries(lock.packages || {})) {
   if (
     !key || // root package
-    key.startsWith("node_modules/") || // top-level (already has resolved)
+    (key.startsWith("node_modules/") && val.resolved && val.integrity) || // top-level complete entries
     val.link || // workspace link entry
     (val.resolved && val.integrity) || // already complete
     !val.version || // no version to look up
@@ -47,7 +47,10 @@ for (const [key, val] of Object.entries(lock.packages || {})) {
   )
     continue;
 
-  const pkgName = key.replace(/.*node_modules\//, "");
+  // Use the real package name from the lockfile, not the path-based key.
+  // npm workspaces can alias packages under different directory names
+  // (e.g. `node_modules/wrap-ansi-cjs` has `name: wrap-ansi`).
+  const pkgName = val.name ?? key.replace(/.*node_modules\//, "");
   const version = val.version;
 
   try {
