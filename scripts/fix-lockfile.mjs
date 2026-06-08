@@ -47,7 +47,10 @@ for (const [key, val] of Object.entries(lock.packages || {})) {
   )
     continue;
 
-  const pkgName = key.replace(/.*node_modules\//, "");
+  // Use the real package name from the lockfile, not the path-based key.
+  // npm workspaces can alias packages under different directory names
+  // (e.g. `node_modules/wrap-ansi-cjs` has `name: wrap-ansi`).
+  const pkgName = val.name ?? key.replace(/.*node_modules\//, "");
   const version = val.version;
 
   try {
