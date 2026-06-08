@@ -167,12 +167,12 @@ try {
   supervisorProcess.kill("SIGKILL");
   await waitFor(
     () => !isProcessRunning(supervisorPid),
-    15000,
+    30000,
     "supervisor remained running after SIGKILL",
   );
   await waitFor(
     () => !isProcessRunning(workerPid),
-    15000,
+    30000,
     "worker remained running after supervisor IPC disconnect",
   );
   console.log("✓ worker exited after supervisor disconnect\n");

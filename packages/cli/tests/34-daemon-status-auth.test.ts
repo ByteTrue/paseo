@@ -10,6 +10,10 @@ console.log("=== Daemon Status Auth ===\n");
 
 const CORRECT_PASSWORD_HASH = "$2b$12$GMhF7pN4QnMlHOQXOqjd1OitKWPSmAO3FwB0PHzKtcZR/sAMryz76";
 
+// ByteTrue fork: localhost connections bypass the admin password gate
+// (trustedLocal). LAN and other remote connections still require the
+// password when one is configured.
+
 const daemon = await createTestPaseoDaemon({
   auth: { password: CORRECT_PASSWORD_HASH },
 });
@@ -31,7 +35,7 @@ try {
   );
 
   {
-    console.log("Test 1: status reports password requirement without marking daemon unreachable");
+    console.log("Test 1: localhost status is reachable even without a password (trusted local transport)");
     const result = await runLocalPaseo(["daemon", "status", "--json"], {
       PASEO_HOME: daemon.paseoHome,
       PASEO_HOST: "",
@@ -42,16 +46,14 @@ try {
     const status = JSON.parse(result.stdout);
 
     assert.strictEqual(status.localDaemon, "running");
-    assert.strictEqual(status.connectedDaemon, "auth_required");
-    assert.strictEqual(status.runningAgents, null);
-    assert.strictEqual(status.idleAgents, null);
-    assert.match(status.note, /requires a password/i);
-    assert.doesNotMatch(status.note, /not reachable/i);
-    console.log("✓ missing password reports auth_required\n");
+    assert.strictEqual(status.connectedDaemon, "reachable");
+    assert.strictEqual(status.runningAgents, 0);
+    assert.strictEqual(status.idleAgents, 0);
+    console.log("✓ localhost bypasses password gate\n");
   }
 
   {
-    console.log("Test 2: status reports rejected supplied password separately");
+    console.log("Test 2: localhost status ignores a wrong password (trusted transport)");
     const result = await runLocalPaseo(["daemon", "status", "--json"], {
       PASEO_HOME: daemon.paseoHome,
       PASEO_HOST: "",
@@ -62,14 +64,14 @@ try {
     const status = JSON.parse(result.stdout);
 
     assert.strictEqual(status.localDaemon, "running");
-    assert.strictEqual(status.connectedDaemon, "auth_failed");
-    assert.match(status.note, /password was rejected/i);
-    assert.doesNotMatch(status.note, /not reachable/i);
-    console.log("✓ wrong password reports auth_failed\n");
+    assert.strictEqual(status.connectedDaemon, "reachable");
+    assert.strictEqual(status.runningAgents, 0);
+    assert.strictEqual(status.idleAgents, 0);
+    console.log("✓ wrong password is irrelevant on localhost\n");
   }
 
   {
-    console.log("Test 3: status reaches the same daemon when password is supplied");
+    console.log("Test 3: localhost status with password is reachable");
     const result = await runLocalPaseo(["daemon", "status", "--json"], {
       PASEO_HOME: daemon.paseoHome,
       PASEO_HOST: "",
