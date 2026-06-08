@@ -154,6 +154,51 @@ describe("generateBranchNameFromFirstAgentContext", () => {
     ]);
   });
 
+  test("passes branchName daemon config as preferred provider", async () => {
+    const structured = createStructuredGenerator({ branch: "configured-branch" });
+
+    const branch = await generateBranchNameFromFirstAgentContext({
+      agentManager: {} as AgentManager,
+      cwd: "/tmp/repo",
+      providerSnapshotManager: {
+        listProviders: vi.fn(async () => [
+          {
+            provider: "codex",
+            status: "ready" as const,
+            enabled: true,
+            models: [
+              {
+                provider: "codex",
+                id: "gpt-5.1",
+                label: "GPT-5.1",
+                isDefault: true,
+              },
+            ],
+          },
+        ]),
+      },
+      daemonConfig: {
+        metadataGeneration: {
+          branchName: {
+            provider: "codex",
+            model: "gpt-5.1",
+          },
+        },
+      },
+      firstAgentContext: { prompt: "Fix the login flow" },
+      logger: createLogger(),
+      deps: { generateStructuredAgentResponseWithFallback: structured.generateStructured },
+    });
+
+    expect(branch).toBe("configured-branch");
+    const firstCall = structured.calls[0];
+    if (!firstCall) {
+      throw new Error("expected structured generation call");
+    }
+    // preferredProviders from branchName should be first
+    expect(firstCall.providers).toStrictEqual([{ provider: "codex", model: "gpt-5.1" }]);
+  });
+
   test.each([
     ["paseo.json missing", undefined],
     ["paseo.json exists but invalid JSON", "{ nope"],

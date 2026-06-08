@@ -76,6 +76,8 @@ export async function generateBranchNameFromFirstAgentContext(
     options.deps?.generateStructuredAgentResponseWithFallback ??
     generateStructuredAgentResponseWithFallback;
 
+  const preferredProviders = buildPreferredProviders(options.daemonConfig, "branchName");
+
   try {
     const providers = options.providerSnapshotManager
       ? await resolveStructuredGenerationProviders({
@@ -83,6 +85,7 @@ export async function generateBranchNameFromFirstAgentContext(
           providerSnapshotManager: options.providerSnapshotManager,
           daemonConfig: options.daemonConfig,
           currentSelection: options.currentSelection,
+          ...(preferredProviders.length > 0 ? { preferredProviders } : {}),
         })
       : [];
     const result = await generator({
@@ -114,4 +117,24 @@ export async function generateBranchNameFromFirstAgentContext(
     );
     return null;
   }
+}
+
+function buildPreferredProviders(
+  daemonConfig: GenerateBranchNameFromFirstAgentContextOptions["daemonConfig"],
+  key: "branchName" | "commitMessage" | "pullRequest" | "agentTitle",
+): { provider: string; model?: string; thinkingOptionId?: string }[] {
+  const config = daemonConfig?.metadataGeneration?.[key];
+  if (!config || config.enabled === false) {
+    return [];
+  }
+  if (!config.provider) {
+    return [];
+  }
+  return [
+    {
+      provider: config.provider,
+      ...(config.model ? { model: config.model } : {}),
+      ...(config.thinkingOptionId ? { thinkingOptionId: config.thinkingOptionId } : {}),
+    },
+  ];
 }
