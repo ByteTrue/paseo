@@ -16,12 +16,10 @@ This is not a merge-upstream workflow. The sync branch is an upstream review cur
 
 - `origin/main` is the ByteTrue fork main branch.
 - `upstream/main` is the upstream project.
-- `origin/upstream-sync` records the last upstream commit that has been reviewed.
-- New upstream work is discovered with `upstream-sync..upstream/main`.
+- The **cursor** is the last upstream commit reviewed from the previous sync. It is recorded in the body of the most recent merged "Upstream sync:" PR (e.g. `cursor: abc123`).
+- New upstream work is discovered with `<cursor>..upstream/main`.
 - Reusable upstream commits are cherry-picked onto a separate fork branch such as `reuse-upstream-YYYYMMDD`.
-- After the reviewed commits have been classified and the reusable branch has been merged or deliberately abandoned, advance `upstream-sync` to the reviewed upstream commit.
-
-This keeps future reviews small even if the fork and upstream diverge heavily.
+- After merge, the PR body of the new sync PR records the updated cursor for the next run.
 
 ## Fork Invariants
 
@@ -115,7 +113,7 @@ Preserve these unless the user explicitly changes strategy:
 - Clean CI can expose missing workspace build steps that local dirty `dist/` directories hide.
 - `npm version` / release scripts need a clean worktree; stash unrelated untracked files instead of committing them accidentally.
 - Always run the daemon bootstrap smoke test after touching daemon pairing, service URLs, relay config, or websocket runtime config.
-- Use `git rev-list --left-right --count upstream-sync...upstream/main` as a sanity check before counting work. The cursor should usually have `0 N` against `upstream/main` before a review and `0 0` after advancing it.
+- Use `git rev-list --left-right --count $CURSOR...upstream/main` as a sanity check before counting work. The cursor should usually have `0 N` against `upstream/main` before a review and `0 0` after advancing it.
 - Keep unrelated fork cleanup separate before starting a sync PR. A dirty `main` makes the upstream review harder to reason about and can pollute the candidate branch.
 - Some local Git versions do not support `git cherry-pick --no-verify`. Expect pre-commit hooks to run on every `cherry-pick --continue`, or plan the batch time accordingly and still run final full validation.
 - When resolving `package.json` conflicts, absorb upstream build/check improvements only after translating every workspace scope to `@bytetrue` and preserving this fork's no-native-client scripts. Do not reintroduce `@getpaseo/*`, Android/iOS scripts, or Expo native-only package build steps.
@@ -124,8 +122,12 @@ Preserve these unless the user explicitly changes strategy:
 - GitHub `gh pr checks --watch` / GraphQL calls can EOF while CI is still healthy. Re-check with `gh run view <run-id> --json status,conclusion,jobs` before treating it as a CI failure.
 - In this repo, prefer `npm --workspace-root run lint` for root lint during sync work; plain `npm run lint` can route through the wrong npm workspace/ESLint path in some sessions.
 
-## Evidence From First Run
+## Evidence
 
-The first practical run reviewed `upstream-sync..upstream/main`, cherry-picked reusable commits to `reuse-upstream-20260602`, skipped upstream release/hash/changelog commits, fixed fork scope/domain regressions, added a missing relay build step for clean CI, merged PR #2, and advanced `origin/upstream-sync` to `0d98df4a`.
+| Run | PR  | Branch                    | Upstream range         | Cursor (last reviewed) |
+| --- | --- | ------------------------- | ---------------------- | ---------------------- |
+| 1   | #2  | `reuse-upstream-20260602` | fork-point..`0d98df4a` | `0d98df4a`             |
+| 2   | #6  | `reuse-upstream-20260605` | `0d98df4a`..`b5192e57` | `b5192e57`             |
+| 3   | #9  | `reuse-upstream-20260608` | `b5192e57`..`06a8f952` | `06a8f952`             |
 
-The second practical run reviewed 59 upstream commits after cursor `0d98df4a`, cherry-picked 46 reusable commits to `reuse-upstream-20260605`, skipped 4 upstream release commits and 2 lockfile/Nix-hash-only commits, resolved fork-scope/native/speech IPC conflicts, merged PR #6, and advanced `origin/upstream-sync` to `b5192e57`.
+The cursor for the next sync is in the PR #9 body (`cursor: 06a8f952`).
