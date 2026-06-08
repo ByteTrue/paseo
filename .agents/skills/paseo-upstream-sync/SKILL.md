@@ -45,15 +45,20 @@ Preserve these unless the user explicitly changes strategy:
    git switch main
    git pull --ff-only origin main
    ```
-2. If `origin/upstream-sync` does not exist yet, initialize it to the current fork/upstream merge base:
+2. Find the cursor from the last merged upstream-sync PR body:
    ```bash
-   git branch upstream-sync $(git merge-base origin/main upstream/main)
-   git push origin upstream-sync
+   LAST_PR=$(gh pr list --repo ByteTrue/paseo --search "Upstream sync:" --state merged --limit 1 --json body -q '.[0].body')
+   CURSOR=$(echo "$LAST_PR" | sed -n 's/.*cursor: \([0-9a-f]\+\).*/\1/p')
+   echo "Last reviewed upstream commit: $CURSOR"
+   ```
+   If no previous sync PR exists (first sync), use the fork/upstream merge-base instead:
+   ```bash
+   CURSOR=$(git merge-base origin/main upstream/main)
    ```
 3. Inspect new upstream work from the cursor, not from fork main:
    ```bash
-   git log --reverse --oneline upstream-sync..upstream/main
-   git diff --stat upstream-sync..upstream/main
+   git log --reverse --oneline $CURSOR..upstream/main
+   git diff --stat $CURSOR..upstream/main
    ```
 4. Classify upstream commits:
    - Reuse: feature commits, bug fixes, tests, docs that apply to the fork.
@@ -100,11 +105,11 @@ Preserve these unless the user explicitly changes strategy:
     ```
 12. Wait for CI. If CI fails, use job logs, reproduce locally with a clean clone and Node 22 when needed, patch the candidate branch, and rerun checks.
 13. Merge the PR only after CI is green.
-14. Advance the cursor after the upstream range has been reviewed:
-    ```bash
-    git branch -f upstream-sync upstream/main
-    git push --force origin upstream-sync
+14. Record the cursor in the PR body so the next sync run can discover it. The PR template must include:
     ```
+    cursor: <last-reviewed-upstream-hash>
+    ```
+    This line is parsed by step 2 of the next sync. No extra file or branch to maintain.
 
 ## Pitfalls
 
