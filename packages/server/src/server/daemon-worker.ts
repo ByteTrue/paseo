@@ -192,12 +192,19 @@ async function main() {
         lastSupervisorHeartbeatAt = Date.now();
       }
     });
-    process.on("disconnect", () => requestSupervisorShutdown("supervisor disconnect"));
+    process.on("disconnect", () => {
+      process.stderr.write(`[daemon-worker] IPC disconnect detected (connected=${process.connected})\n`);
+      requestSupervisorShutdown("supervisor disconnect");
+    });
 
     const timer = setInterval(() => {
       const ipcConnected = typeof process.connected === "boolean" ? process.connected : true;
       const heartbeatExpired = Date.now() - lastSupervisorHeartbeatAt > 3500;
-      if (ipcConnected === false || !isPidAlive(supervisorPid) || heartbeatExpired) {
+      const supervisorAlive = isPidAlive(supervisorPid);
+      process.stderr.write(
+        `[daemon-worker] heartbeat: connected=${ipcConnected} supervisorAlive=${supervisorAlive} heartbeatExpired=${heartbeatExpired}\n`,
+      );
+      if (ipcConnected === false || !supervisorAlive || heartbeatExpired) {
         requestSupervisorShutdown("supervisor disconnect");
       }
     }, 1000);
