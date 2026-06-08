@@ -34,7 +34,6 @@ import {
   type BinaryFrame,
   encodeFileTransferFrame,
   FileTransferOpcode,
-  type TerminalStreamFrame,
   type FileTransferFrame,
 } from "@bytetrue/protocol/binary-frames/index";
 import { FileUploadStore } from "./file-upload/index.js";

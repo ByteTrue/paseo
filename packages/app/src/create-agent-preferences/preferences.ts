@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentProvider } from "@getpaseo/protocol/agent-types";
+import type { AgentProvider } from "@bytetrue/protocol/agent-types";
 
 export interface FavoriteModelPreference {
   provider: string;
