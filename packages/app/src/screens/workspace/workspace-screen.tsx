@@ -178,6 +178,7 @@ import {
   type WorkspaceFileOpenRequest,
 } from "@/workspace/file-open";
 import { RenderProfile } from "@/utils/render-profiler";
+import { shouldShowWorkspaceBrowserTabs } from "@/screens/workspace/workspace-browser-support";
 
 const WORKSPACE_SETUP_AUTO_OPEN_WINDOW_MS = 30_000;
 const WORKSPACE_FLOATING_PANEL_PORTAL_HOST_PREFIX = "workspace-floating-panels";
@@ -2306,7 +2307,10 @@ function WorkspaceScreenContent({
 
   const handleCreateBrowserTab = useCallback(
     (input?: { paneId?: string }) => {
-      if (!persistenceKey || !getIsElectron()) {
+      if (
+        !persistenceKey ||
+        !shouldShowWorkspaceBrowserTabs({ isElectron: getIsElectron(), isWeb })
+      ) {
         return;
       }
       if (input?.paneId) {
@@ -2320,7 +2324,10 @@ function WorkspaceScreenContent({
 
   const handleOpenUrlInBrowserTab = useCallback(
     (url: string) => {
-      if (!persistenceKey || !getIsElectron()) {
+      if (
+        !persistenceKey ||
+        !shouldShowWorkspaceBrowserTabs({ isElectron: getIsElectron(), isWeb })
+      ) {
         return;
       }
       const { browserId } = createWorkspaceBrowser({ initialUrl: url });
@@ -3257,7 +3264,10 @@ function WorkspaceScreenContent({
     () => createTerminalMutation.isPending || pendingTerminalCreateInput !== null,
     [createTerminalMutation.isPending, pendingTerminalCreateInput],
   );
-  const showCreateBrowserTab = getIsElectron();
+  const showCreateBrowserTab = shouldShowWorkspaceBrowserTabs({
+    isElectron: getIsElectron(),
+    isWeb,
+  });
   const focusedPaneIdOrUndefined = useMemo(() => focusedPaneId ?? undefined, [focusedPaneId]);
   const desktopFocusModeEnabled = useMemo(
     () => isFocusModeEnabled && !isMobile,

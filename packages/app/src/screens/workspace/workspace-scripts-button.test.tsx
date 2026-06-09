@@ -153,6 +153,7 @@ const LIVE_TERMINAL_IDS: string[] = ["terminal-script-1"];
 interface RenderScriptsOptions {
   hideLabels?: boolean;
   presentation?: "split" | "ghost";
+  onOpenUrlInBrowserTab?: (url: string) => void;
 }
 
 function renderScripts(
@@ -182,6 +183,7 @@ function renderScripts(
           liveTerminalIds={LIVE_TERMINAL_IDS}
           hideLabels={options.hideLabels}
           presentation={options.presentation}
+          onOpenUrlInBrowserTab={options.onOpenUrlInBrowserTab}
         />
       </QueryClientProvider>
     );
@@ -236,7 +238,7 @@ describe("WorkspaceScriptsButton", () => {
         disconnect() {}
       },
     );
-    document.body.innerHTML = "";
+    document.body.replaceChildren();
     startWorkspaceScriptMock.mockClear();
   });
 
@@ -339,6 +341,33 @@ describe("WorkspaceScriptsButton", () => {
     expect(requirePrimaryIcon(requireRow("old-service")).dataset.color).toBe(
       theme.colors.foregroundMuted,
     );
+  });
+
+  it("opens running service links in a browser tab when a callback is provided", () => {
+    const onOpenUrlInBrowserTab = vi.fn();
+    current = renderScripts(
+      [
+        script({
+          scriptName: "web",
+          type: "service",
+          hostname: "web.paseo.localhost",
+          lifecycle: "running",
+          health: "healthy",
+          port: 3000,
+        }),
+      ],
+      { onOpenUrlInBrowserTab },
+    );
+
+    const hostLink = document.querySelector<HTMLElement>(
+      '[data-testid^="workspace-scripts-host-link-web-"]',
+    );
+    expect(hostLink).not.toBeNull();
+
+    act(() => {
+      hostLink?.click();
+    });
+    expect(onOpenUrlInBrowserTab).toHaveBeenCalledWith("http://localhost:3000");
   });
 
   it("removes the trigger caret in ghost presentation", () => {

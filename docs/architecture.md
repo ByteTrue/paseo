@@ -97,6 +97,7 @@ Expo web / React Native Web app that connects to one or more daemons. It is used
 - Timeline reducers in `timeline/session-stream-reducers.ts` handle compaction, gap detection, sequence-based deduplication
 - Timeline sync correctness is documented in [docs/timeline-sync.md](timeline-sync.md): live streams are for immediacy, `fetch_agent_timeline_request` is authoritative, and catch-up is paged but complete.
 - Voice features: dictation (STT) and voice agent (realtime)
+- Browser tabs share the same workspace browser store across Web and Electron. Electron renders the complete webview; Web renders an iframe-based lite preview for service/HTTP URLs with blocked-state fallback.
 
 ### `packages/cli` — Command-line client
 
@@ -134,6 +135,7 @@ Electron wrapper for macOS, Linux, and Windows.
 - Can spawn the daemon as a managed subprocess
 - Native file access for workspace integration
 - Same WebSocket client as the web app
+- Provides the complete BrowserPane/webview implementation; Web keeps a lighter iframe-based preview.
 
 ### `packages/website` — Marketing site
 
