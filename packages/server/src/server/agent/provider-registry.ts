@@ -657,6 +657,7 @@ function addDerivedProviders(
                 env: override.env,
                 providerId,
                 label: override.label ?? providerId,
+                providerParams: override.params,
               })
             : new GenericACPAgentClient({
                 logger,
@@ -664,6 +665,7 @@ function addDerivedProviders(
                 env: override.env,
                 providerId,
                 label: override.label ?? providerId,
+                providerParams: override.params,
               }),
       });
       continue;
