@@ -80,6 +80,10 @@ import type {
   SendAgentMessageRequest,
   PaseoConfigRaw,
   PaseoConfigRevision,
+  LocalOsListOpenTargetsResponse,
+  LocalOsOpenTargetResponse,
+  LocalFsListRootsResponse,
+  LocalFsListDirectoryResponse,
 } from "@bytetrue/protocol/messages";
 import type {
   AgentPermissionRequest,
@@ -3322,6 +3326,68 @@ export class DaemonClient {
         limit: options.limit,
       },
       responseType: "directory_suggestions_response",
+      timeout: 10000,
+    });
+  }
+
+  async listLocalOpenTargets(
+    requestId?: string,
+  ): Promise<LocalOsListOpenTargetsResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "local.os.list_open_targets.request",
+      },
+      responseType: "local.os.list_open_targets.response",
+      timeout: 10000,
+    });
+  }
+
+  async openLocalTarget(
+    options: {
+      editorId: string;
+      path: string;
+      cwd?: string;
+      mode?: "open" | "reveal";
+    },
+    requestId?: string,
+  ): Promise<LocalOsOpenTargetResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "local.os.open_target.request",
+        editorId: options.editorId,
+        path: options.path,
+        ...(options.cwd ? { cwd: options.cwd } : {}),
+        ...(options.mode ? { mode: options.mode } : {}),
+      },
+      responseType: "local.os.open_target.response",
+      timeout: 10000,
+    });
+  }
+
+  async listLocalDirectoryRoots(requestId?: string): Promise<LocalFsListRootsResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "local.fs.list_roots.request",
+      },
+      responseType: "local.fs.list_roots.response",
+      timeout: 10000,
+    });
+  }
+
+  async listLocalDirectory(
+    path: string,
+    requestId?: string,
+  ): Promise<LocalFsListDirectoryResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "local.fs.list_directory.request",
+        path,
+      },
+      responseType: "local.fs.list_directory.response",
       timeout: 10000,
     });
   }

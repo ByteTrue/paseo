@@ -1059,6 +1059,62 @@ export const DaemonAuthChangePasswordRequestSchema = z.object({
   newPassword: z.string().min(1),
 });
 
+export const LocalOsOpenTargetKindSchema = z.enum(["editor", "file-manager"]);
+export const LocalOsOpenModeSchema = z.enum(["open", "reveal"]);
+
+export const LocalOsOpenTargetSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  kind: LocalOsOpenTargetKindSchema,
+});
+
+export const LocalOsListOpenTargetsRequestSchema = z.object({
+  type: z.literal("local.os.list_open_targets.request"),
+  requestId: z.string(),
+});
+
+export const LocalOsOpenTargetRequestSchema = z.object({
+  type: z.literal("local.os.open_target.request"),
+  requestId: z.string(),
+  editorId: z.string().min(1),
+  path: z.string().min(1),
+  cwd: z.string().min(1).optional(),
+  mode: LocalOsOpenModeSchema.default("open"),
+});
+
+export const LocalFsDirectoryRootKindSchema = z.enum([
+  "home",
+  "recent",
+  "workspace",
+  "volume",
+  "path",
+]);
+
+export const LocalFsDirectoryRootSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  path: z.string().min(1),
+  kind: LocalFsDirectoryRootKindSchema,
+});
+
+export const LocalFsDirectoryEntrySchema = z.object({
+  name: z.string(),
+  path: z.string().min(1),
+  kind: z.literal("directory"),
+  hidden: z.boolean().default(false),
+});
+
+export const LocalFsListRootsRequestSchema = z.object({
+  type: z.literal("local.fs.list_roots.request"),
+  requestId: z.string(),
+});
+
+export const LocalFsListDirectoryRequestSchema = z.object({
+  type: z.literal("local.fs.list_directory.request"),
+  requestId: z.string(),
+  path: z.string().min(1),
+});
+
 export const GetDaemonConfigRequestMessageSchema = z.object({
   type: z.literal("get_daemon_config_request"),
   requestId: z.string(),
@@ -1350,6 +1406,44 @@ export const ProjectRenameResponsePayloadSchema = z.object({
 export const ProjectRenameResponseSchema = z.object({
   type: z.literal("project.rename.response"),
   payload: ProjectRenameResponsePayloadSchema,
+});
+
+export const LocalOsListOpenTargetsResponseSchema = z.object({
+  type: z.literal("local.os.list_open_targets.response"),
+  payload: z.object({
+    requestId: z.string(),
+    targets: z.array(LocalOsOpenTargetSchema),
+    error: z.string().nullable(),
+  }),
+});
+
+export const LocalOsOpenTargetResponseSchema = z.object({
+  type: z.literal("local.os.open_target.response"),
+  payload: z.object({
+    requestId: z.string(),
+    success: z.boolean(),
+    error: z.string().nullable(),
+  }),
+});
+
+export const LocalFsListRootsResponseSchema = z.object({
+  type: z.literal("local.fs.list_roots.response"),
+  payload: z.object({
+    requestId: z.string(),
+    roots: z.array(LocalFsDirectoryRootSchema),
+    error: z.string().nullable(),
+  }),
+});
+
+export const LocalFsListDirectoryResponseSchema = z.object({
+  type: z.literal("local.fs.list_directory.response"),
+  payload: z.object({
+    requestId: z.string(),
+    path: z.string().min(1),
+    parentPath: z.string().nullable(),
+    entries: z.array(LocalFsDirectoryEntrySchema),
+    error: z.string().nullable(),
+  }),
 });
 
 export const SetVoiceModeResponseMessageSchema = z.object({
@@ -1914,6 +2008,10 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   DaemonAuthListClientsRequestSchema,
   DaemonAuthRevokeClientRequestSchema,
   DaemonAuthChangePasswordRequestSchema,
+  LocalOsListOpenTargetsRequestSchema,
+  LocalOsOpenTargetRequestSchema,
+  LocalFsListRootsRequestSchema,
+  LocalFsListDirectoryRequestSchema,
   GetDaemonConfigRequestMessageSchema,
   SetDaemonConfigRequestMessageSchema,
   ReadProjectConfigRequestMessageSchema,
@@ -2201,6 +2299,8 @@ export const ServerInfoStatusPayloadSchema = z
         providerRemovalSettings: z.boolean().optional(),
         // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
         checkoutMetadataDrafts: z.boolean().optional(),
+        // COMPAT(localOsIntegration): added in v0.1.94, remove gate after 2026-12-08.
+        localOsIntegration: z.boolean().optional(),
       })
       .optional(),
   })
@@ -3926,6 +4026,10 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   DaemonAuthListClientsResponseSchema,
   DaemonAuthRevokeClientResponseSchema,
   DaemonAuthChangePasswordResponseSchema,
+  LocalOsListOpenTargetsResponseSchema,
+  LocalOsOpenTargetResponseSchema,
+  LocalFsListRootsResponseSchema,
+  LocalFsListDirectoryResponseSchema,
   GetDaemonConfigResponseMessageSchema,
   SetDaemonConfigResponseMessageSchema,
   ReadProjectConfigResponseMessageSchema,
@@ -4027,6 +4131,11 @@ export type ServerCapabilityState = z.infer<typeof ServerCapabilityStateSchema>;
 export type ServerVoiceCapabilities = z.infer<typeof ServerVoiceCapabilitiesSchema>;
 export type ServerCapabilities = z.infer<typeof ServerCapabilitiesSchema>;
 export type ServerInfoStatusPayload = z.infer<typeof ServerInfoStatusPayloadSchema>;
+export type LocalOsOpenTarget = z.infer<typeof LocalOsOpenTargetSchema>;
+export type LocalOsOpenTargetKind = z.infer<typeof LocalOsOpenTargetKindSchema>;
+export type LocalOsOpenMode = z.infer<typeof LocalOsOpenModeSchema>;
+export type LocalFsDirectoryRoot = z.infer<typeof LocalFsDirectoryRootSchema>;
+export type LocalFsDirectoryEntry = z.infer<typeof LocalFsDirectoryEntrySchema>;
 export type RpcErrorMessage = z.infer<typeof RpcErrorMessageSchema>;
 export type ArtifactMessage = z.infer<typeof ArtifactMessageSchema>;
 export type AgentUpdateMessage = z.infer<typeof AgentUpdateMessageSchema>;
@@ -4078,6 +4187,10 @@ export type SetAgentFeatureResponseMessage = z.infer<typeof SetAgentFeatureRespo
 export type AgentRewindResponseMessage = z.infer<typeof AgentRewindResponseMessageSchema>;
 export type UpdateAgentResponseMessage = z.infer<typeof UpdateAgentResponseMessageSchema>;
 export type ProjectRenameResponse = z.infer<typeof ProjectRenameResponseSchema>;
+export type LocalOsListOpenTargetsResponse = z.infer<typeof LocalOsListOpenTargetsResponseSchema>;
+export type LocalOsOpenTargetResponse = z.infer<typeof LocalOsOpenTargetResponseSchema>;
+export type LocalFsListRootsResponse = z.infer<typeof LocalFsListRootsResponseSchema>;
+export type LocalFsListDirectoryResponse = z.infer<typeof LocalFsListDirectoryResponseSchema>;
 export type ProjectRenameResponsePayload = z.infer<typeof ProjectRenameResponsePayloadSchema>;
 export type WaitForFinishResponseMessage = z.infer<typeof WaitForFinishResponseMessageSchema>;
 export type AgentPermissionRequestMessage = z.infer<typeof AgentPermissionRequestMessageSchema>;

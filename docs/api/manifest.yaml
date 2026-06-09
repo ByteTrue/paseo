@@ -1,0 +1,15 @@
+project: paseo
+entry_type: endpoint
+source_root: packages/protocol/src
+last_scanned: 2026-06-09
+entries:
+  - entry: local-os-integration-rpc
+    category: daemon-websocket-rpc
+    source_files:
+      - packages/protocol/src/messages.ts
+      - packages/client/src/daemon-client.ts
+      - packages/server/src/server/session.ts
+      - packages/server/src/server/websocket-server.ts
+    doc_path: docs/api/local-os-integration-rpc.md
+    status: current
+    note: Browser localhost local OS and filesystem integration RPC family.

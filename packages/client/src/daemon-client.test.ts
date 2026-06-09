@@ -1890,6 +1890,115 @@ test("requests directory suggestions via RPC", async () => {
   });
 });
 
+test("requests local OS and filesystem integration RPCs", async () => {
+  const logger = createMockLogger();
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_unit_test",
+    logger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+
+  const connectPromise = client.connect();
+  mock.triggerOpen();
+  await connectPromise;
+
+  const targetsPromise = client.listLocalOpenTargets("req-local-targets");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "local.os.list_open_targets.request",
+    requestId: "req-local-targets",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "local.os.list_open_targets.response",
+      payload: {
+        requestId: "req-local-targets",
+        targets: [{ id: "vscode", label: "VS Code", kind: "editor" }],
+        error: null,
+      },
+    }),
+  );
+  await expect(targetsPromise).resolves.toEqual({
+    requestId: "req-local-targets",
+    targets: [{ id: "vscode", label: "VS Code", kind: "editor" }],
+    error: null,
+  });
+
+  const openPromise = client.openLocalTarget(
+    { editorId: "vscode", path: "/repo", cwd: "/repo", mode: "open" },
+    "req-open-local",
+  );
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "local.os.open_target.request",
+    requestId: "req-open-local",
+    editorId: "vscode",
+    path: "/repo",
+    cwd: "/repo",
+    mode: "open",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "local.os.open_target.response",
+      payload: { requestId: "req-open-local", success: true, error: null },
+    }),
+  );
+  await expect(openPromise).resolves.toEqual({
+    requestId: "req-open-local",
+    success: true,
+    error: null,
+  });
+
+  const rootsPromise = client.listLocalDirectoryRoots("req-local-roots");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "local.fs.list_roots.request",
+    requestId: "req-local-roots",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "local.fs.list_roots.response",
+      payload: {
+        requestId: "req-local-roots",
+        roots: [{ id: "home", label: "Home", path: "/Users/test", kind: "home" }],
+        error: null,
+      },
+    }),
+  );
+  await expect(rootsPromise).resolves.toEqual({
+    requestId: "req-local-roots",
+    roots: [{ id: "home", label: "Home", path: "/Users/test", kind: "home" }],
+    error: null,
+  });
+
+  const directoryPromise = client.listLocalDirectory("/Users/test", "req-local-directory");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "local.fs.list_directory.request",
+    requestId: "req-local-directory",
+    path: "/Users/test",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "local.fs.list_directory.response",
+      payload: {
+        requestId: "req-local-directory",
+        path: "/Users/test",
+        parentPath: "/Users",
+        entries: [{ name: "repo", path: "/Users/test/repo", kind: "directory", hidden: false }],
+        error: null,
+      },
+    }),
+  );
+  await expect(directoryPromise).resolves.toEqual({
+    requestId: "req-local-directory",
+    path: "/Users/test",
+    parentPath: "/Users",
+    entries: [{ name: "repo", path: "/Users/test/repo", kind: "directory", hidden: false }],
+    error: null,
+  });
+});
+
 test("requests checkout merge from base via RPC", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();

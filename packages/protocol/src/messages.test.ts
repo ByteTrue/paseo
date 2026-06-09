@@ -1,5 +1,18 @@
 import { describe, expect, test } from "vitest";
-import { FileExplorerRequestSchema, SessionOutboundMessageSchema } from "./messages.js";
+import {
+  FileExplorerRequestSchema,
+  LocalFsListDirectoryRequestSchema,
+  LocalFsListDirectoryResponseSchema,
+  LocalFsListRootsRequestSchema,
+  LocalFsListRootsResponseSchema,
+  LocalOsListOpenTargetsRequestSchema,
+  LocalOsListOpenTargetsResponseSchema,
+  LocalOsOpenTargetRequestSchema,
+  LocalOsOpenTargetResponseSchema,
+  ServerInfoStatusPayloadSchema,
+  SessionInboundMessageSchema,
+  SessionOutboundMessageSchema,
+} from "./messages.js";
 
 function workspaceDescriptor(overrides: Record<string, unknown> = {}) {
   return {
@@ -159,5 +172,160 @@ describe("file explorer request compatibility", () => {
       requestId: "req-new",
       acceptBinary: true,
     });
+  });
+});
+
+describe("local OS integration protocol", () => {
+  test("server_info accepts the localOsIntegration feature flag", () => {
+    const parsed = ServerInfoStatusPayloadSchema.parse({
+      status: "server_info",
+      serverId: "server-1",
+      capabilities: {},
+      features: { localOsIntegration: true },
+    });
+
+    expect(parsed.features?.localOsIntegration).toBe(true);
+  });
+
+  test("local OS open target messages parse", () => {
+    expect(
+      SessionInboundMessageSchema.parse({
+        type: "local.os.list_open_targets.request",
+        requestId: "req-list",
+      }),
+    ).toEqual(
+      LocalOsListOpenTargetsRequestSchema.parse({
+        type: "local.os.list_open_targets.request",
+        requestId: "req-list",
+      }),
+    );
+
+    expect(
+      SessionInboundMessageSchema.parse({
+        type: "local.os.open_target.request",
+        requestId: "req-open",
+        editorId: "vscode",
+        path: "/repo/app/src/index.ts",
+        cwd: "/repo/app",
+        mode: "reveal",
+      }),
+    ).toEqual(
+      LocalOsOpenTargetRequestSchema.parse({
+        type: "local.os.open_target.request",
+        requestId: "req-open",
+        editorId: "vscode",
+        path: "/repo/app/src/index.ts",
+        cwd: "/repo/app",
+        mode: "reveal",
+      }),
+    );
+
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "local.os.list_open_targets.response",
+        payload: {
+          requestId: "req-list",
+          targets: [{ id: "vscode", label: "VS Code", kind: "editor" }],
+          error: null,
+        },
+      }),
+    ).toEqual(
+      LocalOsListOpenTargetsResponseSchema.parse({
+        type: "local.os.list_open_targets.response",
+        payload: {
+          requestId: "req-list",
+          targets: [{ id: "vscode", label: "VS Code", kind: "editor" }],
+          error: null,
+        },
+      }),
+    );
+
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "local.os.open_target.response",
+        payload: { requestId: "req-open", success: true, error: null },
+      }),
+    ).toEqual(
+      LocalOsOpenTargetResponseSchema.parse({
+        type: "local.os.open_target.response",
+        payload: { requestId: "req-open", success: true, error: null },
+      }),
+    );
+  });
+
+  test("local filesystem picker messages parse", () => {
+    expect(
+      SessionInboundMessageSchema.parse({
+        type: "local.fs.list_roots.request",
+        requestId: "req-roots",
+      }),
+    ).toEqual(
+      LocalFsListRootsRequestSchema.parse({
+        type: "local.fs.list_roots.request",
+        requestId: "req-roots",
+      }),
+    );
+
+    expect(
+      SessionInboundMessageSchema.parse({
+        type: "local.fs.list_directory.request",
+        requestId: "req-dir",
+        path: "/Users/byte/Work",
+      }),
+    ).toEqual(
+      LocalFsListDirectoryRequestSchema.parse({
+        type: "local.fs.list_directory.request",
+        requestId: "req-dir",
+        path: "/Users/byte/Work",
+      }),
+    );
+
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "local.fs.list_roots.response",
+        payload: {
+          requestId: "req-roots",
+          roots: [{ id: "home", label: "Home", path: "/Users/byte", kind: "home" }],
+          error: null,
+        },
+      }),
+    ).toEqual(
+      LocalFsListRootsResponseSchema.parse({
+        type: "local.fs.list_roots.response",
+        payload: {
+          requestId: "req-roots",
+          roots: [{ id: "home", label: "Home", path: "/Users/byte", kind: "home" }],
+          error: null,
+        },
+      }),
+    );
+
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "local.fs.list_directory.response",
+        payload: {
+          requestId: "req-dir",
+          path: "/Users/byte/Work",
+          parentPath: "/Users/byte",
+          entries: [
+            { name: "paseo", path: "/Users/byte/Work/paseo", kind: "directory", hidden: false },
+          ],
+          error: null,
+        },
+      }),
+    ).toEqual(
+      LocalFsListDirectoryResponseSchema.parse({
+        type: "local.fs.list_directory.response",
+        payload: {
+          requestId: "req-dir",
+          path: "/Users/byte/Work",
+          parentPath: "/Users/byte",
+          entries: [
+            { name: "paseo", path: "/Users/byte/Work/paseo", kind: "directory", hidden: false },
+          ],
+          error: null,
+        },
+      }),
+    );
   });
 });

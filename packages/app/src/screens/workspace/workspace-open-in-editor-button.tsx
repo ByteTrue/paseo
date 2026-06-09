@@ -20,12 +20,17 @@ import {
 import { useToast } from "@/contexts/toast-context";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { useIsLocalDaemon } from "@/hooks/use-is-local-daemon";
-import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
+import { useLocalOsIntegration } from "@/hooks/use-local-os-integration";
+import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { resolvePreferredEditorId, usePreferredEditor } from "@/hooks/use-preferred-editor";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { isAbsolutePath } from "@/utils/path";
 import { isWeb } from "@/constants/platform";
 import { openDesktopTarget, useDesktopOpenTargets } from "@/workspace/desktop-open-targets";
+import {
+  openLocalTarget as openDaemonLocalTarget,
+  useLocalOpenTargets,
+} from "@/workspace/local-open-targets";
 import { resolveWorkspaceFilePaths, type WorkspaceFileLocation } from "@/workspace/file-open";
 import { planWorkspaceOpenTargets } from "@/workspace/open-target-planner";
 import type { Theme } from "@/styles/theme";
@@ -86,11 +91,20 @@ export function WorkspaceOpenInEditorButton({
   const toast = useToast();
   const isConnected = useHostRuntimeIsConnected(serverId);
   const isLocalDaemon = useIsLocalDaemon(serverId);
+  const canUseLocalOsIntegration = useLocalOsIntegration(serverId);
+  const daemonOpenTargetClient = useHostRuntimeClient(serverId);
   const { preferredEditorId, updatePreferredEditor } = usePreferredEditor();
   const { targets: desktopOpenTargets, isAvailable: isDesktopOpenAvailable } =
     useDesktopOpenTargets({
       isLocalExecution: isLocalDaemon,
     });
+  const shouldUseDaemonOpenTargets = canUseLocalOsIntegration && !isDesktopOpenAvailable;
+  const { targets: daemonOpenTargets, isAvailable: isDaemonOpenAvailable } = useLocalOpenTargets({
+    serverId,
+    enabled: shouldUseDaemonOpenTargets,
+  });
+  const openTargetDescriptors = isDesktopOpenAvailable ? desktopOpenTargets : daemonOpenTargets;
+  const canUseOpenTargets = isDesktopOpenAvailable || isDaemonOpenAvailable;
 
   const resolvedFile = useMemo(
     () =>
@@ -116,9 +130,9 @@ export function WorkspaceOpenInEditorButton({
         workspaceDirectory: cwd,
         activeFile,
         resolvedActiveFile: resolvedFile,
-        desktopTargets: desktopOpenTargets,
-        canUseDesktopBridge: isDesktopOpenAvailable,
-        isLocalExecution: isLocalDaemon,
+        desktopTargets: openTargetDescriptors,
+        canUseDesktopBridge: canUseOpenTargets,
+        isLocalExecution: isLocalDaemon || canUseLocalOsIntegration,
         checkoutStatus,
       }).map((target) => {
         if (target.source === "github") {
@@ -133,16 +147,27 @@ export function WorkspaceOpenInEditorButton({
           id: target.id,
           label: target.label,
           icon: <ThemedEditorAppIcon editorId={target.id} size={16} uniProps={mutedColorMapping} />,
-          onOpen: () => openDesktopTarget(target.openInput),
+          onOpen: () => {
+            if (isDesktopOpenAvailable) {
+              return openDesktopTarget(target.openInput);
+            }
+            if (daemonOpenTargetClient) {
+              return openDaemonLocalTarget(daemonOpenTargetClient, target.openInput);
+            }
+            throw new Error("Local open target client is unavailable");
+          },
         };
       }),
     [
       activeFile,
+      canUseLocalOsIntegration,
+      canUseOpenTargets,
       checkoutStatus,
       cwd,
-      desktopOpenTargets,
+      daemonOpenTargetClient,
       isDesktopOpenAvailable,
       isLocalDaemon,
+      openTargetDescriptors,
       resolvedFile,
     ],
   );

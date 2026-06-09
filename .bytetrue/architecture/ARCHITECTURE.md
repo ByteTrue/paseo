@@ -50,25 +50,27 @@ The heart of Paseo. A Node.js process that:
 - Manages agent lifecycle (create, run, stop, resume, archive)
 - Streams agent output in real time via a timeline model
 - Exposes an MCP server for agent-to-agent control
+- Exposes local-only OS / filesystem integration RPCs for loopback clients, such as editor/file-manager open targets and daemon-backed directory browsing
 - Optionally connects outbound to a relay for remote access
-
-All paths are under `packages/server/src/`.
+  All paths are under `packages/server/src/`.
 
 **Key modules:**
 
-| Module                          | Responsibility                                                               |
-| ------------------------------- | ---------------------------------------------------------------------------- |
-| `server/bootstrap.ts`           | Daemon initialization: HTTP server, WS server, agent manager, storage, relay |
-| `server/websocket-server.ts`    | WebSocket connection management, hello handshake, binary frame routing       |
-| `server/session.ts`             | Per-client session state, timeline subscriptions, terminal operations        |
-| `server/agent/agent-manager.ts` | Agent lifecycle state machine, timeline tracking, subscriber management      |
-| `server/agent/agent-storage.ts` | File-backed JSON persistence at `$PASEO_HOME/agents/`                        |
-| `server/agent/mcp-server.ts`    | MCP server for sub-agent creation, permissions, timeouts                     |
-| `server/agent/providers/`       | Provider adapters (see "Agent providers" below)                              |
-| `server/relay-transport.ts`     | Outbound relay connection with E2E encryption                                |
-| `server/schedule/`              | Cron-based scheduled agents                                                  |
-| `server/loop-service.ts`        | Looping agent runs that retry until an exit condition                        |
-| `server/chat/`                  | Chat rooms for agent-to-agent and human-to-agent messaging                   |
+| Module                          | Responsibility                                                                                       |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `server/bootstrap.ts`           | Daemon initialization: HTTP server, WS server, agent manager, storage, relay                         |
+| `server/websocket-server.ts`    | WebSocket connection management, hello handshake, binary frame routing                               |
+| `server/session.ts`             | Per-client session state, timeline subscriptions, terminal operations                                |
+| `server/agent/agent-manager.ts` | Agent lifecycle state machine, timeline tracking, subscriber management                              |
+| `server/agent/agent-storage.ts` | File-backed JSON persistence at `$PASEO_HOME/agents/`                                                |
+| `server/agent/mcp-server.ts`    | MCP server for sub-agent creation, permissions, timeouts                                             |
+| `server/agent/providers/`       | Provider adapters (see "Agent providers" below)                                                      |
+| `server/relay-transport.ts`     | Outbound relay connection with E2E encryption                                                        |
+| `server/schedule/`              | Cron-based scheduled agents                                                                          |
+| `server/loop-service.ts`        | Looping agent runs that retry until an exit condition                                                |
+| `server/chat/`                  | Chat rooms for agent-to-agent and human-to-agent messaging                                           |
+| `server/local-os/`              | Local-only OS integration helpers such as editor/file-manager target detection and detached launches |
+| `server/local-fs/`              | Local-only filesystem browsing helpers for daemon-backed directory picker data                       |
 
 ### `packages/protocol` — Wire schemas and shared protocol types
 
@@ -175,6 +177,7 @@ New session RPCs use dotted names with `.request` and `.response` suffixes, such
 - Terminal subscribe/input/capture commands
 - Voice/dictation streaming events (`dictation_stream_*`, `assistant_chunk`, `audio_output`, `transcription_result`)
 - Request/response pairs for fetch, list, create, etc., correlated by `requestId`; failures use `rpc_error`
+- Local OS / filesystem integration RPCs (`local.os.*`, `local.fs.*`) are exposed only to loopback/local direct sockets; relay and non-loopback direct TCP clients are rejected at the WebSocket boundary before spawning processes or reading directories
 
 **Binary frames (terminal stream protocol):**
 

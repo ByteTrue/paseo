@@ -645,6 +645,65 @@ describe("relay external socket reconnect behavior", () => {
     await server.close();
   });
 
+  test("allows local OS integration RPCs from direct localhost sockets", async () => {
+    const server = createServer();
+    const socket = new MockSocket();
+    await attachDirectAndHello({
+      server,
+      socket,
+      clientId: "cid-local-os-direct",
+    });
+    const session = sessionMock.instances.at(-1);
+    expect(session).toBeDefined();
+
+    const request = {
+      type: "local.os.list_open_targets.request",
+      requestId: "local-os-direct-1",
+    };
+    socket.emit("message", JSON.stringify({ type: "session", message: request }));
+    await Promise.resolve();
+
+    expect(session?.handleMessage).toHaveBeenCalledWith(request);
+
+    await server.close();
+  });
+
+  test("rejects local OS integration RPCs from relay sockets", async () => {
+    const server = createServer();
+    const socket = new MockSocket();
+    await attachRelayAndHello({
+      server,
+      socket,
+      clientId: "cid-local-os-relay",
+    });
+    const session = sessionMock.instances.at(-1);
+    expect(session).toBeDefined();
+    const callCount = session?.handleMessage.mock.calls.length ?? 0;
+
+    socket.emit(
+      "message",
+      JSON.stringify({
+        type: "session",
+        message: {
+          type: "local.os.list_open_targets.request",
+          requestId: "local-os-relay-1",
+        },
+      }),
+    );
+    await Promise.resolve();
+
+    expect(session?.handleMessage).toHaveBeenCalledTimes(callCount);
+    const lastEnvelope = parseSentEnvelope(socket.sent.at(-1));
+    expect(lastEnvelope.message?.type).toBe("rpc_error");
+    expect(lastEnvelope.message?.payload).toMatchObject({
+      requestId: "local-os-relay-1",
+      requestType: "local.os.list_open_targets.request",
+      code: "local_connection_required",
+    });
+
+    await server.close();
+  });
+
   test("reuses direct session when same clientId reconnects within grace window", async () => {
     const server = createServer();
     const clientId = "cid-direct-reconnect";
