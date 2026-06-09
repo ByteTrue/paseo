@@ -62,6 +62,10 @@ import {
   shouldSuppressWorkspaceForLocalArchive,
 } from "@/contexts/session-workspace-upserts";
 import { isNative } from "@/constants/platform";
+import {
+  getServerInfoDisplayName,
+  resolveHostDisplayNameFromServerInfo,
+} from "@/contexts/session-server-info";
 
 // Re-export types from session-store and draft-store for backward compatibility
 export type { DraftInput } from "@/stores/draft-store";
@@ -79,31 +83,8 @@ export type {
 const HISTORY_STALE_AFTER_MS = 60_000;
 const AUTHORITATIVE_REVALIDATION_DEBOUNCE_MS = 300;
 
-function getServerInfoDisplayName(serverInfo: unknown): string | null {
-  if (!serverInfo || typeof serverInfo !== "object") {
-    return null;
-  }
-  const displayName = (serverInfo as { displayName?: unknown }).displayName;
-  if (typeof displayName !== "string") {
-    return null;
-  }
-  const trimmed = displayName.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function supportsDaemonDisplayName(serverInfo: unknown): boolean {
-  if (!serverInfo || typeof serverInfo !== "object") {
-    return false;
-  }
-  const features = (serverInfo as { features?: Record<string, unknown> }).features;
-  return features?.daemonDisplayName === true;
-}
-
 function syncHostDisplayNameFromServerInfo(serverId: string, serverInfo: unknown): void {
-  if (!supportsDaemonDisplayName(serverInfo)) {
-    return;
-  }
-  const displayName = getServerInfoDisplayName(serverInfo);
+  const displayName = resolveHostDisplayNameFromServerInfo(serverInfo);
   if (!displayName) {
     return;
   }
