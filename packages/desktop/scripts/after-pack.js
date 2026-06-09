@@ -115,6 +115,15 @@ exports.default = async function afterPack(context) {
 
   pruneNativeModules(context.appOutDir, platform, arch);
 
+  if (platform === "darwin") {
+    if (process.env.PASEO_DESKTOP_UNSIGNED_SMOKE === "1") {
+      await smokeUnpackedAppIfRequested(path.join(context.appOutDir, `${EXECUTABLE_NAME}.app`), {
+        launchOnly: true,
+      });
+    }
+    return;
+  }
+
   if (platform === "linux" || platform === "win32") {
     if (arch !== process.arch) {
       console.log(
@@ -126,12 +135,13 @@ exports.default = async function afterPack(context) {
   }
 };
 
-async function smokeUnpackedAppIfRequested(appOutDir) {
+async function smokeUnpackedAppIfRequested(appOutDir, options = {}) {
   if (process.env.PASEO_DESKTOP_SMOKE !== "1") {
     return;
   }
 
   await smokePackagedDesktopApp({
     appPath: appOutDir,
+    ...options,
   });
 }

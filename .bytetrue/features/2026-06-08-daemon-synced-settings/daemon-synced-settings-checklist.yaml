@@ -1,0 +1,101 @@
+doc_type: feature-checklist
+feature: 2026-06-08-daemon-synced-settings
+design: daemon-synced-settings-design.md
+status: completed
+steps:
+  - id: protocol-config
+    title: Extend daemon config and protocol nouns
+    status: completed
+    exit_signal: >-
+      Optional displayName, agentFormPreferences, provider snapshot cache metadata,
+      lastRefreshError, and feature flags parse safely and persist through daemon
+      config without breaking old messages.
+  - id: daemon-display-name
+    title: Make daemon display name daemon-backed
+    status: completed
+    exit_signal: >-
+      Renaming a connected host writes daemon config when supported, server_info
+      exposes the daemon display name, and a fresh browser can sync that name into
+      its host label cache without relying on local rename state.
+  - id: agent-form-preferences
+    title: Move create-agent preferences to daemon-backed state
+    status: completed
+    exit_signal: >-
+      Provider/model/mode/thinking/feature preference updates and favorite model
+      toggles read and write daemon-backed preferences for the selected server,
+      with local storage used only for old daemons or one-time migration.
+  - id: provider-catalog-cache
+    title: Add daemon-side provider catalog cache
+    status: completed
+    exit_signal: >-
+      Cold provider snapshot reads can seed memory from a daemon disk cache,
+      return cached model/mode entries immediately, and refresh providers in the
+      background before broadcasting fresh results.
+  - id: docs-tests
+    title: Update docs and targeted tests
+    status: completed
+    exit_signal: >-
+      Data model/provider architecture docs and focused tests cover daemon display
+      name, agent form preferences, provider cache persistence, stale refresh
+      behavior, and compatibility gates.
+checks:
+  - id: scope-no-metadata-generation
+    category: scope
+    status: passed
+    description: >-
+      The feature does not change metadata generation settings for agent title,
+      branch name, commit message, or PR text.
+  - id: scope-no-browser-private-state
+    category: scope
+    status: passed
+    description: >-
+      The feature does not sync browser auth private keys, admin password state,
+      theme/font/send behavior, endpoint bookmarks, or cloud/account state.
+  - id: daemon-display-name-portable
+    category: acceptance
+    status: passed
+    description: >-
+      Given a daemon display name is set, a brand-new browser connected to the
+      same daemon shows that display name before any local host rename.
+  - id: agent-preferences-portable
+    category: acceptance
+    status: passed
+    description: >-
+      Given browser A selected create-agent defaults and favorite models, browser
+      B connected to the same daemon sees those defaults and favorites after
+      daemon config loads.
+  - id: provider-cache-bootstrap
+    category: acceptance
+    status: passed
+    description: >-
+      Given a daemon has a previous provider catalog cache, a new client can render
+      cached model/mode entries immediately and later receives a fresh provider
+      snapshot update.
+  - id: provider-cache-error-semantics
+    category: acceptance
+    status: passed
+    description: >-
+      Given live provider refresh fails after cached entries are returned, cached
+      entries remain visible as last-known data and the latest error is observable
+      through lastRefreshError instead of silently clearing model selectors.
+  - id: provider-removal-prunes-cache
+    category: acceptance
+    status: passed
+    description: >-
+      Given a provider is removed from daemon config, cached entries for that
+      provider stop appearing in future snapshots.
+  - id: compatibility-gates
+    category: protocol
+    status: passed
+    description: >-
+      New protocol/config fields are optional and new app behavior is gated on
+      server_info.features flags with COMPAT cleanup comments.
+verification:
+  - npm run build:server
+  - npm run typecheck
+  - npm --workspace-root run lint
+  - npx vitest run packages/server/src/server/daemon-config-store.test.ts --bail=1
+  - npx vitest run packages/server/src/server/persisted-config.test.ts --bail=1
+  - npx vitest run packages/server/src/server/agent/provider-snapshot-cache-store.test.ts --bail=1
+  - npx vitest run packages/server/src/server/agent/provider-snapshot-manager.test.ts --bail=1
+  - npx vitest run packages/server/src/server/bootstrap.smoke.test.ts --bail=1

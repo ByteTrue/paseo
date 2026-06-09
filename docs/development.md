@@ -8,18 +8,26 @@
 ## Running the dev server
 
 ```bash
-npm run dev
+npm run dev:server
+npm run dev:app
+npm run dev:desktop
 ```
 
-`scripts/dev.sh` runs the daemon and Expo together via `concurrently`, fronted by [`portless`](https://www.npmjs.com/package/portless) so each service is reachable at a stable name like `https://daemon.localhost` / `https://app.localhost` instead of a fixed port. The underlying TCP ports are ephemeral — never hardcode them. (Windows uses `scripts/dev.ps1`, which still binds the daemon to `localhost:6767` directly.)
+Root checkout dev is intentionally split across terminals:
+
+- `npm run dev:server` runs the daemon on `127.0.0.1:6768`.
+- `npm run dev:app` runs Expo on `http://localhost:8081` and connects to the dev daemon.
+- `npm run dev:desktop` runs its own Electron-flavored Expo server on the first free port from `8082` through `8089`. It never claims port `8081`.
+
+`npm run dev` is only a shorthand for `npm run dev:server`. Keep `127.0.0.1:6767` for the packaged app and production-style `~/.paseo` state.
 
 ### PASEO_HOME
 
 `PASEO_HOME` is the directory that holds runtime state (agents, sockets, daemon log). Resolution rules:
 
 - The **server itself** (e.g. when launched by the desktop app or `npm run start`) defaults to `~/.paseo` (see `packages/server/src/server/paseo-home.ts`).
-- **`npm run dev` from a git worktree** derives a stable home like `~/.paseo-<worktree-name>` and, on first run, seeds it from `~/.paseo` by copying agent/project JSON metadata and `config.json`. Checkout/worktree directories are not copied.
-- **`npm run dev` from the main checkout** (not a worktree) uses a fresh `mktemp` directory under `$TMPDIR` and removes it on exit. Set `PASEO_HOME` explicitly to keep state across runs.
+- **Repo dev scripts** default to `$ROOT/.dev/paseo-home`, where `$ROOT` is the current checkout or worktree root. This keeps all dev state disposable with the checkout.
+- **Paseo-created worktrees** seed `$PASEO_WORKTREE_PATH/.dev/paseo-home` from `$PASEO_SOURCE_CHECKOUT_PATH/.dev/paseo-home` by copying durable JSON metadata. Runtime files like pid files, sockets, and logs are not copied.
 
 Override knobs:
 
@@ -47,10 +55,12 @@ instead of skills actions.
 ### Daemon endpoints
 
 - Stable daemon launched by the desktop app: `localhost:6767`.
-- `npm run dev` (macOS/Linux): portless URLs only — read them from the `dev.sh` banner or `portless get daemon` / `portless get app`.
+- Root checkout dev daemon: `localhost:6768`.
+- Root checkout Expo: `http://localhost:8081`.
+- Root checkout desktop dev Expo: first free port from `8082` through `8089`.
 - `npm run dev` (Windows): `localhost:6767` for the daemon.
 
-In any worktree-style or portless setup, never assume default ports.
+In Paseo-managed worktree services, use the injected service environment rather than hardcoded root checkout ports.
 
 The daemon treats the configured HTTP(S) `app.baseUrl` origin as an allowed browser origin for CORS and WebSocket upgrades. Non-HTTP app URLs are ignored for origin allowlisting. This keeps direct browser-to-local-daemon connections working for existing homes even when `daemon.cors.allowedOrigins` was never written to `config.json`.
 
@@ -58,7 +68,8 @@ The daemon treats the configured HTTP(S) `app.baseUrl` origin as an allowed brow
 
 `npm run dev:desktop` starts Electron with Chromium remote debugging enabled on
 `http://127.0.0.1:9223` so renderer CPU profiles can be captured through CDP.
-Override the port with `PASEO_ELECTRON_REMOTE_DEBUGGING_PORT` when `9223` is busy.
+It launches its own Electron-flavored Expo server and passes that URL to Electron.
+Override the CDP port with `PASEO_ELECTRON_REMOTE_DEBUGGING_PORT` when `9223` is busy.
 
 ### React render profiling
 
@@ -294,7 +305,7 @@ Get the session ID from the agent JSON (`persistence.sessionId`), then:
 
 ## Testing with Playwright MCP
 
-Point Playwright MCP at the running Expo web target. Under `npm run dev` (macOS/Linux) that is the portless URL printed in the dev banner — typically `https://app.localhost`. If you start Expo directly with `expo start --web` (no portless), Metro defaults to `http://localhost:8081`.
+Point Playwright MCP at the running Expo web target. For root checkout dev, `npm run dev:app` reserves `http://localhost:8081`. For Paseo-managed worktree app services, use the service URL or port shown by Paseo for that worktree.
 
 Do NOT use browser history (back/forward). Always navigate by clicking UI elements or using `browser_navigate` with the full URL — the app uses client-side routing and browser history breaks state.
 

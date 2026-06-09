@@ -1269,7 +1269,7 @@ function AgentComposerSection({
     return null;
   }
   if (archivedAt) {
-    return <ArchivedAgentCallout serverId={serverId} agentId={agentId} />;
+    return <ArchivedAgentCallout serverId={serverId} agentId={agentId} cwd={cwd} />;
   }
   if (isArchivingCurrentAgent) {
     return null;

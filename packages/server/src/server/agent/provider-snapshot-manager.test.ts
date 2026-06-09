@@ -48,6 +48,14 @@ function createExtraClient(
   } satisfies AgentClient;
 }
 
+function findSnapshotEntry(
+  manager: ProviderSnapshotManager,
+  provider: AgentProvider,
+  cwd = "/tmp/project",
+): ReturnType<ProviderSnapshotManager["getSnapshot"]>[number] | undefined {
+  return manager.getSnapshot(cwd).find((entry) => entry.provider === provider);
+}
+
 describe("ProviderSnapshotManager public surface", () => {
   test("listRegisteredProviderIds includes the built-in providers", () => {
     const manager = new ProviderSnapshotManager({ logger: createTestLogger() });
@@ -103,6 +111,112 @@ describe("ProviderSnapshotManager public surface", () => {
     }
   });
 
+  test("getSnapshot seeds cold snapshots from the provider cache", () => {
+    const cacheStore = {
+      read: vi.fn(() => [
+        {
+          provider: "codex" as AgentProvider,
+          label: "Codex",
+          enabled: true,
+          status: "ready" as const,
+          models: [
+            { provider: "codex" as AgentProvider, id: "gpt-5.4-mini", label: "GPT 5.4 Mini" },
+          ],
+          fetchedAt: "2026-06-08T00:00:00.000Z",
+          cacheState: "cached" as const,
+          cacheGeneratedAt: "2026-06-08T00:00:00.000Z",
+        },
+      ]),
+      write: vi.fn(),
+      retainProviders: vi.fn(),
+    };
+    const manager = new ProviderSnapshotManager({
+      logger: createTestLogger(),
+      providerOverrides: {
+        claude: { enabled: false },
+        codex: { enabled: true },
+        copilot: { enabled: false },
+        opencode: { enabled: false },
+        pi: { enabled: false },
+      },
+      extraClients: {
+        codex: createExtraClient("codex", {
+          isAvailable: vi.fn(async () => false),
+        }),
+      },
+      cacheStore,
+    });
+    try {
+      const snapshot = manager.getSnapshot("/tmp/project");
+      const codex = snapshot.find((entry) => entry.provider === "codex");
+
+      expect(cacheStore.read).toHaveBeenCalledWith(resolve("/tmp/project"));
+      expect(codex).toMatchObject({
+        provider: "codex",
+        status: "ready",
+        cacheState: "cached",
+        cacheGeneratedAt: "2026-06-08T00:00:00.000Z",
+      });
+    } finally {
+      manager.destroy();
+    }
+  });
+
+  test("refresh failure preserves cached ready models as last-known data", async () => {
+    const isAvailable = vi.fn(async () => false);
+    const cacheStore = {
+      read: vi.fn(() => [
+        {
+          provider: "codex" as AgentProvider,
+          label: "Codex",
+          enabled: true,
+          status: "ready" as const,
+          models: [
+            { provider: "codex" as AgentProvider, id: "gpt-5.4-mini", label: "GPT 5.4 Mini" },
+          ],
+          modes: [{ id: "auto", label: "Auto" }],
+          fetchedAt: "2026-06-08T00:00:00.000Z",
+          cacheState: "cached" as const,
+          cacheGeneratedAt: "2026-06-08T00:00:00.000Z",
+        },
+      ]),
+      write: vi.fn(),
+      retainProviders: vi.fn(),
+    };
+    const manager = new ProviderSnapshotManager({
+      logger: createTestLogger(),
+      providerOverrides: {
+        claude: { enabled: false },
+        codex: { enabled: true },
+        copilot: { enabled: false },
+        opencode: { enabled: false },
+        pi: { enabled: false },
+      },
+      extraClients: {
+        codex: createExtraClient("codex", { isAvailable }),
+      },
+      cacheStore,
+    });
+    try {
+      expect(findSnapshotEntry(manager, "codex")).toMatchObject({
+        status: "ready",
+        models: [{ provider: "codex", id: "gpt-5.4-mini", label: "GPT 5.4 Mini" }],
+      });
+
+      await vi.waitFor(() => expect(isAvailable).toHaveBeenCalled());
+      await vi.waitFor(() =>
+        expect(findSnapshotEntry(manager, "codex")).toMatchObject({
+          status: "ready",
+          models: [{ provider: "codex", id: "gpt-5.4-mini", label: "GPT 5.4 Mini" }],
+          cacheState: "cached",
+          lastRefreshError: "Provider unavailable",
+        }),
+      );
+    } finally {
+      manager.destroy();
+    }
+  });
+
   test("providerOverrides with enabled:false marks the provider as unavailable without probing", async () => {
     const isAvailable = vi.fn(async () => true);
     const fetchModels = vi.fn(async () => [] as AgentModelDefinition[]);
@@ -153,6 +267,90 @@ describe("ProviderSnapshotManager public surface", () => {
       expect(isAvailable).toHaveBeenCalledTimes(1);
     } finally {
       manager.destroy();
+    }
+  });
+
+  test("refreshTimeoutMs option overrides the default and yields a timeout error", async () => {
+    // never-resolving isAvailable forces the timeout path
+    const isAvailable = vi.fn(() => new Promise<boolean>(() => {}));
+    const manager = new ProviderSnapshotManager({
+      logger: createTestLogger(),
+      refreshTimeoutMs: 1,
+      providerOverrides: {
+        claude: { enabled: false },
+        copilot: { enabled: false },
+        opencode: { enabled: false },
+        pi: { enabled: false },
+      },
+      extraClients: { codex: createExtraClient("codex", { isAvailable }) },
+    });
+    try {
+      const entry = await manager.getProvider({
+        cwd: "/tmp/project",
+        provider: "codex",
+        wait: true,
+      });
+      expect(entry.provider).toBe("codex");
+      expect(entry.status).toBe("error");
+      expect(entry.error).toMatch(/after 1ms/);
+    } finally {
+      manager.destroy();
+    }
+  });
+
+  test("PASEO_PROVIDER_REFRESH_TIMEOUT_MS env var is honored when no option is given", async () => {
+    vi.stubEnv("PASEO_PROVIDER_REFRESH_TIMEOUT_MS", "1");
+    const isAvailable = vi.fn(() => new Promise<boolean>(() => {}));
+    const manager = new ProviderSnapshotManager({
+      logger: createTestLogger(),
+      providerOverrides: {
+        claude: { enabled: false },
+        copilot: { enabled: false },
+        opencode: { enabled: false },
+        pi: { enabled: false },
+      },
+      extraClients: { codex: createExtraClient("codex", { isAvailable }) },
+    });
+    try {
+      const entry = await manager.getProvider({
+        cwd: "/tmp/project",
+        provider: "codex",
+        wait: true,
+      });
+      expect(entry.status).toBe("error");
+      expect(entry.error).toMatch(/after 1ms/);
+    } finally {
+      manager.destroy();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  test("PASEO_PROVIDER_REFRESH_TIMEOUT_MS env var is ignored when option is provided", async () => {
+    vi.stubEnv("PASEO_PROVIDER_REFRESH_TIMEOUT_MS", "1");
+    const isAvailable = vi.fn(() => new Promise<boolean>(() => {}));
+    const manager = new ProviderSnapshotManager({
+      logger: createTestLogger(),
+      refreshTimeoutMs: 5,
+      providerOverrides: {
+        claude: { enabled: false },
+        copilot: { enabled: false },
+        opencode: { enabled: false },
+        pi: { enabled: false },
+      },
+      extraClients: { codex: createExtraClient("codex", { isAvailable }) },
+    });
+    try {
+      const entry = await manager.getProvider({
+        cwd: "/tmp/project",
+        provider: "codex",
+        wait: true,
+      });
+      expect(entry.status).toBe("error");
+      // explicit option (5) wins over env var (1)
+      expect(entry.error).toMatch(/after 5ms/);
+    } finally {
+      manager.destroy();
+      vi.unstubAllEnvs();
     }
   });
 

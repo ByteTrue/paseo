@@ -14,6 +14,11 @@ export interface McpStdioServerConfig {
   command: string;
   args?: string[];
   env?: Record<string, string>;
+  /**
+   * When true, all tools from this server are always included in the prompt
+   * and never deferred behind tool search. Honored by the Claude provider.
+   */
+  alwaysLoad?: boolean;
 }
 
 /**
@@ -23,6 +28,11 @@ export interface McpHttpServerConfig {
   type: "http";
   url: string;
   headers?: Record<string, string>;
+  /**
+   * When true, all tools from this server are always included in the prompt
+   * and never deferred behind tool search. Honored by the Claude provider.
+   */
+  alwaysLoad?: boolean;
 }
 
 /**
@@ -32,6 +42,11 @@ export interface McpSseServerConfig {
   type: "sse";
   url: string;
   headers?: Record<string, string>;
+  /**
+   * When true, all tools from this server are always included in the prompt
+   * and never deferred behind tool search. Honored by the Claude provider.
+   */
+  alwaysLoad?: boolean;
 }
 
 /**
@@ -91,6 +106,9 @@ export interface ProviderSnapshotEntry {
   description?: string;
   defaultModeId?: string | null;
   canRemove?: boolean;
+  cacheState?: "live" | "cached";
+  cacheGeneratedAt?: string;
+  lastRefreshError?: string;
 }
 
 export interface AgentFeatureToggle {

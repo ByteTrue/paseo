@@ -16,6 +16,7 @@ import {
   type SessionOutboundMessage,
   type FileExplorerRequest,
   type FileDownloadTokenRequest,
+  type FileUploadRequest,
   type GitSetupOptions,
   type CheckoutRenameBranchRequest,
   type StartWorkspaceScriptRequest,
@@ -30,10 +31,12 @@ import {
 import type { TerminalManager } from "../terminal/terminal-manager.js";
 import { TerminalSessionController } from "../terminal/terminal-session-controller.js";
 import {
+  type BinaryFrame,
   encodeFileTransferFrame,
   FileTransferOpcode,
-  type TerminalStreamFrame,
+  type FileTransferFrame,
 } from "@bytetrue/protocol/binary-frames/index";
+import { FileUploadStore } from "./file-upload/index.js";
 import { CursorError } from "./pagination/cursor.js";
 import { SortablePager, type SortSpec } from "./pagination/sortable-pager.js";
 import { TTSManager } from "./agent/tts-manager.js";
@@ -853,6 +856,7 @@ export class Session {
   private readonly workspaceSetupSnapshots: Map<string, WorkspaceSetupSnapshot>;
   private readonly workspaceGitFetchSubscriptions = new Map<string, () => void>();
   private readonly workspaceGitSubscriptions = new Map<string, () => void>();
+  private readonly fileUploads: FileUploadStore;
   private readonly workspaceDirectory: WorkspaceDirectory;
   private registerVoiceSpeakHandler?: (agentId: string, handler: VoiceSpeakHandler) => void;
   private unregisterVoiceSpeakHandler?: (agentId: string) => void;
@@ -922,6 +926,7 @@ export class Session {
     this.onLifecycleIntent = onLifecycleIntent ?? null;
     this.downloadTokenStore = downloadTokenStore;
     this.pushTokenStore = pushTokenStore;
+    this.fileUploads = new FileUploadStore({ paseoHome });
     this.paseoHome = paseoHome;
     this.worktreesRoot = worktreesRoot;
     this.sessionLogger = logger.child({
@@ -2389,6 +2394,9 @@ export class Session {
         return this.handleProjectIconRequest(msg);
       case "file_download_token_request":
         return this.handleFileDownloadTokenRequest(msg);
+      case "file.upload.request":
+        this.handleFileUploadRequest(msg);
+        return undefined;
       default:
         return undefined;
     }
@@ -2493,8 +2501,12 @@ export class Session {
     this.peakInflightRequests = this.inflightRequests;
   }
 
-  public handleBinaryFrame(frame: TerminalStreamFrame): void {
-    this.terminalController.handleBinaryFrame(frame);
+  public async handleBinaryFrame(binaryFrame: BinaryFrame): Promise<void> {
+    if (binaryFrame.kind === "file_transfer") {
+      await this.handleFileTransferFrame(binaryFrame.frame);
+      return;
+    }
+    this.terminalController.handleBinaryFrame(binaryFrame.frame);
   }
 
   private async handleRestartServerRequest(requestId: string, reason?: string): Promise<void> {
@@ -3801,6 +3813,12 @@ export class Session {
     workspace: PersistedWorkspaceRecord;
     firstAgentContext: FirstAgentContext;
   }): Promise<PersistedWorkspaceRecord> {
+    if (
+      this.readStructuredGenerationDaemonConfig().metadataGeneration?.branchName?.enabled === false
+    ) {
+      return input.workspace;
+    }
+
     const result = await attemptFirstAgentBranchAutoName({
       cwd: input.workspace.cwd,
       firstAgentContext: input.firstAgentContext,
@@ -6189,6 +6207,17 @@ export class Session {
           requestId,
         },
       });
+    }
+  }
+
+  private handleFileUploadRequest(request: FileUploadRequest): void {
+    this.fileUploads.beginUpload(request);
+  }
+
+  private async handleFileTransferFrame(frame: FileTransferFrame): Promise<void> {
+    const response = await this.fileUploads.receiveFrame(frame);
+    if (response) {
+      this.emit(response);
     }
   }
 

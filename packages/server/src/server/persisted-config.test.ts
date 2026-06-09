@@ -561,6 +561,39 @@ describe("PersistedConfigSchema voice mode config", () => {
   });
 });
 
+describe("loadPersistedConfig", () => {
+  test("accepts the documented config schema marker", () => {
+    const home = createTempHome();
+    const configPath = path.join(home, "config.json");
+    try {
+      writeFileSync(
+        configPath,
+        `${JSON.stringify(
+          {
+            $schema: "https://paseo.sh/schemas/paseo.config.v1.json",
+            version: 1,
+            daemon: {
+              listen: "127.0.0.1:6767",
+              hostnames: ["localhost", ".localhost"],
+              mcp: { enabled: true },
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+
+      const config = loadPersistedConfig(home);
+
+      expect(config.daemon?.listen).toBe("127.0.0.1:6767");
+      expect(config.daemon?.hostnames).toEqual(["localhost", ".localhost"]);
+      expect(config.daemon?.mcp?.enabled).toBe(true);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
 describe.skipIf(process.platform === "win32")("persisted config file permissions", () => {
   test("initializes config.json with private permissions", () => {
     const home = createTempHome();
@@ -604,4 +637,32 @@ describe.skipIf(process.platform === "win32")("persisted config file permissions
       rmSync(home, { recursive: true, force: true });
     }
   });
+});
+
+test("persisted config accepts daemon display name and agent form preferences", () => {
+  const parsed = PersistedConfigSchema.parse({
+    daemon: {
+      displayName: "Studio Mac",
+    },
+    agents: {
+      formPreferences: {
+        provider: "codex",
+        providerPreferences: {
+          codex: {
+            model: "gpt-5.4-mini",
+            mode: "auto",
+            thinkingByModel: { "gpt-5.4-mini": "medium" },
+            featureValues: { webSearch: true },
+          },
+        },
+        favoriteModels: [{ provider: "codex", modelId: "gpt-5.4-mini" }],
+      },
+    },
+  });
+
+  expect(parsed.daemon?.displayName).toBe("Studio Mac");
+  expect(parsed.agents?.formPreferences?.provider).toBe("codex");
+  expect(parsed.agents?.formPreferences?.favoriteModels).toEqual([
+    { provider: "codex", modelId: "gpt-5.4-mini" },
+  ]);
 });

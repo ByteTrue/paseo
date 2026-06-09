@@ -158,14 +158,41 @@ jobs:
           PASEO_DESKTOP_SMOKE: "1"
         run: |
           set -euo pipefail
+
+          mac_signing_available=false
+          if [[ -n "${CSC_LINK:-}" && -n "${CSC_KEY_PASSWORD:-}" ]]; then
+            mac_signing_available=true
+          fi
+
+          mac_notarize_available=false
+          if [[ "$mac_signing_available" == "true" && -n "${APPLE_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+            mac_notarize_available=true
+          fi
+
           for signing_env in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
             if [[ -z "${!signing_env:-}" ]]; then
               unset "$signing_env"
             fi
           done
+
           build_args=(-- --publish never --mac --${{ matrix.electron_arch }})
           build_args+=("-c.publish.releaseType=$RELEASE_TYPE")
           build_args+=("-c.publish.channel=$RELEASE_CHANNEL")
+
+          if [[ "$mac_signing_available" == "true" ]]; then
+            build_args+=("-c.mac.hardenedRuntime=true")
+          else
+            echo "::warning::Apple signing certificate is not configured; building an unsigned macOS artifact without hardened runtime so xattr-unquarantined installs can launch."
+            export PASEO_DESKTOP_UNSIGNED_SMOKE=1
+            build_args+=("-c.mac.hardenedRuntime=false")
+          fi
+
+          if [[ "$mac_notarize_available" == "true" ]]; then
+            build_args+=("-c.mac.notarize=true")
+          else
+            build_args+=("-c.mac.notarize=false")
+          fi
+
           npm run build:desktop "${build_args[@]}"
 
       - name: Upload desktop artifacts to release

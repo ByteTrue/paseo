@@ -102,6 +102,14 @@ vi.mock("./push/push-service.js", () => ({
   },
 }));
 
+vi.mock("./auth.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./auth.js")>();
+  return {
+    ...actual,
+    isBearerTokenValidAsync: vi.fn(async (input) => actual.isBearerTokenValidSync(input)),
+  };
+});
+
 import { z } from "zod";
 import { VoiceAssistantWebSocketServer } from "./websocket-server";
 import { parseServerInfoStatusPayload } from "./messages.js";
@@ -109,6 +117,7 @@ import type { SpeechReadinessSnapshot } from "./speech/speech-runtime.js";
 
 interface WebSocketServerInternals {
   attachSocket(ws: unknown, req: unknown): Promise<void>;
+  socketMessageQueues: Map<unknown, Promise<void>>;
 }
 
 const TEST_DAEMON_VERSION = "1.2.3-test";
@@ -155,9 +164,12 @@ function getServerInfoEnvelopes(sent: unknown[]) {
 }
 
 const BinaryFrameSchema = z.object({
-  opcode: z.number(),
-  slot: z.number(),
-  payload: z.instanceof(Uint8Array),
+  kind: z.literal("terminal"),
+  frame: z.object({
+    opcode: z.number(),
+    slot: z.number(),
+    payload: z.instanceof(Uint8Array),
+  }),
 });
 
 class MockSocket {
@@ -221,6 +233,7 @@ function createServer(options?: { speechReadiness?: SpeechReadinessSnapshot | nu
   const speechReadiness = options?.speechReadiness ?? null;
   const daemonConfigStore = {
     onChange: vi.fn(() => () => {}),
+    get: vi.fn(() => ({ displayName: "" })),
   };
   return new VoiceAssistantWebSocketServer(
     createStub<HTTPServer>({}),
@@ -399,7 +412,7 @@ async function attachRelayAndHello(params: {
 }) {
   await params.server.attachExternalSocket(params.socket, { transport: "relay" });
   params.socket.emit("message", JSON.stringify(createHelloMessage(params.clientId)));
-  await Promise.resolve();
+  await waitForSocketMessages(params.server, params.socket);
   expect(params.socket.sent.length).toBeGreaterThan(0);
   const challengeEnvelope = parseSentEnvelope(params.socket.sent[0]);
   expect(challengeEnvelope.type).toBe("session");
@@ -430,6 +443,7 @@ async function attachRelayAndHello(params: {
       },
     }),
   );
+  await waitForSocketMessages(params.server, params.socket);
   await vi.waitFor(() => {
     const hasServerInfo = params.socket.sent
       .map(parseSentEnvelope)
@@ -454,7 +468,7 @@ async function attachDirectAndHello(params: {
     createDirectRequest(),
   );
   params.socket.emit("message", JSON.stringify(createHelloMessage(params.clientId)));
-  await Promise.resolve();
+  await waitForSocketMessages(params.server, params.socket);
   expect(params.socket.sent.length).toBeGreaterThan(0);
   const envelope = parseSentEnvelope(params.socket.sent[0]);
   expect(envelope.type).toBe("session");
@@ -482,6 +496,13 @@ interface TestAuthAdministration {
 
 function getAuthAdministration(session: InstanceType<typeof sessionMock.MockSession>) {
   return session.args.authAdministration as TestAuthAdministration;
+}
+
+async function waitForSocketMessages(
+  server: VoiceAssistantWebSocketServer,
+  socket: MockSocket,
+): Promise<void> {
+  await asInternals<WebSocketServerInternals>(server).socketMessageQueues.get(socket);
 }
 
 describe("relay external socket reconnect behavior", () => {
@@ -539,7 +560,7 @@ describe("relay external socket reconnect behavior", () => {
         }),
       ),
     );
-    await Promise.resolve();
+    await waitForSocketMessages(server, socket);
 
     expect(sessionMock.instances).toHaveLength(1);
     const session = sessionMock.instances[0];
@@ -636,7 +657,7 @@ describe("relay external socket reconnect behavior", () => {
         },
       }),
     );
-    await Promise.resolve();
+    await waitForSocketMessages(server, socket);
 
     expect(closeCode).toBe(4002);
     expect(["Invalid hello", "Session message before hello"]).toContain(closeReason);
@@ -1037,10 +1058,10 @@ describe("relay external socket reconnect behavior", () => {
         }),
       ),
     );
-    await Promise.resolve();
+    await waitForSocketMessages(server, socket);
 
     expect(session.handleBinaryFrame).toHaveBeenCalledTimes(1);
-    const frame = BinaryFrameSchema.parse(session.handleBinaryFrame.mock.calls[0]?.[0]);
+    const { frame } = BinaryFrameSchema.parse(session.handleBinaryFrame.mock.calls[0]?.[0]);
     expect(frame.opcode).toBe(TerminalStreamOpcode.Input);
     expect(frame.slot).toBe(9);
     expect(new TextDecoder().decode(frame.payload)).toBe("ls\r");

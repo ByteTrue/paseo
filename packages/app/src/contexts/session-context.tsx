@@ -28,9 +28,6 @@ import {
 } from "@bytetrue/protocol/agent-attention-notification";
 import type { AgentLifecycleStatus } from "@bytetrue/protocol/agent-lifecycle";
 import type { DaemonClient } from "@bytetrue/client/internal/daemon-client";
-import type { AgentSessionConfig } from "@bytetrue/protocol/agent-types";
-import type { GitSetupOptions } from "@bytetrue/protocol/messages";
-import type { AgentPermissionResponse } from "@bytetrue/protocol/agent-types";
 import { getHostRuntimeStore, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { useVoiceAudioEngineOptional, useVoiceRuntimeOptional } from "@/contexts/voice-context";
 import type { AudioPlaybackSource } from "@/voice/audio-engine-types";
@@ -65,8 +62,10 @@ import {
   shouldSuppressWorkspaceForLocalArchive,
 } from "@/contexts/session-workspace-upserts";
 import { isNative } from "@/constants/platform";
-import { useToast } from "@/contexts/toast-context";
-import { toErrorMessage } from "@/utils/error-messages";
+import {
+  getServerInfoDisplayName,
+  resolveHostDisplayNameFromServerInfo,
+} from "@/contexts/session-server-info";
 
 // Re-export types from session-store and draft-store for backward compatibility
 export type { DraftInput } from "@/stores/draft-store";
@@ -83,6 +82,14 @@ export type {
 
 const HISTORY_STALE_AFTER_MS = 60_000;
 const AUTHORITATIVE_REVALIDATION_DEBOUNCE_MS = 300;
+
+function syncHostDisplayNameFromServerInfo(serverId: string, serverInfo: unknown): void {
+  const displayName = resolveHostDisplayNameFromServerInfo(serverInfo);
+  if (!displayName) {
+    return;
+  }
+  void getHostRuntimeStore().syncHostDisplayName(serverId, displayName);
+}
 
 function hasAgentUsageChanged(
   incomingUsage: Agent["lastUsage"] | undefined,
@@ -443,7 +450,6 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   const voiceAudioEngine = useVoiceAudioEngineOptional();
   const queryClient = useQueryClient();
   const isConnected = useHostRuntimeIsConnected(serverId);
-  const toast = useToast();
 
   // Zustand store actions
   const initializeSession = useSessionStore((state) => state.initializeSession);
@@ -498,7 +504,6 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       ) => Promise<void>)
     | null
   >(null);
-  const _sessionStateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attentionNotifiedRef = useRef<Map<string, number>>(new Map());
   const appStateRef = useRef(AppState.currentState);
   const revalidationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -882,10 +887,12 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     updateSessionServerInfo(serverId, {
       serverId: serverInfo.serverId,
       hostname: serverInfo.hostname,
+      displayName: getServerInfoDisplayName(serverInfo),
       version: serverInfo.version,
       ...(serverInfo.capabilities ? { capabilities: serverInfo.capabilities } : {}),
       ...(serverInfo.features ? { features: serverInfo.features } : {}),
     });
+    syncHostDisplayNameFromServerInfo(serverId, serverInfo);
   }, [client, serverId, updateSessionServerInfo]);
 
   useEffect(() => {
@@ -1319,10 +1326,12 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         updateSessionServerInfo(serverId, {
           serverId: serverInfo.serverId,
           hostname: serverInfo.hostname,
+          displayName: getServerInfoDisplayName(serverInfo),
           version: serverInfo.version,
           ...(serverInfo.capabilities ? { capabilities: serverInfo.capabilities } : {}),
           ...(serverInfo.features ? { features: serverInfo.features } : {}),
         });
+        syncHostDisplayNameFromServerInfo(serverId, serverInfo);
         return;
       }
     });
@@ -1750,155 +1759,6 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
 
   // Keep the ref updated so the agent_update handler can call it
   sendAgentMessageRef.current = sendAgentMessage;
-
-  const _cancelAgentRun = useCallback(
-    (agentId: string) => {
-      if (!client) {
-        console.warn("[Session] cancelAgent skipped: daemon unavailable");
-        return;
-      }
-      void client.cancelAgent(agentId).catch((error) => {
-        console.error("[Session] Failed to cancel agent:", error);
-      });
-    },
-    [client],
-  );
-
-  const _deleteAgent = useCallback(
-    (agentId: string) => {
-      if (!client) {
-        console.warn("[Session] deleteAgent skipped: daemon unavailable");
-        return;
-      }
-      void client.deleteAgent(agentId).catch((error) => {
-        console.error("[Session] Failed to delete agent:", error);
-      });
-    },
-    [client],
-  );
-
-  const _archiveAgent = useCallback(
-    (agentId: string) => {
-      if (!client) {
-        console.warn("[Session] archiveAgent skipped: daemon unavailable");
-        return;
-      }
-      void client.archiveAgent(agentId).catch((error) => {
-        console.error("[Session] Failed to archive agent:", error);
-      });
-    },
-    [client],
-  );
-
-  const _restartServer = useCallback(
-    (reason?: string) => {
-      if (!client) {
-        console.warn("[Session] restartServer skipped: daemon unavailable");
-        return;
-      }
-      void client.restartServer(reason).catch((error) => {
-        console.error("[Session] Failed to restart server:", error);
-      });
-    },
-    [client],
-  );
-
-  const _createAgent = useCallback(
-    async ({
-      config,
-      initialPrompt,
-      images,
-      attachments,
-      git,
-      worktreeName,
-      requestId,
-    }: {
-      config: AgentSessionConfig;
-      initialPrompt: string;
-      images?: AttachmentMetadata[];
-      attachments?: AgentAttachment[];
-      git?: GitSetupOptions;
-      worktreeName?: string;
-      requestId?: string;
-    }) => {
-      if (!client) {
-        console.warn("[Session] createAgent skipped: daemon unavailable");
-        return;
-      }
-      const trimmedPrompt = initialPrompt.trim();
-      let imagesData: Array<{ data: string; mimeType: string }> | undefined;
-      try {
-        imagesData = await encodeImages(images);
-      } catch (error) {
-        console.error("[Session] Failed to prepare images for agent creation:", error);
-      }
-      await client.createAgent({
-        config,
-        ...(trimmedPrompt ? { initialPrompt: trimmedPrompt } : {}),
-        ...(imagesData && imagesData.length > 0 ? { images: imagesData } : {}),
-        ...(attachments && attachments.length > 0 ? { attachments } : {}),
-        ...(git ? { git } : {}),
-        ...(worktreeName ? { worktreeName } : {}),
-        ...(requestId ? { requestId } : {}),
-      });
-    },
-    [client],
-  );
-
-  const _setAgentMode = useCallback(
-    (agentId: string, modeId: string) => {
-      if (!client) {
-        console.warn("[Session] setAgentMode skipped: daemon unavailable");
-        return;
-      }
-      void client.setAgentMode(agentId, modeId).catch((error) => {
-        console.error("[Session] Failed to set agent mode:", error);
-        toast.error(toErrorMessage(error));
-      });
-    },
-    [client, toast],
-  );
-
-  const _setAgentModel = useCallback(
-    (agentId: string, modelId: string | null) => {
-      if (!client) {
-        console.warn("[Session] setAgentModel skipped: daemon unavailable");
-        return;
-      }
-      void client.setAgentModel(agentId, modelId).catch((error) => {
-        console.error("[Session] Failed to set agent model:", error);
-        toast.error(toErrorMessage(error));
-      });
-    },
-    [client, toast],
-  );
-
-  const _setAgentThinkingOption = useCallback(
-    (agentId: string, thinkingOptionId: string | null) => {
-      if (!client) {
-        console.warn("[Session] setAgentThinkingOption skipped: daemon unavailable");
-        return;
-      }
-      void client.setAgentThinkingOption(agentId, thinkingOptionId).catch((error) => {
-        console.error("[Session] Failed to set agent thinking option:", error);
-        toast.error(toErrorMessage(error));
-      });
-    },
-    [client, toast],
-  );
-
-  const _respondToPermission = useCallback(
-    (agentId: string, requestId: string, response: AgentPermissionResponse) => {
-      if (!client) {
-        console.warn("[Session] respondToPermission skipped: daemon unavailable");
-        return;
-      }
-      void client.respondToPermission(agentId, requestId, response).catch((error) => {
-        console.error("[Session] Failed to respond to permission:", error);
-      });
-    },
-    [client],
-  );
 
   // Cleanup on unmount
   useEffect(() => {

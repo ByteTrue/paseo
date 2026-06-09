@@ -782,10 +782,6 @@ export function CombinedModelSelector({
     handleOpenChange(!isOpen);
   }, [handleOpenChange, isOpen]);
 
-  const handleClose = useCallback(() => {
-    handleOpenChange(false);
-  }, [handleOpenChange]);
-
   const triggerStyle = useCallback(
     ({ pressed, hovered }: PressableStateCallbackType & { hovered?: boolean }) => [
       styles.trigger,
@@ -811,11 +807,10 @@ export function CombinedModelSelector({
     setSearchQuery(value);
   }, []);
 
-  const openHeaderProviderSettings = useCallback(() => {
+  const openProviderSettings = useCallback(() => {
     if (!serverId || view.kind !== "provider") return;
     useProviderSettingsStore.getState().open({ serverId, provider: view.providerId });
-    handleClose();
-  }, [serverId, view, handleClose]);
+  }, [serverId, view]);
 
   const sheetHeader = useMemo<SheetHeader>(() => {
     if (view.kind === "all") {
@@ -824,7 +819,7 @@ export function CombinedModelSelector({
     const ProviderIconForView = getProviderIcon(view.providerId);
     const headerActions = (
       <Pressable
-        onPress={openHeaderProviderSettings}
+        onPress={openProviderSettings}
         disabled={!serverId}
         hitSlop={8}
         style={iconButtonStyle}
@@ -857,7 +852,7 @@ export function CombinedModelSelector({
     view,
     singleProviderView,
     serverId,
-    openHeaderProviderSettings,
+    openProviderSettings,
     theme.colors.border,
     theme.colors.foregroundMuted,
     handleBackToAll,

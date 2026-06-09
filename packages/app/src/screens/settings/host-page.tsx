@@ -288,15 +288,25 @@ export function HostSettingsPage({
 export function HostRenameButton({ host }: { host: HostProfile }) {
   const { theme } = useUnistyles();
   const { renameHost } = useHostMutations();
+  const { patchConfig } = useDaemonConfig(host.serverId);
+  const supportsDaemonDisplayName = useSessionStore((state) => {
+    const features = state.sessions[host.serverId]?.serverInfo?.features as
+      | Record<string, unknown>
+      | undefined;
+    return features?.daemonDisplayName === true;
+  });
   const [isEditing, setIsEditing] = useState(false);
 
   const handleSubmit = useCallback(
     async (value: string) => {
       const nextLabel = value.trim();
       if (nextLabel === host.label.trim()) return;
+      if (supportsDaemonDisplayName) {
+        await patchConfig({ displayName: nextLabel });
+      }
       await renameHost(host.serverId, nextLabel);
     },
-    [host.label, host.serverId, renameHost],
+    [host.label, host.serverId, patchConfig, renameHost, supportsDaemonDisplayName],
   );
 
   const openEditor = useCallback(() => setIsEditing(true), []);

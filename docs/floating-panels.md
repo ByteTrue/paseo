@@ -184,6 +184,11 @@ When a critical prompt is part of a timed probe or connection attempt, the calle
 must pause that timeout while the prompt is waiting or expire the prompt with visible
 copy. Do not let a background timeout leave a still-answerable prompt on screen.
 
+Do not treat `onChange(-1)` as a close by itself. In a stacked
+`BottomSheetModal`, `-1` can also mean the sheet is temporarily hidden under
+another pushed sheet. Close React state from `onDismiss`; use `onChange` only to
+track phase.
+
 ## Recipe for a new anchored panel
 
 Before you write a new one, ask:
