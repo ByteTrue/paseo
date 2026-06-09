@@ -102,6 +102,14 @@ vi.mock("./push/push-service.js", () => ({
   },
 }));
 
+vi.mock("./auth.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./auth.js")>();
+  return {
+    ...actual,
+    isBearerTokenValidAsync: vi.fn(async (input) => actual.isBearerTokenValidSync(input)),
+  };
+});
+
 import { z } from "zod";
 import { VoiceAssistantWebSocketServer } from "./websocket-server";
 import { parseServerInfoStatusPayload } from "./messages.js";
@@ -225,6 +233,7 @@ function createServer(options?: { speechReadiness?: SpeechReadinessSnapshot | nu
   const speechReadiness = options?.speechReadiness ?? null;
   const daemonConfigStore = {
     onChange: vi.fn(() => () => {}),
+    get: vi.fn(() => ({ displayName: "" })),
   };
   return new VoiceAssistantWebSocketServer(
     createStub<HTTPServer>({}),
@@ -434,6 +443,7 @@ async function attachRelayAndHello(params: {
       },
     }),
   );
+  await waitForSocketMessages(params.server, params.socket);
   await vi.waitFor(() => {
     const hasServerInfo = params.socket.sent
       .map(parseSentEnvelope)

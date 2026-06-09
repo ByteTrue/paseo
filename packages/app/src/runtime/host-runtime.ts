@@ -10,6 +10,7 @@ import {
 import {
   connectionFromListen,
   normalizeStoredHostProfile,
+  normalizeHostLabel,
   upsertHostConnectionInProfiles,
   registryHasConnection,
   type HostConnection,
@@ -1602,9 +1603,23 @@ export class HostRuntimeStore {
   }
 
   async renameHost(serverId: string, label: string): Promise<void> {
-    const next = this.hosts.map((h) =>
-      h.serverId === serverId ? { ...h, label, updatedAt: new Date().toISOString() } : h,
-    );
+    await this.syncHostDisplayName(serverId, label);
+  }
+
+  async syncHostDisplayName(serverId: string, label: string | null | undefined): Promise<void> {
+    const nextLabel = normalizeHostLabel(label, serverId);
+    const now = new Date().toISOString();
+    let changed = false;
+    const next = this.hosts.map((h) => {
+      if (h.serverId !== serverId || h.label === nextLabel) {
+        return h;
+      }
+      changed = true;
+      return { ...h, label: nextLabel, updatedAt: now };
+    });
+    if (!changed) {
+      return;
+    }
     this.setHostsAndSync(next);
     await this.persistHosts();
   }
@@ -2124,6 +2139,7 @@ export interface HostMutations {
   upsertConnectionsFromOfferBundle: (bundle: ConnectionOfferBundle) => Promise<HostProfile[]>;
   upsertConnectionsFromOfferBundleUrl: (offerUrlOrFragment: string) => Promise<HostProfile[]>;
   renameHost: (serverId: string, label: string) => Promise<void>;
+  syncHostDisplayName: (serverId: string, label: string | null | undefined) => Promise<void>;
   removeHost: (serverId: string) => Promise<void>;
   removeConnection: (serverId: string, connectionId: string) => Promise<void>;
 }
@@ -2140,6 +2156,7 @@ export function useHostMutations(): HostMutations {
       upsertConnectionsFromOfferBundle: (bundle) => store.upsertConnectionsFromOfferBundle(bundle),
       upsertConnectionsFromOfferBundleUrl: (url) => store.upsertConnectionsFromOfferBundleUrl(url),
       renameHost: (serverId, label) => store.renameHost(serverId, label),
+      syncHostDisplayName: (serverId, label) => store.syncHostDisplayName(serverId, label),
       removeHost: (serverId) => store.removeHost(serverId),
       removeConnection: (serverId, connectionId) => store.removeConnection(serverId, connectionId),
     }),

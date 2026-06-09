@@ -3636,6 +3636,12 @@ export class Session {
     workspace: PersistedWorkspaceRecord;
     firstAgentContext: FirstAgentContext;
   }): Promise<PersistedWorkspaceRecord> {
+    if (
+      this.readStructuredGenerationDaemonConfig().metadataGeneration?.branchName?.enabled === false
+    ) {
+      return input.workspace;
+    }
+
     const result = await attemptFirstAgentBranchAutoName({
       cwd: input.workspace.cwd,
       firstAgentContext: input.firstAgentContext,

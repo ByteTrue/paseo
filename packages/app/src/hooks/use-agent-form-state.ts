@@ -107,6 +107,38 @@ function shouldAutoSelectServerId(input: {
   return true;
 }
 
+function shouldRehydrateForAutoSelectedServer(input: {
+  isVisible: boolean;
+  isCreateFlow: boolean;
+  initialServerId: string | null | undefined;
+  previousServerId: string | null;
+  currentServerId: string | null;
+  userModified: {
+    serverId: boolean;
+    provider: boolean;
+    modeId: boolean;
+    model: boolean;
+    thinkingOptionId: boolean;
+  };
+}): boolean {
+  const {
+    isVisible,
+    isCreateFlow,
+    initialServerId,
+    previousServerId,
+    currentServerId,
+    userModified,
+  } = input;
+  if (!isVisible || !isCreateFlow) return false;
+  if (initialServerId !== undefined) return false;
+  if (previousServerId) return false;
+  if (!currentServerId) return false;
+  if (userModified.serverId) return false;
+  if (userModified.provider || userModified.modeId || userModified.model) return false;
+  if (userModified.thinkingOptionId) return false;
+  return true;
+}
+
 function resolveSelectedProviderModes(input: {
   selectedEntry: ProviderSnapshotEntry | null;
   provider: AgentProvider | null;
@@ -168,8 +200,6 @@ export function useAgentFormState(options: UseAgentFormStateOptions = {}): UseAg
     onlineServerIds = [],
   } = options;
 
-  const { preferences, isLoading: isPreferencesLoading, updatePreferences } = useFormPreferences();
-
   const daemons = useHosts();
 
   const validServerIds = useMemo(() => new Set(daemons.map((d) => d.serverId)), [daemons]);
@@ -190,6 +220,12 @@ export function useAgentFormState(options: UseAgentFormStateOptions = {}): UseAg
     }),
   );
 
+  const {
+    preferences,
+    isLoading: isPreferencesLoading,
+    updatePreferences,
+  } = useFormPreferences(formState.serverId);
+
   const reducerStateRef = useRef({ form: formState, userModified });
   useEffect(() => {
     reducerStateRef.current = { form: formState, userModified };
@@ -197,7 +233,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions = {}): UseAg
 
   const hasResolvedRef = useRef(false);
   const hydrationPreferencesRef = useRef<FormPreferences | null>(null);
-
+  const previousServerIdRef = useRef<string | null>(formState.serverId);
   useEffect(() => {
     if (!isVisible) {
       dispatch({ type: "RESET" });
@@ -275,6 +311,28 @@ export function useAgentFormState(options: UseAgentFormStateOptions = {}): UseAg
     () => combineInitialValues(initialValues, initialServerId),
     [initialValues, initialServerId],
   );
+
+  useEffect(() => {
+    const previousServerId = previousServerIdRef.current;
+    if (previousServerId === formState.serverId) {
+      return;
+    }
+    previousServerIdRef.current = formState.serverId;
+    if (
+      !shouldRehydrateForAutoSelectedServer({
+        isVisible,
+        isCreateFlow,
+        initialServerId: combinedInitialValues?.serverId,
+        previousServerId,
+        currentServerId: formState.serverId,
+        userModified,
+      })
+    ) {
+      return;
+    }
+    hasResolvedRef.current = false;
+    hydrationPreferencesRef.current = null;
+  }, [combinedInitialValues?.serverId, formState.serverId, isCreateFlow, isVisible, userModified]);
 
   useEffect(() => {
     if (!isVisible || !isCreateFlow) {

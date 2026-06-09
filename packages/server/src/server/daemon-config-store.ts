@@ -217,6 +217,43 @@ export class DaemonConfigStore {
   }
 }
 
+function mergeMutableAgentsConfig(params: {
+  persisted: PersistedConfig;
+  mutable: MutableDaemonConfig;
+  metadataGeneration: ReturnType<typeof readMetadataGenerationConfig>;
+  providerOverrides: Record<string, ProviderOverride> | undefined;
+}): PersistedConfig["agents"] {
+  const { persisted, mutable, metadataGeneration, providerOverrides } = params;
+  const persistedAgents = persisted.agents as Record<string, unknown> | undefined;
+  const agentFormPreferences = mutable.agentFormPreferences ?? {};
+  const shouldPersistFormPreferences =
+    Object.keys(agentFormPreferences).length > 0 || persisted.agents?.formPreferences !== undefined;
+  const shouldPersistMetadataGeneration =
+    metadataGeneration.providers.length > 0 ||
+    metadataGeneration.agentTitle !== undefined ||
+    metadataGeneration.branchName !== undefined ||
+    metadataGeneration.commitMessage !== undefined ||
+    metadataGeneration.pullRequest !== undefined ||
+    persisted.agents?.metadataGeneration !== undefined;
+  const shouldPersistProviders =
+    providerOverrides !== undefined || persisted.agents?.providers !== undefined;
+
+  if (
+    !shouldPersistProviders &&
+    !shouldPersistMetadataGeneration &&
+    !shouldPersistFormPreferences
+  ) {
+    return persisted.agents as PersistedConfig["agents"];
+  }
+
+  return {
+    ...persistedAgents,
+    ...(shouldPersistProviders ? { providers: providerOverrides ?? {} } : {}),
+    ...(shouldPersistMetadataGeneration ? { metadataGeneration } : {}),
+    ...(shouldPersistFormPreferences ? { formPreferences: agentFormPreferences } : {}),
+  } as PersistedConfig["agents"];
+}
+
 function mergeMutableConfigIntoPersistedConfig(params: {
   persisted: PersistedConfig;
   mutable: MutableDaemonConfig;
@@ -227,26 +264,12 @@ function mergeMutableConfigIntoPersistedConfig(params: {
     persisted.agents?.providers as Record<string, ProviderOverride> | undefined,
     mutable.providers,
   );
-  const persistedAgents = persisted.agents as Record<string, unknown> | undefined;
-  const shouldPersistMetadataGeneration =
-    metadataGeneration.providers.length > 0 ||
-    metadataGeneration.agentTitle !== undefined ||
-    metadataGeneration.branchName !== undefined ||
-    metadataGeneration.commitMessage !== undefined ||
-    metadataGeneration.pullRequest !== undefined ||
-    persisted.agents?.metadataGeneration !== undefined;
-
-  const shouldPersistProviders =
-    providerOverrides !== undefined || persisted.agents?.providers !== undefined;
-
-  let nextAgents = persisted.agents as PersistedConfig["agents"];
-  if (shouldPersistProviders || shouldPersistMetadataGeneration) {
-    nextAgents = {
-      ...persistedAgents,
-      ...(shouldPersistProviders ? { providers: providerOverrides ?? {} } : {}),
-      ...(shouldPersistMetadataGeneration ? { metadataGeneration } : {}),
-    } as PersistedConfig["agents"];
-  }
+  const nextAgents = mergeMutableAgentsConfig({
+    persisted,
+    mutable,
+    metadataGeneration,
+    providerOverrides,
+  });
 
   return {
     ...persisted,
@@ -258,6 +281,7 @@ function mergeMutableConfigIntoPersistedConfig(params: {
       },
       autoArchiveAfterMerge: mutable.autoArchiveAfterMerge,
       appendSystemPrompt: mutable.appendSystemPrompt,
+      displayName: mutable.displayName,
     },
     agents: nextAgents,
   } as PersistedConfig;

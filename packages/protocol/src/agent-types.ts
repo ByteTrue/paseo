@@ -106,6 +106,9 @@ export interface ProviderSnapshotEntry {
   description?: string;
   defaultModeId?: string | null;
   canRemove?: boolean;
+  cacheState?: "live" | "cached";
+  cacheGeneratedAt?: string;
+  lastRefreshError?: string;
 }
 
 export interface AgentFeatureToggle {

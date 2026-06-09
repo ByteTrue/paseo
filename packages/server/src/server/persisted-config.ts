@@ -164,6 +164,32 @@ const AgentMetadataGenerationSchema = z
   })
   .strict();
 
+const AgentFormProviderPreferencesSchema = z
+  .object({
+    model: z.string().min(1).optional(),
+    mode: z.string().min(1).optional(),
+    thinkingByModel: z.record(z.string()).optional(),
+    featureValues: z.record(z.unknown()).optional(),
+  })
+  .strict();
+
+const AgentFormPreferencesSchema = z
+  .object({
+    provider: z.string().min(1).optional(),
+    providerPreferences: z.record(z.string(), AgentFormProviderPreferencesSchema).optional(),
+    favoriteModels: z
+      .array(
+        z
+          .object({
+            provider: z.string().min(1),
+            modelId: z.string().min(1),
+          })
+          .strict(),
+      )
+      .optional(),
+  })
+  .strict();
+
 const BUILTIN_PROVIDER_IDS = ["claude", "codex", "copilot", "opencode", "pi"] as const;
 
 function isLegacyProviderEntry(value: unknown): boolean {
@@ -236,6 +262,7 @@ export const PersistedConfigSchema = z
           .optional(),
         autoArchiveAfterMerge: z.boolean().optional(),
         appendSystemPrompt: z.string().optional(),
+        displayName: z.string().optional(),
         cors: z
           .object({
             allowedOrigins: z.array(z.string()).optional(),
@@ -285,6 +312,7 @@ export const PersistedConfigSchema = z
       .object({
         providers: z.preprocess(normalizeAgentProviders, ProviderOverridesSchema).optional(),
         metadataGeneration: AgentMetadataGenerationSchema.optional(),
+        formPreferences: AgentFormPreferencesSchema.optional(),
       })
       .strict()
       .optional(),

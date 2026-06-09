@@ -246,6 +246,7 @@ export interface AgentFileExplorerState {
 export interface DaemonServerInfo {
   serverId: string;
   hostname: string | null;
+  displayName?: string | null;
   version: string | null;
   capabilities?: ServerCapabilities;
   features?: ServerInfoStatusPayload["features"];
@@ -511,17 +512,27 @@ function areServerInfoFeaturesEqual(
 function isSessionServerInfoUnchanged(input: {
   currentServerInfo: SessionState["serverInfo"] | undefined;
   nextHostname: string | null;
+  nextDisplayName: string | null;
   nextVersion: string | null;
   nextCapabilities: ServerCapabilities | undefined;
   nextFeatures: ServerInfoStatusPayload["features"] | undefined;
   nextServerId: string;
 }): boolean {
-  const { currentServerInfo, nextHostname, nextVersion, nextCapabilities, nextFeatures } = input;
+  const {
+    currentServerInfo,
+    nextHostname,
+    nextDisplayName,
+    nextVersion,
+    nextCapabilities,
+    nextFeatures,
+  } = input;
   const prevHostname = currentServerInfo?.hostname?.trim() || null;
+  const prevDisplayName = currentServerInfo?.displayName?.trim() || null;
   const prevVersion = currentServerInfo?.version?.trim() || null;
   return (
     currentServerInfo?.serverId === input.nextServerId &&
     prevHostname === nextHostname &&
+    prevDisplayName === nextDisplayName &&
     prevVersion === nextVersion &&
     areServerCapabilitiesEqual(currentServerInfo?.capabilities, nextCapabilities) &&
     areServerInfoFeaturesEqual(currentServerInfo?.features, nextFeatures)
@@ -641,6 +652,8 @@ export const useSessionStore = create<SessionStore>()(
           }
 
           const nextHostname = info.hostname?.trim() || null;
+          const displayName = (info as { displayName?: string | null }).displayName;
+          const nextDisplayName = displayName?.trim() || null;
           const nextVersion = info.version?.trim() || null;
           const nextCapabilities = info.capabilities;
           const nextFeatures = info.features;
@@ -649,6 +662,7 @@ export const useSessionStore = create<SessionStore>()(
             isSessionServerInfoUnchanged({
               currentServerInfo: session.serverInfo,
               nextHostname,
+              nextDisplayName,
               nextVersion,
               nextCapabilities,
               nextFeatures,
@@ -667,6 +681,7 @@ export const useSessionStore = create<SessionStore>()(
                 serverInfo: {
                   serverId: info.serverId,
                   hostname: nextHostname,
+                  displayName: nextDisplayName,
                   version: nextVersion,
                   ...(nextCapabilities ? { capabilities: nextCapabilities } : {}),
                   ...(nextFeatures ? { features: nextFeatures } : {}),

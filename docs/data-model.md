@@ -15,6 +15,7 @@ $PASEO_HOME/
 ├── daemon-keypair.json                  # E2EE keypair for relay (mode 0600)
 ├── paseo.pid                            # Daemon PID lock file
 ├── daemon.log                           # Default log file (path configurable)
+├── provider-snapshot-cache.json         # Last-known provider/model snapshot cache
 ├── agents/
 │   └── {sanitized-cwd}/
 │       └── {agentId}.json               # One file per agent
@@ -140,6 +141,7 @@ Single file, validated with `PersistedConfigSchema`.
     hostnames: true | string[],   // legacy alias `allowedHosts` is migrated on load
     mcp: { enabled: boolean, injectIntoAgents: boolean },
     appendSystemPrompt: string,    // appended to supported provider system/developer prompts
+    displayName?: string,        // daemon-backed display name shown by clients
     cors: { allowedOrigins: string[] },
     relay: { enabled: boolean, endpoint: string, publicEndpoint: string, useTls: boolean, publicUseTls: boolean },
     auth: { password: string }    // bcrypt hash, optional
@@ -161,7 +163,15 @@ Single file, validated with `PersistedConfigSchema`.
     providers: Record<providerId, ProviderOverride>,
     metadataGeneration: {
       providers: [{ provider, model?, thinkingOptionId? }],
-      agentTitle?: { enabled?, provider?, model?, thinkingOptionId? }
+      agentTitle?: { enabled?, provider?, model?, thinkingOptionId? },
+      branchName?: { enabled?, provider?, model?, thinkingOptionId? },
+      commitMessage?: { enabled?, provider?, model?, thinkingOptionId? },
+      pullRequest?: { enabled?, provider?, model?, thinkingOptionId? }
+    },
+    formPreferences?: {
+      provider?: string,
+      providerPreferences?: Record<providerId, { model?, mode?, thinkingByModel?, featureValues? }>,
+      favoriteModels?: [{ provider, modelId }]
     }
   },
   features: {

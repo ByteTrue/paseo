@@ -44,14 +44,31 @@ describe("paseo daemon bootstrap", () => {
         commitMessage: { enabled: false },
         pullRequest: { enabled: true, provider: "codex", thinkingOptionId: "low" },
       },
+      displayName: "Studio Mac",
+      agentFormPreferences: {
+        provider: "codex",
+        providerPreferences: {
+          codex: { model: "gpt-5.4-mini" },
+        },
+        favoriteModels: [{ provider: "codex", modelId: "gpt-5.4-mini" }],
+      },
     };
 
-    expect(buildInitialMutableDaemonConfig(config).metadataGeneration).toEqual({
+    const mutableConfig = buildInitialMutableDaemonConfig(config);
+    expect(mutableConfig.metadataGeneration).toEqual({
       providers: [{ provider: "claude", model: "haiku" }],
       agentTitle: { enabled: false },
       branchName: { enabled: true, provider: "claude", model: "sonnet" },
       commitMessage: { enabled: false },
       pullRequest: { enabled: true, provider: "codex", thinkingOptionId: "low" },
+    });
+    expect(mutableConfig.displayName).toBe("Studio Mac");
+    expect(mutableConfig.agentFormPreferences).toEqual({
+      provider: "codex",
+      providerPreferences: {
+        codex: { model: "gpt-5.4-mini" },
+      },
+      favoriteModels: [{ provider: "codex", modelId: "gpt-5.4-mini" }],
     });
   });
 

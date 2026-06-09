@@ -537,6 +537,7 @@ export class VoiceAssistantWebSocketServer {
       );
       this.agentManager.updateProviderRegistry(nextAgentManagerState);
       this.broadcastDaemonConfigChanged(config);
+      this.broadcast(this.createServerInfoMessage());
     });
 
     const pushLogger = this.logger.child({ module: "push" });
@@ -1633,37 +1634,50 @@ export class VoiceAssistantWebSocketServer {
   }
 
   private buildServerInfoStatusPayload(): ServerInfoStatusPayload {
-    return {
+    const displayNameValue = this.daemonConfigStore.get().displayName;
+    const displayName = typeof displayNameValue === "string" ? displayNameValue.trim() : "";
+    const features: NonNullable<ServerInfoStatusPayload["features"]> & Record<string, boolean> = {
+      // COMPAT(providersSnapshot): keep optional until all clients rely on snapshot flow.
+      providersSnapshot: true,
+      // COMPAT(checkoutGithubSetAutoMerge): added in v0.1.75, remove gate after 2026-11-13.
+      checkoutGithubSetAutoMerge: true,
+      // COMPAT(daemonStatusRpc): added in v0.1.76, remove gate after 2026-11-18.
+      daemonStatusRpc: true,
+      // COMPAT(terminalRestoreModes): added in v0.1.81, remove gate after 2026-11-23.
+      "terminal-restore-modes": true,
+      // COMPAT(rewind): added in v0.1.82, remove gate after 2026-11-26.
+      rewind: true,
+      // COMPAT(checkoutRefresh): added in v0.1.86, remove gate after 2026-11-29.
+      checkoutRefresh: true,
+      // COMPAT(daemonClientAuthorization): added in v0.1.87, remove gate after 2026-12-04.
+      daemonClientAuthorization: true,
+      // COMPAT(titleGenerationSettings): added in v0.1.90, remove gate after 2026-12-05.
+      titleGenerationSettings: true,
+      // COMPAT(metadataGenerationSettings): added in v0.1.92, remove gate after 2026-12-06.
+      metadataGenerationSettings: true,
+      // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-07.
+      providerRemovalSettings: true,
+      // COMPAT(daemonDisplayName): added in v0.1.94, remove gate after 2026-12-08.
+      daemonDisplayName: true,
+      // COMPAT(daemonAgentFormPreferences): added in v0.1.94, remove gate after 2026-12-08.
+      daemonAgentFormPreferences: true,
+      // COMPAT(providerSnapshotCache): added in v0.1.94, remove gate after 2026-12-08.
+      providerSnapshotCache: true,
+      // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
+      checkoutMetadataDrafts: true,
+    };
+
+    const payload = {
       status: "server_info",
       serverId: this.serverId,
       hostname: getHostname(),
+      displayName: displayName || null,
       version: this.daemonVersion,
       ...(this.serverCapabilities ? { capabilities: this.serverCapabilities } : {}),
-      features: {
-        // COMPAT(providersSnapshot): keep optional until all clients rely on snapshot flow.
-        providersSnapshot: true,
-        // COMPAT(checkoutGithubSetAutoMerge): added in v0.1.75, remove gate after 2026-11-13.
-        checkoutGithubSetAutoMerge: true,
-        // COMPAT(daemonStatusRpc): added in v0.1.76, remove gate after 2026-11-18.
-        daemonStatusRpc: true,
-        // COMPAT(terminalRestoreModes): added in v0.1.81, remove gate after 2026-11-23.
-        "terminal-restore-modes": true,
-        // COMPAT(rewind): added in v0.1.82, remove gate after 2026-11-26.
-        rewind: true,
-        // COMPAT(checkoutRefresh): added in v0.1.86, remove gate after 2026-11-29.
-        checkoutRefresh: true,
-        // COMPAT(daemonClientAuthorization): added in v0.1.87, remove gate after 2026-12-04.
-        daemonClientAuthorization: true,
-        // COMPAT(titleGenerationSettings): added in v0.1.90, remove gate after 2026-12-05.
-        titleGenerationSettings: true,
-        // COMPAT(metadataGenerationSettings): added in v0.1.92, remove gate after 2026-12-06.
-        metadataGenerationSettings: true,
-        // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-07.
-        providerRemovalSettings: true,
-        // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
-        checkoutMetadataDrafts: true,
-      },
-    };
+      features,
+    } as ServerInfoStatusPayload & { displayName: string | null };
+
+    return payload;
   }
 
   private createServerInfoMessage(): WSOutboundMessage {

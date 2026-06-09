@@ -100,6 +100,7 @@ import { AgentStorage } from "./agent/agent-storage.js";
 import { attachAgentStoragePersistence } from "./persistence-hooks.js";
 import { createAgentMcpServer } from "./agent/mcp-server.js";
 import { ProviderSnapshotManager } from "./agent/provider-snapshot-manager.js";
+import { ProviderSnapshotCacheStore } from "./agent/provider-snapshot-cache-store.js";
 import { bootstrapWorkspaceRegistries } from "./workspace-registry-bootstrap.js";
 import { WorkspaceReconciliationService } from "./workspace-reconciliation-service.js";
 import { FileBackedProjectRegistry, FileBackedWorkspaceRegistry } from "./workspace-registry.js";
@@ -235,6 +236,7 @@ export interface PaseoDaemonConfig {
   mcpInjectIntoAgents?: boolean;
   autoArchiveAfterMerge?: boolean;
   appendSystemPrompt?: string;
+  displayName?: string;
   staticDir: string;
   mcpDebug: boolean;
   isDev?: boolean;
@@ -290,6 +292,7 @@ export interface PaseoDaemonConfig {
       thinkingOptionId?: string;
     };
   };
+  agentFormPreferences?: MutableDaemonConfig["agentFormPreferences"];
   providerOverrides?: Record<string, ProviderOverride>;
   log?: PersistedConfig["log"];
   onLifecycleIntent?: (intent: DaemonLifecycleIntent) => void;
@@ -340,6 +343,7 @@ export function buildInitialMutableDaemonConfig(config: PaseoDaemonConfig): Muta
   }
 
   return {
+    displayName: config.displayName ?? "",
     mcp: { injectIntoAgents: config.mcpInjectIntoAgents ?? true },
     providers: Object.fromEntries(
       Object.entries(config.providerOverrides ?? {}).map(([providerId, override]) => [
@@ -348,6 +352,7 @@ export function buildInitialMutableDaemonConfig(config: PaseoDaemonConfig): Muta
       ]),
     ),
     metadataGeneration,
+    agentFormPreferences: config.agentFormPreferences ?? {},
     autoArchiveAfterMerge: config.autoArchiveAfterMerge ?? false,
     appendSystemPrompt: config.appendSystemPrompt ?? "",
   };
@@ -588,8 +593,13 @@ export async function createPaseoDaemon(
     },
   });
   const providerSnapshotLogger = logger.child({ module: "provider-snapshot-manager" });
+  const providerSnapshotCacheStore = new ProviderSnapshotCacheStore(
+    config.paseoHome,
+    providerSnapshotLogger,
+  );
   const providerSnapshotManager = new ProviderSnapshotManager({
     logger: providerSnapshotLogger,
+    cacheStore: providerSnapshotCacheStore,
     runtimeSettings: config.agentProviderSettings,
     providerOverrides: config.providerOverrides,
     workspaceGitService,
