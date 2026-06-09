@@ -24,6 +24,7 @@ import {
   uninstallSkills,
   updateSkills,
 } from "../integrations/skills/index.js";
+import { getBundledSkillsDir } from "../integrations/skills/paths.js";
 import {
   openLocalTransportSession,
   sendLocalTransportMessage,
@@ -376,7 +377,10 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     detached: true,
     envMode: "internal",
     env: invocation.env,
-    envOverlay: { PASEO_DESKTOP_MANAGED: "1" },
+    envOverlay: {
+      PASEO_DESKTOP_MANAGED: "1",
+      PASEO_SKILLS_SOURCE_DIR: getBundledSkillsDir(),
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
 

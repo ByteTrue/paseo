@@ -5,6 +5,10 @@ import {
   LocalFsListDirectoryResponseSchema,
   LocalFsListRootsRequestSchema,
   LocalFsListRootsResponseSchema,
+  DaemonSkillsGetStatusResponseSchema,
+  DaemonSkillsInstallResponseSchema,
+  DaemonSkillsUninstallResponseSchema,
+  DaemonSkillsUpdateResponseSchema,
   LocalOsListOpenTargetsRequestSchema,
   LocalOsListOpenTargetsResponseSchema,
   LocalOsOpenTargetRequestSchema,
@@ -323,6 +327,117 @@ describe("local OS integration protocol", () => {
           entries: [
             { name: "paseo", path: "/Users/byte/Work/paseo", kind: "directory", hidden: false },
           ],
+          error: null,
+        },
+      }),
+    );
+  });
+});
+
+describe("host skills management protocol", () => {
+  test("server_info accepts the hostSkillsManagement feature flag", () => {
+    const parsed = ServerInfoStatusPayloadSchema.parse({
+      status: "server_info",
+      serverId: "server-1",
+      capabilities: {},
+      features: { hostSkillsManagement: true },
+    });
+
+    expect(parsed.features?.hostSkillsManagement).toBe(true);
+  });
+
+  test("daemon skills messages parse", () => {
+    expect(
+      SessionInboundMessageSchema.parse({
+        type: "daemon.skills.get_status.request",
+        requestId: "req-skills-status",
+      }),
+    ).toEqual({
+      type: "daemon.skills.get_status.request",
+      requestId: "req-skills-status",
+    });
+
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "daemon.skills.get_status.response",
+        payload: {
+          requestId: "req-skills-status",
+          status: {
+            state: "drift",
+            ops: [{ kind: "update", name: "paseo-epic" }],
+          },
+          error: null,
+        },
+      }),
+    ).toEqual(
+      DaemonSkillsGetStatusResponseSchema.parse({
+        type: "daemon.skills.get_status.response",
+        payload: {
+          requestId: "req-skills-status",
+          status: {
+            state: "drift",
+            ops: [{ kind: "update", name: "paseo-epic" }],
+          },
+          error: null,
+        },
+      }),
+    );
+
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "daemon.skills.install.response",
+        payload: {
+          requestId: "req-skills-install",
+          status: { state: "up-to-date", ops: [] },
+          error: null,
+        },
+      }),
+    ).toEqual(
+      DaemonSkillsInstallResponseSchema.parse({
+        type: "daemon.skills.install.response",
+        payload: {
+          requestId: "req-skills-install",
+          status: { state: "up-to-date", ops: [] },
+          error: null,
+        },
+      }),
+    );
+
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "daemon.skills.update.response",
+        payload: {
+          requestId: "req-skills-update",
+          status: { state: "up-to-date", ops: [] },
+          error: null,
+        },
+      }),
+    ).toEqual(
+      DaemonSkillsUpdateResponseSchema.parse({
+        type: "daemon.skills.update.response",
+        payload: {
+          requestId: "req-skills-update",
+          status: { state: "up-to-date", ops: [] },
+          error: null,
+        },
+      }),
+    );
+
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "daemon.skills.uninstall.response",
+        payload: {
+          requestId: "req-skills-uninstall",
+          status: { state: "not-installed", ops: [] },
+          error: null,
+        },
+      }),
+    ).toEqual(
+      DaemonSkillsUninstallResponseSchema.parse({
+        type: "daemon.skills.uninstall.response",
+        payload: {
+          requestId: "req-skills-uninstall",
+          status: { state: "not-installed", ops: [] },
           error: null,
         },
       }),

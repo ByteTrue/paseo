@@ -82,6 +82,14 @@ import type { DaemonConfigStore } from "./daemon-config-store.js";
 import { getErrorMessage, getErrorMessageOr } from "@bytetrue/protocol/error-utils";
 import { listAvailableLocalOpenTargets, openLocalTarget } from "./local-os/open-targets.js";
 import { listLocalDirectory, listLocalDirectoryRoots } from "./local-fs/directory-picker.js";
+import {
+  getDefaultSkillTargets,
+  getSkillsStatus as getManagedSkillsStatus,
+  installSkills as installManagedSkills,
+  resolveBundledSkillsSource,
+  uninstallSkills as uninstallManagedSkills,
+  updateSkills as updateManagedSkills,
+} from "./integrations/skills/operations.js";
 import { getAgentStatusPriority } from "@bytetrue/protocol/agent-state-bucket";
 import type {
   WorkspaceGitRuntimeSnapshot,
@@ -1920,6 +1928,14 @@ export class Session {
           payload: { requestId: msg.requestId, config: this.daemonConfigStore.get() },
         });
         return undefined;
+      case "daemon.skills.get_status.request":
+        return this.handleDaemonSkillsGetStatusRequest(msg.requestId);
+      case "daemon.skills.install.request":
+        return this.handleDaemonSkillsInstallRequest(msg.requestId);
+      case "daemon.skills.update.request":
+        return this.handleDaemonSkillsUpdateRequest(msg.requestId);
+      case "daemon.skills.uninstall.request":
+        return this.handleDaemonSkillsUninstallRequest(msg.requestId);
       case "daemon.get_status.request":
         return this.handleDaemonGetStatusRequest(msg);
       case "daemon.get_pairing_offer.request":
@@ -2031,6 +2047,78 @@ export class Session {
           entries: [],
           error: getErrorMessage(error),
         },
+      });
+    }
+  }
+
+  private async resolveManagedSkillsTargets() {
+    const source = await resolveBundledSkillsSource();
+    if (!source.available || !source.sourceDir) {
+      throw new Error("Host skills management is unavailable: bundled skills source not found");
+    }
+    return getDefaultSkillTargets(source.sourceDir);
+  }
+
+  private async handleDaemonSkillsGetStatusRequest(requestId: string): Promise<void> {
+    try {
+      const targets = await this.resolveManagedSkillsTargets();
+      const status = await getManagedSkillsStatus(targets);
+      this.emit({
+        type: "daemon.skills.get_status.response",
+        payload: { requestId, status, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "daemon.skills.get_status.response",
+        payload: { requestId, status: null, error: getErrorMessage(error) },
+      });
+    }
+  }
+
+  private async handleDaemonSkillsInstallRequest(requestId: string): Promise<void> {
+    try {
+      const targets = await this.resolveManagedSkillsTargets();
+      const status = await installManagedSkills(targets);
+      this.emit({
+        type: "daemon.skills.install.response",
+        payload: { requestId, status, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "daemon.skills.install.response",
+        payload: { requestId, status: null, error: getErrorMessage(error) },
+      });
+    }
+  }
+
+  private async handleDaemonSkillsUpdateRequest(requestId: string): Promise<void> {
+    try {
+      const targets = await this.resolveManagedSkillsTargets();
+      const status = await updateManagedSkills(targets);
+      this.emit({
+        type: "daemon.skills.update.response",
+        payload: { requestId, status, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "daemon.skills.update.response",
+        payload: { requestId, status: null, error: getErrorMessage(error) },
+      });
+    }
+  }
+
+  private async handleDaemonSkillsUninstallRequest(requestId: string): Promise<void> {
+    try {
+      const targets = await this.resolveManagedSkillsTargets();
+      const status = await uninstallManagedSkills(targets);
+      this.emit({
+        type: "daemon.skills.uninstall.response",
+        payload: { requestId, status, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "daemon.skills.uninstall.response",
+        payload: { requestId, status: null, error: getErrorMessage(error) },
       });
     }
   }

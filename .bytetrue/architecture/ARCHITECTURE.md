@@ -51,6 +51,7 @@ The heart of Paseo. A Node.js process that:
 - Streams agent output in real time via a timeline model
 - Exposes an MCP server for agent-to-agent control
 - Exposes local-only OS / filesystem integration RPCs for loopback clients, such as editor/file-manager open targets and daemon-backed directory browsing
+- Exposes host-scoped skills management RPCs for ordinary authorized daemon operators when the runtime can resolve a bundled skills source directory
 - Optionally connects outbound to a relay for remote access
   All paths are under `packages/server/src/`.
 
@@ -71,6 +72,7 @@ The heart of Paseo. A Node.js process that:
 | `server/chat/`                  | Chat rooms for agent-to-agent and human-to-agent messaging                                           |
 | `server/local-os/`              | Local-only OS integration helpers such as editor/file-manager target detection and detached launches |
 | `server/local-fs/`              | Local-only filesystem browsing helpers for daemon-backed directory picker data                       |
+| `server/integrations/skills/`   | Host-side managed skills diff, sync, uninstall, and bundled skills source resolution                 |
 
 ### `packages/protocol` — Wire schemas and shared protocol types
 
@@ -97,6 +99,7 @@ Expo web / React Native Web app that connects to one or more daemons. It is used
 - Timeline reducers in `timeline/session-stream-reducers.ts` handle compaction, gap detection, sequence-based deduplication
 - Timeline sync correctness is documented in [docs/timeline-sync.md](timeline-sync.md): live streams are for immediacy, `fetch_agent_timeline_request` is authoritative, and catch-up is paged but complete.
 - Voice features: dictation (STT) and voice agent (realtime)
+- Host settings keep agent-facing MCP injection (`Enable Paseo tools`) separate from host-scoped orchestration skills management. Web only shows the skills card when `server_info.features.hostSkillsManagement` is present.
 
 ### `packages/cli` — Command-line client
 
@@ -178,6 +181,7 @@ New session RPCs use dotted names with `.request` and `.response` suffixes, such
 - Voice/dictation streaming events (`dictation_stream_*`, `assistant_chunk`, `audio_output`, `transcription_result`)
 - Request/response pairs for fetch, list, create, etc., correlated by `requestId`; failures use `rpc_error`
 - Local OS / filesystem integration RPCs (`local.os.*`, `local.fs.*`) are exposed only to loopback/local direct sockets; relay and non-loopback direct TCP clients are rejected at the WebSocket boundary before spawning processes or reading directories
+- Host skills management RPCs (`daemon.skills.*`) are ordinary daemon-operator RPCs. They are feature-gated through `server_info.features.hostSkillsManagement` and are not tied to localhost-only transport rules.
 
 **Binary frames (terminal stream protocol):**
 

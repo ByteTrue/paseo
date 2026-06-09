@@ -180,6 +180,7 @@ New session RPCs use dotted names with `.request` and `.response` suffixes, such
 - Voice/dictation streaming events (`dictation_stream_*`, `assistant_chunk`, `audio_output`, `transcription_result`)
 - Request/response pairs for fetch, list, create, etc., correlated by `requestId`; failures use `rpc_error`
 - Local OS / filesystem integration RPCs (`local.os.*`, `local.fs.*`) are exposed only to loopback/local direct sockets; relay and non-loopback direct TCP clients are rejected at the WebSocket boundary before spawning processes or reading directories
+- Host skills management RPCs (`daemon.skills.*`) are ordinary daemon-operator RPCs for managed skills status/install/update/uninstall. They are feature-gated through `server_info.features.hostSkillsManagement` and are not tied to localhost-only transport rules.
 
 **Binary frames (terminal stream protocol):**
 

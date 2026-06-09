@@ -66,6 +66,10 @@ import type {
   ProviderDiagnosticResponseMessage,
   DaemonGetStatusResponse,
   DaemonGetPairingOfferResponse,
+  DaemonSkillsGetStatusResponse,
+  DaemonSkillsInstallResponse,
+  DaemonSkillsUpdateResponse,
+  DaemonSkillsUninstallResponse,
   AgentRewindResponseMessage,
   ListTerminalsResponse,
   CreateTerminalResponse,
@@ -3599,6 +3603,54 @@ export class DaemonClient {
       },
       responseType: "daemon.get_pairing_offer.response",
       timeout: 10000,
+    });
+  }
+
+  async getDaemonSkillsStatus(
+    requestId?: string,
+  ): Promise<DaemonSkillsGetStatusResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "daemon.skills.get_status.request",
+      },
+      responseType: "daemon.skills.get_status.response",
+      timeout: 15000,
+    });
+  }
+
+  async installDaemonSkills(requestId?: string): Promise<DaemonSkillsInstallResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "daemon.skills.install.request",
+      },
+      responseType: "daemon.skills.install.response",
+      timeout: 60000,
+    });
+  }
+
+  async updateDaemonSkills(requestId?: string): Promise<DaemonSkillsUpdateResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "daemon.skills.update.request",
+      },
+      responseType: "daemon.skills.update.response",
+      timeout: 60000,
+    });
+  }
+
+  async uninstallDaemonSkills(
+    requestId?: string,
+  ): Promise<DaemonSkillsUninstallResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "daemon.skills.uninstall.request",
+      },
+      responseType: "daemon.skills.uninstall.response",
+      timeout: 60000,
     });
   }
 

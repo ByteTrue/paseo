@@ -63,6 +63,7 @@ import { AuthorizedClientStore, type AuthorizedClient } from "./authorized-clien
 import { AuthAttemptThrottler } from "./auth-attempt-throttler.js";
 import { loadPersistedConfig, savePersistedConfig } from "./persisted-config.js";
 import { bytesToBase64, verifyDaemonAuthChallengeSignature } from "@bytetrue/protocol/daemon-auth";
+import { resolveBundledSkillsSourceSync } from "./integrations/skills/operations.js";
 
 const WS_CLOSE_DAEMON_AUTH_FAILED = 4401;
 
@@ -396,6 +397,7 @@ export class VoiceAssistantWebSocketServer {
   private readonly pushTokenStore: PushTokenStore;
   private readonly pushNotificationSender: PushNotificationSender;
   private readonly mcpBaseUrl: string | null;
+  private readonly hostSkillsManagementAvailable: boolean;
   private speech!: SpeechService | null;
   private terminalManager!: TerminalManager | null;
   private serviceProxy!: ServiceProxySubsystem | null;
@@ -507,6 +509,7 @@ export class VoiceAssistantWebSocketServer {
       join(paseoHome, "authorized-clients.json"),
     );
     this.mcpBaseUrl = mcpBaseUrl;
+    this.hostSkillsManagementAvailable = resolveBundledSkillsSourceSync().available;
     this.assignOptionalServices({
       speech,
       terminalManager,
@@ -1671,6 +1674,8 @@ export class VoiceAssistantWebSocketServer {
         checkoutMetadataDrafts: true,
         // COMPAT(localOsIntegration): added in v0.1.94, remove gate after 2026-12-08.
         localOsIntegration: true,
+        // COMPAT(hostSkillsManagement): added in v0.1.95, remove gate after 2026-12-10.
+        ...(this.hostSkillsManagementAvailable ? { hostSkillsManagement: true } : {}),
       },
     };
   }

@@ -1,0 +1,54 @@
+feature: 2026-06-10-web-host-skills-management
+created: 2026-06-10
+
+steps:
+  - action: "按第 2.5 节方案做微重构：把 skills sync/status 纯逻辑收回 server scoped module，并把 Web skills 卡片从 host-page.tsx 提炼成独立组件"
+    exit_signal: "desktop 现有 skills 行为继续复用共享逻辑，host-page.tsx 不内联新增大块 skills UI"
+    status: done
+  - action: "补齐协议骨架：新增 hostSkillsManagement feature flag 和 daemon.skills.get_status/install/update/uninstall RPC"
+    exit_signal: "host runtime client 能对支持型 host 发起有类型约束的 skills 状态与动作请求"
+    status: done
+  - action: "实现 daemon 执行层：source resolver、shared skills module、session handlers、desktop IPC 委托"
+    exit_signal: "daemon 在临时 home 上能通过同一套逻辑返回 clean/drift/up-to-date，并完成 install/update/uninstall 收敛"
+    status: done
+  - action: "接入 Web host settings：在 Host > Agents 渲染 skills 卡片、升级提示和状态驱动动作"
+    exit_signal: "支持型 host 在 Web 上可操作，不支持型 host 只显示升级提示，Enable Paseo tools 保持独立"
+    status: done
+  - action: "补齐 targeted tests 与相关文档"
+    exit_signal: "关键 server/app tests 与文档更新覆盖 capability gate、权限边界和 source bundle 约束"
+    status: done
+
+checks:
+  - item: "Web 端这次只增加 orchestration skills 管理，不把 CLI installer 一起搬进来"
+    source: 范围守护
+    status: passed
+  - item: "Enable Paseo tools 仍只控制 mcp.injectIntoAgents，与 skills 文件安装器保持分离"
+    source: 范围守护
+    status: passed
+  - item: "HostSkillsStatus 沿用现有 SkillsStatus/SkillOp 语义，不为 Web 另起状态模型"
+    source: 名词契约
+    status: passed
+  - item: "能力发现通过 server_info.features.hostSkillsManagement，而不是复用 desktop runtime gate"
+    source: 编排骨架
+    status: passed
+  - item: "skills 管理按 ordinary daemon operator traffic 处理，不走 localhost-only local OS gate"
+    source: 流程级约束
+    status: passed
+  - item: "daemon 解析不到 skills source bundle 时不宣称支持该能力"
+    source: 流程级约束
+    status: passed
+  - item: "挂载点包含 hostSkillsManagement feature flag、daemon.skills.* RPC、Host > Agents 卡片和 daemon source resolver"
+    source: 挂载点
+    status: passed
+  - item: "Install 在 clean host 上把 managed bundle 同步到 host 的三处 skills 目录，并收敛到 up-to-date"
+    source: 验收场景
+    status: passed
+  - item: "Update 在 drift host 上修复差异并回到 up-to-date"
+    source: 验收场景
+    status: passed
+  - item: "Uninstall 只移除 Paseo managed skills，不误删无关用户自定义 skills"
+    source: 验收场景
+    status: passed
+  - item: "relay 或 remote direct 的已授权客户端也能执行这组动作"
+    source: 验收场景
+    status: passed

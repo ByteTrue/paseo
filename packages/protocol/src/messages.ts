@@ -1115,6 +1115,40 @@ export const LocalFsListDirectoryRequestSchema = z.object({
   path: z.string().min(1),
 });
 
+export const ManagedSkillOpKindSchema = z.enum(["add", "update", "delete"]);
+
+export const ManagedSkillOpSchema = z.object({
+  kind: ManagedSkillOpKindSchema,
+  name: z.string().min(1),
+});
+
+export const ManagedSkillsStateSchema = z.enum(["not-installed", "up-to-date", "drift"]);
+
+export const ManagedSkillsStatusSchema = z.object({
+  state: ManagedSkillsStateSchema,
+  ops: z.array(ManagedSkillOpSchema),
+});
+
+export const DaemonSkillsGetStatusRequestSchema = z.object({
+  type: z.literal("daemon.skills.get_status.request"),
+  requestId: z.string(),
+});
+
+export const DaemonSkillsInstallRequestSchema = z.object({
+  type: z.literal("daemon.skills.install.request"),
+  requestId: z.string(),
+});
+
+export const DaemonSkillsUpdateRequestSchema = z.object({
+  type: z.literal("daemon.skills.update.request"),
+  requestId: z.string(),
+});
+
+export const DaemonSkillsUninstallRequestSchema = z.object({
+  type: z.literal("daemon.skills.uninstall.request"),
+  requestId: z.string(),
+});
+
 export const GetDaemonConfigRequestMessageSchema = z.object({
   type: z.literal("get_daemon_config_request"),
   requestId: z.string(),
@@ -1444,6 +1478,32 @@ export const LocalFsListDirectoryResponseSchema = z.object({
     entries: z.array(LocalFsDirectoryEntrySchema),
     error: z.string().nullable(),
   }),
+});
+
+const DaemonSkillsResponsePayloadSchema = z.object({
+  requestId: z.string(),
+  status: ManagedSkillsStatusSchema.nullable(),
+  error: z.string().nullable(),
+});
+
+export const DaemonSkillsGetStatusResponseSchema = z.object({
+  type: z.literal("daemon.skills.get_status.response"),
+  payload: DaemonSkillsResponsePayloadSchema,
+});
+
+export const DaemonSkillsInstallResponseSchema = z.object({
+  type: z.literal("daemon.skills.install.response"),
+  payload: DaemonSkillsResponsePayloadSchema,
+});
+
+export const DaemonSkillsUpdateResponseSchema = z.object({
+  type: z.literal("daemon.skills.update.response"),
+  payload: DaemonSkillsResponsePayloadSchema,
+});
+
+export const DaemonSkillsUninstallResponseSchema = z.object({
+  type: z.literal("daemon.skills.uninstall.response"),
+  payload: DaemonSkillsResponsePayloadSchema,
 });
 
 export const SetVoiceModeResponseMessageSchema = z.object({
@@ -2008,6 +2068,10 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   DaemonAuthListClientsRequestSchema,
   DaemonAuthRevokeClientRequestSchema,
   DaemonAuthChangePasswordRequestSchema,
+  DaemonSkillsGetStatusRequestSchema,
+  DaemonSkillsInstallRequestSchema,
+  DaemonSkillsUpdateRequestSchema,
+  DaemonSkillsUninstallRequestSchema,
   LocalOsListOpenTargetsRequestSchema,
   LocalOsOpenTargetRequestSchema,
   LocalFsListRootsRequestSchema,
@@ -2301,6 +2365,8 @@ export const ServerInfoStatusPayloadSchema = z
         checkoutMetadataDrafts: z.boolean().optional(),
         // COMPAT(localOsIntegration): added in v0.1.94, remove gate after 2026-12-08.
         localOsIntegration: z.boolean().optional(),
+        // COMPAT(hostSkillsManagement): added in v0.1.95, remove gate after 2026-12-10.
+        hostSkillsManagement: z.boolean().optional(),
       })
       .optional(),
   })
@@ -4026,6 +4092,10 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   DaemonAuthListClientsResponseSchema,
   DaemonAuthRevokeClientResponseSchema,
   DaemonAuthChangePasswordResponseSchema,
+  DaemonSkillsGetStatusResponseSchema,
+  DaemonSkillsInstallResponseSchema,
+  DaemonSkillsUpdateResponseSchema,
+  DaemonSkillsUninstallResponseSchema,
   LocalOsListOpenTargetsResponseSchema,
   LocalOsOpenTargetResponseSchema,
   LocalFsListRootsResponseSchema,
@@ -4208,6 +4278,10 @@ export type ListProviderFeaturesResponseMessage = z.infer<
 export type ListAvailableProvidersResponse = z.infer<typeof ListAvailableProvidersResponseSchema>;
 export type DaemonGetStatusResponse = z.infer<typeof DaemonGetStatusResponseSchema>;
 export type DaemonGetPairingOfferResponse = z.infer<typeof DaemonGetPairingOfferResponseSchema>;
+export type DaemonSkillsGetStatusResponse = z.infer<typeof DaemonSkillsGetStatusResponseSchema>;
+export type DaemonSkillsInstallResponse = z.infer<typeof DaemonSkillsInstallResponseSchema>;
+export type DaemonSkillsUpdateResponse = z.infer<typeof DaemonSkillsUpdateResponseSchema>;
+export type DaemonSkillsUninstallResponse = z.infer<typeof DaemonSkillsUninstallResponseSchema>;
 export type GetProvidersSnapshotResponseMessage = z.infer<
   typeof GetProvidersSnapshotResponseMessageSchema
 >;
