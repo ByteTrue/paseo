@@ -27,9 +27,12 @@ Usage examples:
   python .bytetrue/tools/validate-yaml.py --file docs/api/manifest.yaml --yaml-only
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 # Force UTF-8 stdout/stderr on Windows where default codepage (e.g. GBK / cp936)
@@ -38,11 +41,10 @@ from pathlib import Path
 # through some IDEs) raise io.UnsupportedOperation — a ValueError + OSError
 # subclass — and we just leave the original encoding in place.
 for _stream in (sys.stdout, sys.stderr):
-    if hasattr(_stream, "reconfigure"):
-        try:
-            _stream.reconfigure(encoding="utf-8")
-        except (OSError, ValueError):
-            pass
+    reconfigure = getattr(_stream, "reconfigure", None)
+    if callable(reconfigure):
+        with suppress(OSError, ValueError):
+            reconfigure(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -52,9 +54,10 @@ for _stream in (sys.stdout, sys.stderr):
 _HAS_PYYAML = False
 try:
     import yaml  # type: ignore
+
     _HAS_PYYAML = True
 except ImportError:
-    pass
+    yaml = None  # type: ignore[assignment]
 
 
 def _builtin_parse_yaml(text: str) -> dict:
@@ -82,15 +85,16 @@ def parse_yaml_text(text: str) -> tuple[dict | None, str | None]:
     Parse a YAML string. Returns (parsed_dict, None) on success,
     or (None, error_message) on failure.
     """
-    if _HAS_PYYAML:
+    yaml_module = yaml
+    if _HAS_PYYAML and yaml_module is not None:
         try:
-            result = yaml.safe_load(text)
+            result = yaml_module.safe_load(text)
             if result is None:
                 return {}, None
             if not isinstance(result, dict):
                 return None, f"Expected a mapping, got {type(result).__name__}"
             return result, None
-        except yaml.YAMLError as exc:
+        except yaml_module.YAMLError as exc:
             return None, str(exc)
     else:
         # Builtin fallback — can only detect gross syntax issues
@@ -105,6 +109,7 @@ def parse_yaml_text(text: str) -> tuple[dict | None, str | None]:
 # Frontmatter extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_frontmatter(text: str) -> tuple[str | None, str | None]:
     """
     Extract YAML frontmatter from a markdown file.
@@ -116,7 +121,10 @@ def extract_frontmatter(text: str) -> tuple[str | None, str | None]:
 
     end = text.find("\n---", 3)
     if end == -1:
-        return None, "No closing '---' delimiter found (frontmatter block not terminated)"
+        return (
+            None,
+            "No closing '---' delimiter found (frontmatter block not terminated)",
+        )
 
     fm_text = text[3:end].strip()
     if not fm_text:
@@ -128,6 +136,7 @@ def extract_frontmatter(text: str) -> tuple[str | None, str | None]:
 # ---------------------------------------------------------------------------
 # Validation logic
 # ---------------------------------------------------------------------------
+
 
 class ValidationResult:
     def __init__(self, file_path: str):
@@ -151,7 +160,9 @@ class ValidationResult:
         return d
 
 
-def _check_required(parsed: dict | None, required_fields: list[str] | None, result: ValidationResult) -> None:
+def _check_required(
+    parsed: dict | None, required_fields: list[str] | None, result: ValidationResult
+) -> None:
     if not required_fields:
         return
     for field in required_fields:
@@ -190,6 +201,10 @@ def _validate_file(
     else:
         yaml_text = text
 
+    if yaml_text is None:
+        result.errors.append("YAML syntax error: empty YAML content")
+        return result
+
     parsed, parse_err = parse_yaml_text(yaml_text)
     if parse_err:
         result.errors.append(f"YAML syntax error: {parse_err}")
@@ -214,6 +229,7 @@ def validate_yaml_file(file_path, required_fields=None, base_dir=None):
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
+
 
 def print_text_results(results: list[ValidationResult]) -> None:
     passed = sum(1 for r in results if r.ok)
@@ -249,25 +265,39 @@ def print_json_results(results: list[ValidationResult]) -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Validate YAML frontmatter in markdown files or pure YAML files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--dir", type=str, help="Directory to scan recursively for .md files")
+    source.add_argument(
+        "--dir", type=str, help="Directory to scan recursively for .md files"
+    )
     source.add_argument("--file", type=str, help="Single file to validate")
-    parser.add_argument("--require", action="append", default=[], metavar="FIELD",
-                        help="Require this field in frontmatter (repeatable)")
-    parser.add_argument("--json", action="store_true", dest="json_output",
-                        help="Output results as JSON")
-    parser.add_argument("--yaml-only", action="store_true",
-                        help="Treat input as pure YAML (not markdown with frontmatter). "
-                             "Use for .yaml/.yml files like manifest.yaml.")
+    parser.add_argument(
+        "--require",
+        action="append",
+        default=[],
+        metavar="FIELD",
+        help="Require this field in frontmatter (repeatable)",
+    )
+    parser.add_argument(
+        "--json", action="store_true", dest="json_output", help="Output results as JSON"
+    )
+    parser.add_argument(
+        "--yaml-only",
+        action="store_true",
+        help="Treat input as pure YAML (not markdown with frontmatter). "
+        "Use for .yaml/.yml files like manifest.yaml.",
+    )
     return parser
 
 
-def _validate_single(path_str: str, require: list[str], yaml_only: bool) -> list[ValidationResult]:
+def _validate_single(
+    path_str: str, require: list[str], yaml_only: bool
+) -> list[ValidationResult]:
     fp = Path(path_str)
     if not fp.exists():
         print(f"Error: File not found: {fp}", file=sys.stderr)
