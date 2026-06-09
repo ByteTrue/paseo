@@ -91,13 +91,23 @@ function getServerInfoDisplayName(serverInfo: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function supportsDaemonDisplayName(serverInfo: unknown): boolean {
+  if (!serverInfo || typeof serverInfo !== "object") {
+    return false;
+  }
+  const features = (serverInfo as { features?: Record<string, unknown> }).features;
+  return features?.daemonDisplayName === true;
+}
+
 function syncHostDisplayNameFromServerInfo(serverId: string, serverInfo: unknown): void {
-  const hostname =
-    serverInfo && typeof serverInfo === "object"
-      ? ((serverInfo as { hostname?: string | null }).hostname ?? null)
-      : null;
-  const label = getServerInfoDisplayName(serverInfo) ?? hostname;
-  void getHostRuntimeStore().syncHostDisplayName(serverId, label);
+  if (!supportsDaemonDisplayName(serverInfo)) {
+    return;
+  }
+  const displayName = getServerInfoDisplayName(serverInfo);
+  if (!displayName) {
+    return;
+  }
+  void getHostRuntimeStore().syncHostDisplayName(serverId, displayName);
 }
 
 function hasAgentUsageChanged(
