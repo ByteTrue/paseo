@@ -9,6 +9,6 @@ user-invocable: true
 
 Read `docs/release.md` in the Paseo repo and follow the **Beta flow** section end-to-end. Run the **Beta release** completion checklist at the bottom of that doc.
 
-Fork guardrails: work from `origin` / `ByteTrue/paseo`, preserve the browser-web + Electron-only release surface, and do not reintroduce native iOS/Android, EAS, App Store, Play Store, or APK release assumptions.
+Fork guardrails: work from `origin` / `ByteTrue/paseo` and follow the release surfaces documented in `docs/release.md`.
 
 Key rule: betas are silent release candidates. Do not draft release notes or touch `CHANGELOG.md`.

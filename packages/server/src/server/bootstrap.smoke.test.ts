@@ -36,7 +36,7 @@ describe("paseo daemon bootstrap", () => {
       agentClients: createTestAgentClients(),
       agentStoragePath: "/tmp/paseo-home/agents",
       relayEnabled: false,
-      appBaseUrl: "https://app.paseo.sh",
+      appBaseUrl: "https://paseo.zijieapi.de5.net",
       metadataGeneration: {
         providers: [{ provider: "claude", model: "haiku" }],
         agentTitle: { enabled: false },
@@ -204,7 +204,7 @@ describe("paseo daemon bootstrap", () => {
       agentClients: createTestAgentClients(),
       agentStoragePath: path.join(paseoHome, "agents"),
       relayEnabled: false,
-      appBaseUrl: "https://app.paseo.sh",
+      appBaseUrl: "https://paseo.zijieapi.de5.net",
       openai: undefined,
       speech: undefined,
       serviceProxy: {
@@ -325,7 +325,7 @@ describe("paseo daemon bootstrap", () => {
       agentClients: createTestAgentClients(),
       agentStoragePath: path.join(paseoHome, "agents"),
       relayEnabled: false,
-      appBaseUrl: "https://app.paseo.sh",
+      appBaseUrl: "https://paseo.zijieapi.de5.net",
       openai: undefined,
       speech: undefined,
       serviceProxy: { publicBaseUrl: null, standaloneListen: `127.0.0.1:${standalonePort}` },

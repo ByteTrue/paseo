@@ -192,8 +192,7 @@ function PairDeviceBody(props: PairDeviceBodyProps) {
   return (
     <View style={styles.content}>
       <Text style={styles.hint}>
-        Scan this QR code with your phone camera, or copy the link below to open the web app on
-        another device.
+        Scan this QR code with Paseo on your phone, or copy the link below.
       </Text>
       <View style={styles.qrContainer}>
         <PairDeviceQrContent qrImageSource={qrImageSource} qrQuery={qrQuery} />

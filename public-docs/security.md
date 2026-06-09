@@ -7,7 +7,7 @@ order: 12
 
 # Security
 
-Paseo follows a client-server architecture, similar to Docker. The daemon runs on your machine and manages your coding agents. Clients (the desktop app, CLI, or web app) connect to the daemon to monitor and control those agents.
+Paseo follows a client-server architecture, similar to Docker. The daemon runs on your machine and manages your coding agents. Clients (the mobile app, CLI, or web interface) connect to the daemon to monitor and control those agents.
 
 Your code never leaves your machine. Paseo is a local-first tool that connects directly to your development environment.
 
@@ -22,15 +22,15 @@ Clients connect to the daemon over WebSocket. There are two ways to establish th
 
 ## Relay connections (recommended)
 
-The relay is the simplest way to connect from another device. It requires no VPN setup, no port forwarding, and no firewall configuration. The daemon can stay bound to localhost or a socket file, it connects _outbound_ to the relay, and your browser meets it there.
+The relay is the simplest way to connect from your phone. It requires no VPN setup, no port forwarding, and no firewall configuration. The daemon can stay bound to localhost or a socket file, it connects _outbound_ to the relay, and your phone meets it there.
 
-> **The relay is designed to be untrusted.** All traffic between your browser and daemon is end-to-end encrypted. The relay server cannot read your messages, see your code, or modify traffic without detection. Even if the relay is compromised, your data remains protected.
+> **The relay is designed to be untrusted.** All traffic between your phone and daemon is end-to-end encrypted. The relay server cannot read your messages, see your code, or modify traffic without detection. Even if the relay is compromised, your data remains protected.
 
 ### How it works
 
 1. The daemon generates a persistent ECDH keypair and stores it in `$PASEO_HOME/daemon-keypair.json`
-2. When you open the pairing link, your browser receives the daemon's public key
-3. Your browser sends a handshake message with its own public key. The daemon will not accept any commands until this handshake completes.
+2. When you scan the QR code or click the pairing link, your phone receives the daemon's public key
+3. Your phone sends a handshake message with its own public key. The daemon will not accept any commands until this handshake completes.
 4. Both sides perform a Curve25519 ECDH key exchange to derive a shared key. All subsequent
    messages are encrypted with XSalsa20-Poly1305 (NaCl `box`).
 
@@ -40,7 +40,7 @@ The relay sees only: IP addresses, timing, message sizes, and session IDs. It ca
 
 The daemon requires a valid cryptographic handshake before processing any commands. A compromised relay cannot:
 
-- **Send commands**, Without the client's private key, it cannot complete the handshake
+- **Send commands**, Without your phone's private key, it cannot complete the handshake
 - **Read your traffic**, All messages are encrypted with XSalsa20-Poly1305 (NaCl `box`) after the handshake
 - **Forge messages**, NaCl `box` provides authenticated encryption; tampered messages are rejected
 - **Replay old messages**, Each session derives fresh encryption keys
@@ -53,11 +53,11 @@ If you believe a pairing offer has been compromised, restart the daemon to gener
 
 ## Direct connections
 
-By default, the daemon listens on `127.0.0.1:6767` (localhost only). This is safe for local CLI usage but not reachable from other devices.
+By default, the daemon listens on `127.0.0.1:6767` (localhost only). This is safe for local CLI usage but not reachable from your phone or other devices.
 
 ### Socket file (CLI only)
 
-For maximum isolation, you can configure the daemon to listen on a Unix socket file instead of a TCP port. This prevents any network access entirely, only processes on the same machine can connect. The CLI supports this mode, but the web UI requires a network connection.
+For maximum isolation, you can configure the daemon to listen on a Unix socket file instead of a TCP port. This prevents any network access entirely, only processes on the same machine can connect. The CLI supports this mode, but the mobile app and web interface require a network connection.
 
 ### VPN access
 
@@ -120,7 +120,7 @@ Paseo never stores or transmits provider API keys. Agents run in your user conte
 ## Recommendations
 
 - **Use the relay** for mobile access, it's the simplest option and all traffic is end-to-end encrypted
-- **Treat the pairing link like a password**, anyone with the pairing offer can connect to your daemon
+- **Treat the QR code like a password**, anyone with the pairing offer can connect to your daemon
 - **Set a password** if you bind to a network address, it prevents unauthorized clients from controlling your agents
 - **Never bind to 0.0.0.0 without a password**, without one, any device on your network can connect
 - **Keep your daemon updated**, security improvements are released regularly

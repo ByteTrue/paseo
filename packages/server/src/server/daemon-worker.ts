@@ -1,3 +1,5 @@
+import { appendFileSync, mkdirSync } from "node:fs";
+import path from "node:path";
 import { createPaseoDaemon } from "./bootstrap.js";
 import { loadConfig } from "./config.js";
 import { resolvePaseoHome } from "./paseo-home.js";
@@ -43,6 +45,31 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
+function writeWorkerLifecycleLog(
+  paseoHome: string,
+  message: string,
+  fields: Record<string, unknown> = {},
+): void {
+  try {
+    const logPath = path.join(paseoHome, "daemon.log");
+    mkdirSync(path.dirname(logPath), { recursive: true });
+    appendFileSync(
+      logPath,
+      `${JSON.stringify({
+        level: "warn",
+        time: new Date().toISOString(),
+        pid: process.pid,
+        name: "DaemonWorker",
+        msg: message,
+        ...fields,
+      })}\n`,
+      "utf8",
+    );
+  } catch {
+    // Exit-reason logging must never prevent the worker from exiting.
+  }
+}
+
 function bootstrapFromEnvironment(): BootstrapResult {
   try {
     const paseoHome = resolvePaseoHome();
@@ -72,7 +99,7 @@ function applyCliFlagOverrides(config: ReturnType<typeof loadConfig>): void {
 }
 
 async function main() {
-  const { logger, config } = bootstrapFromEnvironment();
+  const { paseoHome, logger, config } = bootstrapFromEnvironment();
   let daemon: Awaited<ReturnType<typeof createPaseoDaemon>> | null = null;
   let shutdownPromise: Promise<number> | null = null;
   let exitHookInstalled = false;
@@ -185,13 +212,25 @@ async function main() {
     const supervisorPid = process.ppid;
     let lastSupervisorHeartbeatAt = Date.now();
     let lastHeartbeatSeq = 0;
-    let supervisorShutdownRequested = false;
-    const requestSupervisorShutdown = (reason: string) => {
-      if (supervisorShutdownRequested) {
+    let supervisorExitRequested = false;
+    const exitAfterSupervisorLoss = (reason: string) => {
+      if (supervisorExitRequested) {
         return;
       }
-      supervisorShutdownRequested = true;
-      beginShutdown(reason);
+      supervisorExitRequested = true;
+
+      writeWorkerLifecycleLog(paseoHome, "Supervisor liveness lost; worker exiting", {
+        reason,
+        supervisorPid,
+        currentParentPid: process.ppid,
+        ipcConnected: typeof process.connected === "boolean" ? process.connected : null,
+        heartbeatAgeMs: Date.now() - lastSupervisorHeartbeatAt,
+      });
+
+      // The supervisor owns the worker's stdout/stderr pipes. Once it is gone,
+      // logging during graceful shutdown can block on the broken pipe and leave
+      // the daemon orphaned, so supervisor loss is a hard process boundary.
+      process.exit(0);
     };
 
     process.on("message", (message: unknown) => {
@@ -211,26 +250,23 @@ async function main() {
         }
       }
     });
-    process.on("disconnect", () => {
-      process.stderr.write(
-        `[daemon-worker] IPC disconnect detected (connected=${process.connected})\n`,
-      );
-      requestSupervisorShutdown("supervisor disconnect");
-    });
+    process.on("disconnect", () => exitAfterSupervisorLoss("ipc_disconnect_event"));
 
     const timer = setInterval(() => {
       const ipcConnected = typeof process.connected === "boolean" ? process.connected : true;
       const heartbeatExpired = Date.now() - lastSupervisorHeartbeatAt > 3500;
-      const supervisorAlive = isPidAlive(supervisorPid);
-      // On platforms where zombies respond to signal 0 (e.g. macOS), also
-      // check if the worker has been reparented to PID 1 (init/launchd),
-      // which only happens when the original parent (supervisor) has died.
-      const reparentedToInit = process.ppid === 1 && supervisorPid !== 1;
-      process.stderr.write(
-        `[daemon-worker] heartbeat: connected=${ipcConnected} supervisorAlive=${supervisorAlive} heartbeatExpired=${heartbeatExpired} reparented=${reparentedToInit}\n`,
-      );
-      if (ipcConnected === false || !supervisorAlive || heartbeatExpired || reparentedToInit) {
-        requestSupervisorShutdown("supervisor disconnect");
+      const supervisorChanged = process.ppid !== supervisorPid;
+
+      if (ipcConnected === false) {
+        exitAfterSupervisorLoss("ipc_disconnected");
+        return;
+      }
+      if (supervisorChanged) {
+        exitAfterSupervisorLoss("supervisor_parent_pid_changed");
+        return;
+      }
+      if (heartbeatExpired && !isPidAlive(supervisorPid)) {
+        exitAfterSupervisorLoss("supervisor_pid_dead");
       }
     }, 1000);
     timer.unref();

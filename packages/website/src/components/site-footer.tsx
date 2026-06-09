@@ -1,4 +1,4 @@
-import { webAppUrl } from "~/downloads";
+import { appStoreUrl, playStoreUrl, webAppUrl } from "~/downloads";
 
 interface SiteFooterProps {
   width?: "default" | "prose";
@@ -42,6 +42,12 @@ export function SiteFooter({ width = "default" }: SiteFooterProps) {
               className="block text-muted-foreground hover:text-foreground transition-colors"
             >
               Privacy
+            </a>
+            <a
+              href="/sponsor"
+              className="block text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Sponsor
             </a>
           </div>
         </div>
@@ -106,6 +112,22 @@ export function SiteFooter({ width = "default" }: SiteFooterProps) {
         <div className="space-y-3">
           <p className="text-white/60 font-medium">Download</p>
           <div className="space-y-2">
+            <a
+              href={appStoreUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-muted-foreground hover:text-foreground transition-colors"
+            >
+              App Store
+            </a>
+            <a
+              href={playStoreUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Google Play
+            </a>
             <a
               href="https://github.com/getpaseo/paseo/releases"
               target="_blank"

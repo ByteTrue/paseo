@@ -1,5 +1,7 @@
 // This file exists for TypeScript resolution.
-// The project now targets web/Electron only, so the default implementation
-// maps to the web renderer variant.
+// The actual implementations are in:
+// - draggable-list.native.tsx (iOS/Android)
+// - draggable-list.web.tsx (Web)
+// Metro's platform-specific extensions will pick the right one at runtime.
 
-export * from "./draggable-list.web";
+export * from "./draggable-list.native";

@@ -98,7 +98,7 @@ export function OpenProjectScreen({ serverId }: { serverId: string }) {
             <HomeTile
               icon={Smartphone}
               title="Pair device"
-              description="Connect another device to this daemon"
+              description="Connect your phone to this daemon"
               onPress={handleOpenPairDevice}
               testID="open-project-pair-device"
             />

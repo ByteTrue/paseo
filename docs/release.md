@@ -33,7 +33,7 @@ Rules that apply to both steps:
 There are two supported ways to ship from `main`:
 
 1. **Direct stable release**: you are ready to ship the current `main` commit to everyone immediately.
-2. **Beta flow**: silent release candidates. Betas don't touch the changelog, don't move the website, and don't publish npm.
+2. **Beta flow**: silent release candidates. Betas don't touch the changelog, don't move the website, and don't publish npm or production mobile builds.
 
 ## Fork release model
 
@@ -47,7 +47,7 @@ Fork facts:
 - Browser web deploy: `deploy-app.yml` to the `paseo-zijieapi-de5-net` Pages project.
 - Relay deploy: `deploy-relay.yml` to the ByteTrue Cloudflare account.
 - Website deploy: `deploy-website.yml` to the ByteTrue Cloudflare account.
-- Browser web and Electron desktop are the only shipped app surfaces. There is no native iOS/Android client, no EAS/App Store/Play Store flow, and no Android APK release path.
+- Shipped app surfaces: browser web, Electron desktop, native iOS/Android through EAS/App Store/Play Store, and Android APK release assets.
 - macOS desktop releases publish Apple Silicon arm64 artifacts only; Intel x64 macOS artifacts are not shipped.
 
 Publishable npm packages, in dependency order:
@@ -75,7 +75,7 @@ Before running any stable patch release command:
 npm run release:patch
 ```
 
-This bumps the version across all workspaces, runs checks, publishes to npm, and pushes the branch + tag. The tag push triggers `Desktop Release` and `Release Notes Sync` on GitHub Actions.
+This bumps the version across all workspaces, runs checks, publishes to npm, and pushes the branch + tag. The tag push triggers `Desktop Release`, `Android APK Release`, and `Release Notes Sync` on GitHub Actions. EAS picks up the same tag via the EAS GitHub app and starts the iOS + Android store builds in parallel (see "Mobile builds (EAS)" below) — there is no `release-mobile.yml` in this repo.
 
 **Releases are always patch.** "Release paseo", "release stable", "ship stable", and similar always mean a patch bump from the previous stable. Never bump minor or major to trigger a build, ever — minor and major bumps are reserved for genuinely larger product cuts and require an explicit user instruction with the word "minor" or "major". If you find yourself reaching for `release:minor` to retrigger a failed build, you are doing the wrong thing — push a retry tag instead (see "Fixing a failed release build" below).
 
@@ -95,7 +95,7 @@ npm run release:push         # Push HEAD + tag (triggers CI workflows)
 
 ```bash
 npm run release:beta:patch       # Bump to X.Y.Z-beta.1, push commit + tag
-# ... test desktop prerelease assets from GitHub Releases ...
+# ... test desktop and APK prerelease assets from GitHub Releases ...
 npm run release:beta:next        # Optional: cut X.Y.Z-beta.2, beta.3, ...
 npm run release:promote          # Promote X.Y.Z-beta.N to stable X.Y.Z
 ```
@@ -116,7 +116,7 @@ Use the beta path when you need to:
 
 ## Staged rollout (stable channel)
 
-Stable desktop releases go out via a linear time-based rollout: 0% admitted when the updater manifests appear, 100% admitted 36 hours later, linear ramp in between. Beta releases bypass the rollout entirely — beta users always receive updates immediately.
+Stable desktop releases go out via a linear time-based rollout for automatic update checks: 0% admitted when the updater manifests appear, 100% admitted 36 hours later, linear ramp in between. Manual checks bypass the rollout so a user can install immediately when they click **Check**. Beta releases bypass the rollout entirely — beta users always receive updates immediately.
 
 The rollout is driven by a `rolloutHours` field stamped into the GitHub Release manifests (`latest-mac.yml`, `latest-linux.yml`, `latest.yml`) by the `finalize-rollout` job in `desktop-release.yml`.
 
@@ -200,14 +200,93 @@ If N+1 is a hotfix for a bug in N, dispatch `desktop-rollout.yml -f tag=v0.1.<N+
 - **No pause / kill switch.** Once a stable user is admitted, they will install the update on next quit (`autoInstallOnAppQuit = true`). To stop new admissions, ship a superseding release. To "recall" already-admitted users, ship a hotfix `+1` patch.
 - **No rollback.** `allowDowngrade = false`. Bad release = ship a hotfix.
 - **Bootstrap caveat.** Clients running a build older than the rollout feature ignore `rolloutHours` and admit immediately. Rollout protection only applies to clients running the rollout-aware version or later.
-- **Up to ~30 min admission latency.** Renderer polls every 30 minutes, so a stable user may take up to that long to be evaluated against the rollout window.
+- **Up to ~30 min automatic admission latency.** Renderer polls every 30 minutes, so a stable user may take up to that long to be evaluated against the rollout window. Clicking **Check** is manual and bypasses rollout admission.
 
-## Release artifacts
+## Mobile builds (EAS)
 
-This fork ships desktop artifacts plus npm packages. There is no iOS/Android native-client release flow.
+iOS and Android store builds are not in `.github/workflows`. They are triggered by the EAS GitHub app the moment the `v*` tag is pushed:
 
-- **Desktop** — built by `.github/workflows/desktop-release.yml` and uploaded to GitHub Releases.
-- **Release notes** — synced from the changelog by `.github/workflows/release-notes-sync.yml`.
+- **Android (Play Store)** — EAS builds with profile `production` and auto-submits to the Play Store via `eas submit` (EAS-managed credentials, no Fastlane).
+- **iOS (TestFlight)** — EAS builds with profile `production` and uploads to App Store Connect/TestFlight via `eas submit` (EAS-managed credentials, no local certificate required). TestFlight still requires an Apple Developer Program account and App Store Connect access for the `sh.paseo` app.
+- **Android APK (GitHub Release asset)** — separate, via `.github/workflows/android-apk-release.yml`. This is the only Android-related workflow that lives in this repo.
+
+The EAS workflow definition lives at `packages/app/.eas/workflows/release-mobile.yml`. It is executed by Expo/EAS, not by GitHub Actions.
+
+### Watching mobile builds from the terminal
+
+Use the EAS CLI from `packages/app/`:
+
+```bash
+cd packages/app
+
+# Recent builds (newest first). Pipe to jq for status only.
+npx eas build:list --limit 8 --non-interactive --json | jq '.[] | {platform, status, appVersion, gitCommitHash}'
+
+# Recent EAS workflow runs. This is the source of truth for submit jobs.
+npx eas workflow:runs --json | jq '.[] | {status, workflowName, trigger, gitCommitHash, startedAt, finishedAt}'
+
+# Filter by platform.
+npx eas build:list --platform ios --limit 5 --non-interactive --json
+npx eas build:list --platform android --limit 5 --non-interactive --json
+
+# Inspect a specific build.
+npx eas build:view <build-id>
+
+# Inspect the full release workflow, including submit_ios and submit_android.
+npx eas workflow:view <workflow-run-id> --json
+
+# Read failed submit job logs.
+npx eas workflow:logs <workflow-job-id> --all-steps --non-interactive
+
+# Stream logs for a build.
+npx eas build:view <build-id> --json | jq '.logFiles[]'
+```
+
+A build's `gitCommitHash` must match the release tag commit. `status` walks through `NEW` → `IN_QUEUE` → `IN_PROGRESS` → `FINISHED` (or `ERRORED`/`CANCELED`). The EAS workflow run's `gitCommitHash` and `trigger` must also match the release tag.
+
+Once a build is `FINISHED`, EAS still has release-critical work to do: Android must submit to the Play Store, and iOS must upload to App Store Connect/TestFlight. The release is not done until Android is on its Play Store track and the iOS build is visible/processed for TestFlight distribution.
+
+For the `Release Mobile` EAS workflow, these jobs must pass:
+
+- `build_ios` — iOS binary built
+- `submit_ios` — iOS binary uploaded to App Store Connect/TestFlight
+- `build_android` — Android store binary built
+- `submit_android` — Android binary submitted to the Play Store
+
+Do not treat `build_ios: SUCCESS` as a completed iOS release. `submit_ios: SUCCESS` means EAS uploaded the build; App Store Connect/TestFlight processing is the final iOS ground truth before testers can install it.
+
+To confirm the submission landed, inspect the EAS workflow with `npx eas workflow:view <workflow-run-id> --json`. App Store Connect/TestFlight (processed build for the matching version/build) and the Play Console track are the final ground truth.
+
+### Babysitting mobile after a release
+
+The user rarely opens the Expo dashboard. A failed EAS build or submit job can sit silently until users complain about a stale version. After every stable release, set up a long-delay babysit that re-checks GitHub Actions, EAS builds, and the EAS `Release Mobile` workflow for the release tag. If any build is `ERRORED`/`CANCELED`, any workflow is `FAILURE`, or any required submit job fails, surface it immediately. If all builds are `FINISHED` and all required submit jobs are `SUCCESS`, confirm and stop.
+
+**Use `create_heartbeat`, never `create_schedule`, for release babysitting.** Babysitting fires back into the current conversation as a wake-up prompt. `create_schedule` starts a fresh agent the user has to find and read; `create_heartbeat` surfaces the build status inline in the conversation that owns the release, where it is impossible to miss. If you find yourself reaching for `create_schedule` for a release babysit, you are about to ship a status report into a void.
+
+Pattern:
+
+```jsonc
+// mcp__paseo__create_heartbeat arguments
+{
+  "name": "vX.Y.Z release babysit heartbeat",
+  "cron": "*/15 * * * *",
+  "maxRuns": 8, // covers ~2h of build + store-submission window
+  "prompt": "Heartbeat: check vX.Y.Z release. Run gh run list, eas build:list, eas workflow:runs, and eas workflow:view for the matching Release Mobile run. Report concisely. The release is not done until desktop/APK workflows are green, EAS builds are FINISHED, Android submit_android is SUCCESS, and iOS submit_ios is SUCCESS with the matching build visible/processed in TestFlight. Flag any ERRORED/FAILED/CANCELED/FAILURE loudly.",
+}
+```
+
+Tight cadence on purpose. The first run fires immediately, giving a near-real-time status check before the conversation closes. Subsequent runs at 15-minute intervals catch transitions quickly: a failed EAS build or failed store/TestFlight submission at +20m should not wait until +50m to surface. Keep the prompt short — the heartbeat is a status probe, not a research task — and have it bail out as soon as every platform is actually on its store path so the remaining runs do not generate noise.
+
+## Release notes on GitHub
+
+The GitHub Release body is populated automatically by the `Release Notes Sync` workflow (`.github/workflows/release-notes-sync.yml`). It triggers on every `v*` tag push and on any push to `main` that touches `CHANGELOG.md`, then runs `scripts/sync-release-notes-from-changelog.mjs` to mirror the matching changelog entry into the release body. You don't need to write release notes on GitHub manually — keep `CHANGELOG.md` correct and the workflow will sync it. To force a re-sync, dispatch the workflow with the tag input.
+
+## Website behavior
+
+- The website download page points to GitHub's latest published **stable** release.
+- Published beta prereleases are public on GitHub Releases, but they do **not** become the website download target.
+- The website only moves when you publish the final stable release tag like `v0.1.41`.
+- The website itself is deployed by `Deploy Website` (Cloudflare Workers), which redeploys on `release: published` for non-prerelease releases and on pushes to `main` that touch `CHANGELOG.md` or `packages/website/**`.
 
 ## Fixing a failed release build
 
@@ -230,6 +309,9 @@ git tag -f desktop-macos-v0.1.28 HEAD && git push origin desktop-macos-v0.1.28 -
 git tag -f desktop-linux-v0.1.28 HEAD && git push origin desktop-linux-v0.1.28 --force
 git tag -f desktop-windows-v0.1.28 HEAD && git push origin desktop-windows-v0.1.28 --force
 
+# Android APK
+git tag -f android-v0.1.28 HEAD && git push origin android-v0.1.28 --force
+
 # Beta
 git tag -f v0.1.29-beta.2 HEAD && git push origin v0.1.29-beta.2 --force
 ```
@@ -239,6 +321,7 @@ This ensures the checkout ref matches the actual code on `main` with the fix inc
 - `vX.Y.Z` or `vX.Y.Z-beta.N` rebuilds the full tagged release
 - `desktop-vX.Y.Z` rebuilds desktop for all desktop platforms only
 - `desktop-macos-vX.Y.Z`, `desktop-linux-vX.Y.Z`, and `desktop-windows-vX.Y.Z` rebuild only that desktop platform
+- `android-vX.Y.Z` rebuilds the Android APK release only
 
 ## Notes
 
@@ -367,6 +450,7 @@ The changelog covers **stable-to-stable**. Betas are not represented. When you p
 - [ ] Working tree is clean and the intended commit is on `main`
 - [ ] `npm run release:beta:patch` (or `:next`) completes successfully
 - [ ] GitHub `Desktop Release` workflow for the `v*-beta.N` tag is green
+- [ ] GitHub `Android APK Release` workflow for the same tag is green
 
 ### Stable release (or promotion)
 
@@ -377,3 +461,10 @@ The changelog covers **stable-to-stable**. Betas are not represented. When you p
 - [ ] Verify the changelog heading follows strict `## X.Y.Z - YYYY-MM-DD` format
 - [ ] `npm run release:patch` or `npm run release:promote` completes successfully
 - [ ] GitHub `Desktop Release` workflow for the `v*` tag is green
+- [ ] GitHub `Android APK Release` workflow for the same tag is green
+- [ ] EAS `Release Mobile` workflow for the same tag is green
+- [ ] EAS iOS `build_ios` completes for the same tag
+- [ ] EAS iOS `submit_ios` succeeds, uploading the build to App Store Connect/TestFlight
+- [ ] App Store Connect/TestFlight shows the matching iOS build as processed and available to testers
+- [ ] EAS Android `build_android` completes for the same tag
+- [ ] EAS Android `submit_android` succeeds, putting the build on its Play Store track

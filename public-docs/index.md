@@ -7,13 +7,13 @@ order: 1
 
 # Getting started
 
-Paseo runs your coding agents on your machine and gives you desktop, web, mobile-browser, and CLI access from anywhere. Two ways to install.
+Paseo runs your coding agents on your machine and gives you a mobile, desktop, web, and CLI client to drive them from anywhere. Two ways to install.
 
 ## Desktop app (recommended)
 
 Download from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/getpaseo/paseo/releases). Open it and you're done.
 
-The desktop app bundles its own daemon and starts it automatically, no separate install required. On first launch you'll see a brief startup screen, then connect from another device using the pairing URL shown in Settings.
+The desktop app bundles its own daemon and starts it automatically, no separate install required. On first launch you'll see a brief startup screen, then connect from your phone by scanning the QR code in Settings.
 
 ## Server / CLI
 
@@ -24,7 +24,7 @@ npm install -g @bytetrue/cli
 paseo
 ```
 
-Paseo prints a pairing URL in the terminal. Open it from the web app, or enter the daemon address manually from another client.
+Paseo prints a QR code in the terminal. Scan it from the mobile app, or enter the daemon address manually from another client.
 
 Configuration and local state live under `PASEO_HOME` (defaults to `~/.paseo`).
 

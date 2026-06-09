@@ -15,8 +15,19 @@ import {
   type CombinedModelSelectorTopOption,
 } from "@/components/combined-model-selector";
 import { getProviderIcon } from "@/components/provider-icons";
+import { ProviderCatalogList } from "@/components/provider-catalog-list";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Switch } from "@/components/ui/switch";
+import {
+  buildAcpProviderConfigPatch,
+  type AcpProviderCatalogItem,
+} from "@/hooks/use-acp-provider-catalog";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import {
@@ -29,14 +40,7 @@ import { useProviderSettingsStore } from "@/stores/provider-settings-store";
 import { useSessionStore } from "@/stores/session-store";
 import { settingsStyles } from "@/styles/settings";
 import { buildProviderDefinitions } from "@/utils/provider-definitions";
-import { AddProviderModal } from "@/components/add-provider-modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChevronRight, MoreVertical, Plus, Trash2 } from "lucide-react-native";
+import { ChevronRight, MoreVertical, Trash2 } from "lucide-react-native";
 import { confirmDialog } from "@/utils/confirm-dialog";
 
 type ProviderDefinition = ReturnType<typeof buildProviderDefinitions>[number];
@@ -457,7 +461,6 @@ export interface ProvidersSectionProps {
 }
 
 export function ProvidersSection({ serverId }: ProvidersSectionProps) {
-  const { theme } = useUnistyles();
   const isConnected = useHostRuntimeIsConnected(serverId);
   const { entries, isLoading, refresh } = useProvidersSnapshot(serverId);
   const { config, patchConfig } = useDaemonConfig(serverId);
@@ -476,8 +479,8 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
     return features?.providerRemovalSettings === true;
   });
   const openProviderSettings = useProviderSettingsStore((state) => state.open);
-  const [isAddProviderOpen, setIsAddProviderOpen] = useState(false);
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
+  const [installingProviderId, setInstallingProviderId] = useState<string | null>(null);
 
   const providerDefinitions = useMemo(() => buildProviderDefinitions(entries), [entries]);
   const hasServer = serverId.length > 0;
@@ -488,8 +491,7 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
     },
     [openProviderSettings, serverId],
   );
-  const handleOpenAddProvider = useCallback(() => setIsAddProviderOpen(true), []);
-  const handleCloseAddProvider = useCallback(() => setIsAddProviderOpen(false), []);
+
   const handleToggleEnabled = useCallback(
     async (providerId: string, enabled: boolean) => {
       setPendingProviderId(providerId);
@@ -536,30 +538,23 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
     [patchConfig],
   );
 
-  const headerActions = useMemo(
-    () =>
-      hasServer && isConnected ? (
-        <View style={styles.headerActions}>
-          <Pressable
-            onPress={handleOpenAddProvider}
-            hitSlop={8}
-            style={settingsStyles.sectionHeaderLink}
-            accessibilityRole="button"
-            accessibilityLabel="Add provider"
-            testID="add-provider-button"
-          >
-            <Plus size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
-            <Text style={settingsStyles.sectionHeaderLinkText}>Add provider</Text>
-          </Pressable>
-        </View>
-      ) : undefined,
-    [
-      hasServer,
-      isConnected,
-      handleOpenAddProvider,
-      theme.iconSize.sm,
-      theme.colors.foregroundMuted,
-    ],
+  const handleInstall = useCallback(
+    async (entry: AcpProviderCatalogItem) => {
+      if (installingProviderId) return;
+      setInstallingProviderId(entry.id);
+      try {
+        await patchConfig(buildAcpProviderConfigPatch(entry));
+        await refresh([entry.id]);
+      } catch (error) {
+        Alert.alert(
+          "Unable to add provider",
+          error instanceof Error ? error.message : String(error),
+        );
+      } finally {
+        setInstallingProviderId((current) => (current === entry.id ? null : current));
+      }
+    },
+    [installingProviderId, patchConfig, refresh],
   );
 
   return (
@@ -577,7 +572,6 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
 
       <SettingsSection
         title="Providers"
-        trailing={headerActions}
         testID="host-page-providers-card"
         style={styles.sectionSpacing}
       >
@@ -615,8 +609,18 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
         ) : null}
       </SettingsSection>
 
-      {hasServer && isConnected && isAddProviderOpen ? (
-        <AddProviderModal serverId={serverId} visible onClose={handleCloseAddProvider} />
+      {hasServer && isConnected ? (
+        <SettingsSection
+          title="Add provider"
+          testID="host-page-add-provider-card"
+          style={styles.addProviderSection}
+        >
+          <ProviderCatalogList
+            serverId={serverId}
+            installingProviderId={installingProviderId}
+            onInstall={handleInstall}
+          />
+        </SettingsSection>
       ) : null}
     </>
   );
@@ -626,6 +630,9 @@ const styles = StyleSheet.create((theme) => ({
   sectionSpacing: {
     marginBottom: theme.spacing[4],
   },
+  addProviderSection: {
+    marginTop: theme.spacing[4],
+  },
   emptyCard: {
     padding: theme.spacing[4],
     alignItems: "center",
@@ -633,11 +640,6 @@ const styles = StyleSheet.create((theme) => ({
   emptyText: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[3],
   },
   row: {
     gap: theme.spacing[3],
