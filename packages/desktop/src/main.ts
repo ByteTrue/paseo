@@ -106,6 +106,8 @@ const FORWARDED_PASEO_SHORTCUT_KEYS = new Set([
   "arrowdown",
 ]);
 const DESKTOP_SMOKE_ENV = "PASEO_DESKTOP_SMOKE";
+const DESKTOP_SMOKE_MODE_ENV = "PASEO_DESKTOP_SMOKE_MODE";
+const DESKTOP_SMOKE_LAUNCH_ONLY_MODE = "launch-only";
 const DESKTOP_SMOKE_STOP_REQUEST = "paseo-smoke-stop";
 app.setName(APP_NAME);
 
@@ -600,6 +602,18 @@ async function runCliPassthroughIfRequested(): Promise<boolean> {
 async function runDesktopSmokeIfRequested(): Promise<boolean> {
   if (process.env[DESKTOP_SMOKE_ENV] !== "1") {
     return false;
+  }
+
+  if (process.env[DESKTOP_SMOKE_MODE_ENV] === DESKTOP_SMOKE_LAUNCH_ONLY_MODE) {
+    process.stdout.write(
+      `[paseo-smoke] ${JSON.stringify({
+        type: "desktop-main-smoke-started",
+      })}\n`,
+    );
+
+    await waitForDesktopSmokeStopRequest();
+    app.exit(0);
+    return true;
   }
 
   const handlers = createDaemonCommandHandlers();

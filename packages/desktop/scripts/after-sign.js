@@ -12,6 +12,9 @@ exports.default = async function afterSign(context) {
   if (context.electronPlatformName !== "darwin") {
     return;
   }
+  if (process.env.PASEO_DESKTOP_UNSIGNED_SMOKE === "1") {
+    return;
+  }
 
   await smokePackagedDesktopApp({
     appPath: path.join(context.appOutDir, `${EXECUTABLE_NAME}.app`),

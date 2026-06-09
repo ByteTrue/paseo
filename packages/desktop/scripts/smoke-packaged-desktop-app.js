@@ -1,6 +1,7 @@
 const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
+const net = require("node:net");
 const path = require("node:path");
 const { setTimeout: delay } = require("node:timers/promises");
 
@@ -9,9 +10,34 @@ const SMOKE_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 10_000;
 const TERMINAL_CAPTURE_ATTEMPTS = 20;
 const TERMINAL_CAPTURE_INTERVAL_MS = 500;
+const DESKTOP_SMOKE_MODE_ENV = "PASEO_DESKTOP_SMOKE_MODE";
+const DESKTOP_SMOKE_LAUNCH_ONLY_MODE = "launch-only";
+const DESKTOP_SMOKE_STOP_REQUEST = "paseo-smoke-stop";
 
 function createTempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function allocateLoopbackPort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close(() => reject(new Error("Unable to allocate smoke daemon port")));
+        return;
+      }
+      const port = address.port;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
 }
 
 function assertExecutable(filePath, label) {
@@ -87,14 +113,18 @@ function getShellCommand(script) {
   };
 }
 
-function createDefaultDaemonEnv(extraEnv) {
+function createDefaultDaemonEnv(extraEnv = {}) {
   const env = {
     ...process.env,
     ...extraEnv,
   };
 
-  delete env.PASEO_HOME;
-  delete env.PASEO_LISTEN;
+  if (!Object.hasOwn(extraEnv, "PASEO_HOME")) {
+    delete env.PASEO_HOME;
+  }
+  if (!Object.hasOwn(extraEnv, "PASEO_LISTEN")) {
+    delete env.PASEO_LISTEN;
+  }
   return env;
 }
 
@@ -121,9 +151,9 @@ function readIfExists(filePath) {
   return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : null;
 }
 
-function formatLogs({ stdout, stderr, userData }) {
+function formatLogs({ stdout, stderr, userData, paseoHome }) {
   const desktopLog = readIfExists(path.join(userData, "logs", "main.log"));
-  const daemonLog = readIfExists(path.join(os.homedir(), ".paseo", "daemon.log"));
+  const daemonLog = readIfExists(path.join(paseoHome, "daemon.log"));
   return [
     `App stdout:\n${stdout.join("").trim() || "<empty>"}`,
     `App stderr:\n${stderr.join("").trim() || "<empty>"}`,
@@ -194,7 +224,7 @@ async function removeTempDir(tempDir) {
   }
 }
 
-function waitForSmokeMessage({ child, stdout, stderr, userData, type, validate }) {
+function waitForSmokeMessage({ child, stdout, stderr, userData, paseoHome, type, validate }) {
   return new Promise((resolve, reject) => {
     let settled = false;
 
@@ -216,6 +246,7 @@ function waitForSmokeMessage({ child, stdout, stderr, userData, type, validate }
             stdout,
             stderr,
             userData,
+            paseoHome,
           })}`,
         ),
       );
@@ -244,7 +275,7 @@ function waitForSmokeMessage({ child, stdout, stderr, userData, type, validate }
         new Error(
           `Packaged app exited before reporting smoke success (code ${code}, signal ${
             signal ?? "none"
-          }).\n${formatLogs({ stdout, stderr, userData })}`,
+          }).\n${formatLogs({ stdout, stderr, userData, paseoHome })}`,
         ),
       );
     });
@@ -449,12 +480,20 @@ async function stopCliDaemon({ appPath, env }) {
   });
 }
 
-async function smokePackagedDesktopApp({ appPath }) {
+async function smokePackagedDesktopApp({ appPath, launchOnly = false }) {
   const executablePath = getExecutablePath(appPath);
   assertExecutable(executablePath, "Packaged app executable");
 
   const userData = createTempDir("paseo-smoke-user-data-");
+  const paseoHome = path.join(userData, "home");
+  fs.mkdirSync(paseoHome, { recursive: true });
+  const smokeEnv = {
+    PASEO_HOME: paseoHome,
+    PASEO_LISTEN: `127.0.0.1:${await allocateLoopbackPort()}`,
+  };
   const env = createDefaultDaemonEnv({
+    ...smokeEnv,
+    ...(launchOnly ? { [DESKTOP_SMOKE_MODE_ENV]: DESKTOP_SMOKE_LAUNCH_ONLY_MODE } : {}),
     PASEO_DESKTOP_SMOKE: "1",
     PASEO_ELECTRON_USER_DATA_DIR: userData,
   });
@@ -476,7 +515,7 @@ async function smokePackagedDesktopApp({ appPath }) {
       return;
     }
 
-    await stopCliDaemon({ appPath, env: createDefaultDaemonEnv() });
+    await stopCliDaemon({ appPath, env: createDefaultDaemonEnv(smokeEnv) });
     daemonStopped = true;
   };
 
@@ -486,12 +525,24 @@ async function smokePackagedDesktopApp({ appPath }) {
       stdout,
       stderr,
       userData,
-      type: "desktop-daemon-smoke-started",
-      validate: assertRunningDesktopManagedDaemon,
+      paseoHome,
+      type: launchOnly ? "desktop-main-smoke-started" : "desktop-daemon-smoke-started",
+      validate: launchOnly ? () => true : assertRunningDesktopManagedDaemon,
     });
     smokeStarted = true;
+
+    if (launchOnly) {
+      child.stdin.write(`${DESKTOP_SMOKE_STOP_REQUEST}\n`);
+      child.stdin.end();
+      if (!(await waitForChildExit(child))) {
+        throw new Error("Packaged desktop launch smoke did not exit after stop request");
+      }
+      console.log("Packaged desktop launch smoke passed: app reached Electron main process");
+      return;
+    }
+
     console.log("Packaged desktop smoke: desktop-managed daemon reported running");
-    const cliEnv = createDefaultDaemonEnv();
+    const cliEnv = createDefaultDaemonEnv(smokeEnv);
     await smokeCliShim({ appPath, env: cliEnv });
     await smokeCliTerminal({ appPath, env: cliEnv });
     await stopDaemonForCleanup();
@@ -499,7 +550,7 @@ async function smokePackagedDesktopApp({ appPath }) {
       `Packaged desktop smoke passed: desktop-managed daemon pid ${message.status.pid}, listen ${message.status.listen}; CLI shim daemon status and terminal smoke succeeded`,
     );
   } catch (error) {
-    if (smokeStarted && !daemonStopped) {
+    if (!launchOnly && smokeStarted && !daemonStopped) {
       try {
         await stopDaemonForCleanup();
       } catch {}

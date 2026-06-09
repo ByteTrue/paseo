@@ -26,6 +26,64 @@ describe("desktop packaging", () => {
     expect(config).toContain("!node_modules/@bytetrue/**/*.spec.*");
   });
 
+  it("keeps unsigned macOS artifacts launchable after quarantine is removed", () => {
+    const config = readFileSync(join(packageRoot, "electron-builder.yml"), "utf8");
+
+    expect(config).toContain("hardenedRuntime: false");
+    expect(config).toContain("notarize: false");
+  });
+
+  it("publishes desktop updates from the ByteTrue fork", () => {
+    const config = readFileSync(join(packageRoot, "electron-builder.yml"), "utf8");
+
+    expect(config).toContain("owner: ByteTrue");
+    expect(config).toContain("repo: paseo");
+    expect(config).not.toContain("owner: getpaseo");
+  });
+
+  it("launch-smokes unsigned macOS packages without starting a daemon", () => {
+    const afterPack = readFileSync(join(packageRoot, "scripts", "after-pack.js"), "utf8");
+    const smoke = readFileSync(
+      join(packageRoot, "scripts", "smoke-packaged-desktop-app.js"),
+      "utf8",
+    );
+    const main = readFileSync(join(packageRoot, "src", "main.ts"), "utf8");
+
+    expect(afterPack).toContain('platform === "darwin"');
+    expect(afterPack).toContain("PASEO_DESKTOP_UNSIGNED_SMOKE");
+    expect(afterPack).toContain("launchOnly: true");
+    expect(afterPack).not.toContain("requireDesktopManagedDaemon: false");
+    expect(smoke).toContain("PASEO_DESKTOP_SMOKE_MODE");
+    expect(smoke).toContain("desktop-main-smoke-started");
+    expect(smoke).toContain("DESKTOP_SMOKE_STOP_REQUEST");
+    expect(smoke).not.toContain("requireDesktopManagedDaemon");
+    expect(main).toContain('type: "desktop-main-smoke-started"');
+    expect(main).toContain("DESKTOP_SMOKE_LAUNCH_ONLY_MODE");
+  });
+
+  it("does not rerun strict afterSign smoke for unsigned macOS builds", () => {
+    const afterSign = readFileSync(join(packageRoot, "scripts", "after-sign.js"), "utf8");
+
+    expect(afterSign).toContain("PASEO_DESKTOP_UNSIGNED_SMOKE");
+    expect(afterSign).toContain("smokePackagedDesktopApp");
+  });
+
+  it("isolates packaged desktop smoke from the user's daemon home and port", () => {
+    const smoke = readFileSync(
+      join(packageRoot, "scripts", "smoke-packaged-desktop-app.js"),
+      "utf8",
+    );
+
+    expect(smoke).toContain('const paseoHome = path.join(userData, "home")');
+    expect(smoke).toContain("allocateLoopbackPort");
+    expect(smoke).toContain("PASEO_HOME: paseoHome");
+    expect(smoke).toContain("PASEO_LISTEN:");
+    expect(smoke).toContain("createDefaultDaemonEnv(smokeEnv)");
+    expect(smoke).toContain("launchOnly = false");
+    expect(smoke).toContain('path.join(paseoHome, "daemon.log")');
+    expect(smoke).not.toContain('path.join(os.homedir(), ".paseo", "daemon.log")');
+  });
+
   // electron-builder packs production dependencies declared in package.json into
   // app.asar. Runtime code in runtime-paths.ts and bin/paseo dynamically resolves
   // these workspace packages by string, so static analysis (TypeScript, Knip) cannot
