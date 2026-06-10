@@ -5,6 +5,7 @@ import React, { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { waitFor } from "@testing-library/dom";
 import { HostSkillsManagementCard } from "./host-skills-management-card";
 
 const { theme, clientState, sessionState } = vi.hoisted(() => ({
@@ -163,11 +164,9 @@ describe("HostSkillsManagementCard", () => {
       );
     });
 
-    await act(async () => {
-      await Promise.resolve();
+    await waitFor(() => {
+      expect(container.textContent).toContain("Installed");
     });
-
-    expect(container.textContent).toContain("Installed");
     expect(container.textContent).toContain("Orchestration skills");
   });
 });

@@ -325,6 +325,13 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     baseEnv: process.env,
   });
 
+  let bundledSkillsDir: string | null = null;
+  try {
+    bundledSkillsDir = getBundledSkillsDir();
+  } catch {
+    bundledSkillsDir = null;
+  }
+
   logDesktopDaemonLifecycle("starting detached daemon", {
     appIsPackaged: app.isPackaged,
     daemonRunnerEntry: daemonRunner.entryPath,
@@ -346,7 +353,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     env: invocation.env,
     envOverlay: {
       PASEO_DESKTOP_MANAGED: "1",
-      PASEO_SKILLS_SOURCE_DIR: getBundledSkillsDir(),
+      ...(bundledSkillsDir ? { PASEO_SKILLS_SOURCE_DIR: bundledSkillsDir } : {}),
     },
     stdio: ["ignore", "ignore", "ignore"],
   });

@@ -682,7 +682,7 @@ describe("relay external socket reconnect behavior", () => {
       requestId: "local-os-direct-1",
     };
     socket.emit("message", JSON.stringify({ type: "session", message: request }));
-    await Promise.resolve();
+    await waitForSocketMessages(server, socket);
 
     expect(session?.handleMessage).toHaveBeenCalledWith(request);
 
@@ -711,7 +711,7 @@ describe("relay external socket reconnect behavior", () => {
         },
       }),
     );
-    await Promise.resolve();
+    await waitForSocketMessages(server, socket);
 
     expect(session?.handleMessage).toHaveBeenCalledTimes(callCount);
     const lastEnvelope = parseSentEnvelope(socket.sent.at(-1));
