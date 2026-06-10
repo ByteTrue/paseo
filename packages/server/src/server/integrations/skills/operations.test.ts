@@ -7,6 +7,7 @@ import {
   getSkillsStatus,
   installSkills,
   PASEO_SKILL_NAMES,
+  resolveBundledSkillsSourceSync,
   type SkillTargets,
   uninstallSkills,
   updateSkills,
@@ -76,6 +77,43 @@ async function pathExists(p: string): Promise<boolean> {
     .then(() => true)
     .catch(() => false);
 }
+
+describe("resolveBundledSkillsSourceSync", () => {
+  it("resolves skills bundled with the compiled server package", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paseo-skills-resolver-"));
+    try {
+      const moduleDir = path.join(
+        root,
+        "node_modules",
+        "@bytetrue",
+        "server",
+        "dist",
+        "server",
+        "server",
+        "integrations",
+        "skills",
+      );
+      const bundledSkillsDir = path.join(
+        root,
+        "node_modules",
+        "@bytetrue",
+        "server",
+        "dist",
+        "server",
+        "skills",
+      );
+      await fs.mkdir(moduleDir, { recursive: true });
+      await fs.mkdir(bundledSkillsDir, { recursive: true });
+
+      expect(resolveBundledSkillsSourceSync({}, { moduleDir })).toEqual({
+        available: true,
+        sourceDir: bundledSkillsDir,
+      });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("shared skills operations", () => {
   let sandbox: Sandbox;

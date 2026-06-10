@@ -41,9 +41,9 @@ PASEO_DEV_RESET_HOME=1 npm run dev            # clear and reseed the derived wor
 ### Bundled skills source
 
 Host-side orchestration skills management needs the daemon to locate a bundled `skills/`
-directory. Desktop-managed daemons pass this automatically. For standalone or custom daemon
-launches, set `PASEO_SKILLS_SOURCE_DIR` when the daemon process would not otherwise have a
-discoverable bundle path:
+directory. Normal source-checkout, packaged CLI/server, and desktop-managed daemon launches
+discover the bundled skills automatically. For custom launchers or repackaged daemons that move
+the server files away from the bundled skills, set `PASEO_SKILLS_SOURCE_DIR`:
 
 ```bash
 PASEO_SKILLS_SOURCE_DIR=/absolute/path/to/skills npm run dev:server
@@ -173,6 +173,12 @@ defaults. The default rotation is `10m` x `3` files everywhere.
 
 `worktree.setup` and `worktree.teardown` accept either a multiline shell script or an array
 of commands. Both run sequentially.
+
+Worktree setup/teardown and service command entries run as raw shell commands,
+not npm scripts. npm does not inject `node_modules/.bin` into `PATH` here, so
+call project binaries through `npm run`, an explicit `./node_modules/.bin/...`
+path, or plain shell syntax such as `VAR=value command` when the command only
+needs environment variables.
 
 ```json
 {

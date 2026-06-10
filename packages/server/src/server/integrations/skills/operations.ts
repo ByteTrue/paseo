@@ -30,6 +30,10 @@ export interface SkillsSourceResolution {
   sourceDir: string | null;
 }
 
+interface ResolveBundledSkillsSourceOptions {
+  moduleDir?: string;
+}
+
 export const PASEO_SKILL_NAMES = [
   "paseo",
   "paseo-advisor",
@@ -73,13 +77,17 @@ export function getDefaultSkillTargets(sourceDir: string): SkillTargets {
 
 export function resolveBundledSkillsSourceSync(
   env: NodeJS.ProcessEnv = process.env,
+  options: ResolveBundledSkillsSourceOptions = {},
 ): SkillsSourceResolution {
+  const moduleDir = options.moduleDir ?? path.dirname(fileURLToPath(import.meta.url));
   const explicitDir = env.PASEO_SKILLS_SOURCE_DIR?.trim();
   const candidates = [
     explicitDir || null,
-    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../../skills"),
-    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../../../skills"),
-    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../skills"),
+    path.resolve(moduleDir, "../../../skills"),
+    path.resolve(moduleDir, "../../../../skills"),
+    path.resolve(moduleDir, "../../../../../skills"),
+    path.resolve(moduleDir, "../../../../../../skills"),
+    path.resolve(moduleDir, "../../../../../../../skills"),
   ].filter((candidate): candidate is string => Boolean(candidate));
 
   for (const candidate of candidates) {
