@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.93 - 2026-06-10
+
+### Added
+
+- Browser web clients can manage host orchestration skills from Settings ([#12](https://github.com/ByteTrue/paseo/pull/12))
+- Browser web clients can browse local folders and open files in your editor or file manager when connected locally ([#12](https://github.com/ByteTrue/paseo/pull/12))
+- Browser web clients can open workspace service previews in app tabs ([#12](https://github.com/ByteTrue/paseo/pull/12))
+- Native mobile clients are available again, with iOS distribution limited to TestFlight ([#11](https://github.com/ByteTrue/paseo/pull/11))
+
+### Improved
+
+- Host display names and new-workspace preferences now follow the daemon across clients ([#10](https://github.com/ByteTrue/paseo/pull/10))
+- Provider lists appear immediately from the last known good cache while the host refreshes them ([#10](https://github.com/ByteTrue/paseo/pull/10))
+- Custom providers can be removed from provider settings with a confirmation step ([#8](https://github.com/ByteTrue/paseo/pull/8))
+- ACP provider catalog entries were refreshed to current package versions
+
+### Fixed
+
+- Branch name generation now follows each metadata target's configured provider and Off setting ([#10](https://github.com/ByteTrue/paseo/pull/10))
+- macOS Apple Silicon desktop downloads launch reliably when built without Apple signing credentials ([#11](https://github.com/ByteTrue/paseo/pull/11))
+
 ## 0.1.92 - 2026-06-06
 
 ### Added
