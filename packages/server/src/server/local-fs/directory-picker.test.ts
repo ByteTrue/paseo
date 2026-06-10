@@ -13,6 +13,10 @@ function dirent(name: string, directory: boolean): DirentLike {
 
 describe("local directory picker", () => {
   it("returns roots including home and current working directory", () => {
+    const homePath = resolve("/Users/me");
+    const cwdPath = resolve("/Users/me/project");
+    const rootPath = resolve("/");
+
     expect(
       listLocalDirectoryRoots({
         homeDir: () => "/Users/me",
@@ -21,9 +25,9 @@ describe("local directory picker", () => {
         platform: "darwin",
       }),
     ).toEqual([
-      { id: "home", label: "Home", path: "/Users/me", kind: "home" },
-      { id: "cwd", label: "Current Directory", path: "/Users/me/project", kind: "workspace" },
-      { id: "root", label: "Root", path: "/", kind: "volume" },
+      { id: "home", label: "Home", path: homePath, kind: "home" },
+      { id: "cwd", label: "Current Directory", path: cwdPath, kind: "workspace" },
+      { id: "root", label: "Root", path: rootPath, kind: "volume" },
     ]);
   });
 
