@@ -208,8 +208,26 @@ export function Autocomplete({
 
   const selectedOption = options[selectedIndex];
   const containerStyle = useMemo(() => [styles.container, { maxHeight }], [maxHeight]);
+  const commandLoadingContainerStyle = useMemo(
+    () => [styles.container, styles.commandLoadingContainer, { height: maxHeight }],
+    [maxHeight],
+  );
+  const shouldReserveCommandLoadingLayout = isLoading && loadingText === "Loading commands...";
 
   if (isLoading) {
+    if (shouldReserveCommandLoadingLayout) {
+      return (
+        <View style={styles.outerWrapper}>
+          <View style={styles.commandLoadingDetailPlaceholder} />
+          <View style={commandLoadingContainerStyle}>
+            <View style={styles.emptyItem}>
+              <Text style={styles.emptyText}>{loadingText}</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={containerStyle}>
         <View style={styles.emptyItem}>
@@ -310,6 +328,9 @@ const styles = StyleSheet.create((theme: Theme) => ({
     fontSize: theme.fontSize.xs,
     marginTop: theme.spacing[1],
   },
+  commandLoadingDetailPlaceholder: {
+    height: 60,
+  },
   container: {
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
@@ -317,6 +338,9 @@ const styles = StyleSheet.create((theme: Theme) => ({
     borderRadius: theme.borderRadius.lg,
     overflow: "hidden",
     ...theme.shadow.md,
+  },
+  commandLoadingContainer: {
+    justifyContent: "center",
   },
   scrollView: {
     flexGrow: 0,

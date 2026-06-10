@@ -194,7 +194,7 @@ function DirectoryPickerResults({
       {!isSubmitting && browserError ? <Text style={emptyTextStyle}>{errorMessage}</Text> : null}
       {!isSubmitting && currentDirectoryPath ? (
         <DirectoryBrowserRow
-          label="Open this folder"
+          label="Use this folder"
           path={currentDirectoryPath}
           icon="folder"
           onPress={onSelectDirectory}
