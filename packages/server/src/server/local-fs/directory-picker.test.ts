@@ -1,3 +1,4 @@
+import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { listLocalDirectory, listLocalDirectoryRoots } from "./directory-picker.js";
 
@@ -17,6 +18,7 @@ describe("local directory picker", () => {
         homeDir: () => "/Users/me",
         cwd: () => "/Users/me/project",
         existsSync: () => true,
+        platform: "darwin",
       }),
     ).toEqual([
       { id: "home", label: "Home", path: "/Users/me", kind: "home" },
@@ -26,8 +28,10 @@ describe("local directory picker", () => {
   });
 
   it("lists child directories with parent path and hidden flags", async () => {
+    const inputPath = process.platform === "win32" ? "D:\\Users\\me" : "/Users/me";
+    const normalizedPath = resolve(inputPath);
     await expect(
-      listLocalDirectory("/Users/me", {
+      listLocalDirectory(inputPath, {
         stat: async () => ({ isDirectory: () => true }),
         readdir: async () => [
           dirent("project", true),
@@ -36,21 +40,29 @@ describe("local directory picker", () => {
         ],
       }),
     ).resolves.toEqual({
-      path: "/Users/me",
-      parentPath: "/Users",
+      path: normalizedPath,
+      parentPath: dirname(normalizedPath),
       entries: [
-        { name: "project", path: "/Users/me/project", kind: "directory", hidden: false },
-        { name: ".config", path: "/Users/me/.config", kind: "directory", hidden: true },
+        {
+          name: "project",
+          path: join(normalizedPath, "project"),
+          kind: "directory",
+          hidden: false,
+        },
+        { name: ".config", path: join(normalizedPath, ".config"), kind: "directory", hidden: true },
       ],
     });
   });
 
   it("rejects non-directory paths", async () => {
+    const inputPath =
+      process.platform === "win32" ? "D:\\Users\\me\\file.txt" : "/Users/me/file.txt";
+    const normalizedPath = resolve(inputPath);
     await expect(
-      listLocalDirectory("/Users/me/file.txt", {
+      listLocalDirectory(inputPath, {
         stat: async () => ({ isDirectory: () => false }),
         readdir: async () => [],
       }),
-    ).rejects.toThrow("Path is not a directory: /Users/me/file.txt");
+    ).rejects.toThrow(`Path is not a directory: ${normalizedPath}`);
   });
 });
