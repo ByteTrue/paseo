@@ -58,7 +58,9 @@ interface DirectoryPickerResultsProps {
   listing: LocalDirectoryListing | null | undefined;
   browserError: unknown;
   emptyTextStyle: object;
+  currentDirectoryPath: string | null;
   onBrowseDirectory: (path: string) => void;
+  onSelectDirectory: (path: string) => void;
 }
 
 function PathRow({ path, active, onSelect }: PathRowProps) {
@@ -176,6 +178,8 @@ function DirectoryPickerResults({
   browserError,
   emptyTextStyle,
   onBrowseDirectory,
+  currentDirectoryPath,
+  onSelectDirectory,
 }: DirectoryPickerResultsProps) {
   const errorMessage =
     browserError instanceof Error ? browserError.message : String(browserError ?? "");
@@ -188,6 +192,14 @@ function DirectoryPickerResults({
     >
       {isSubmitting ? <Text style={emptyTextStyle}>Opening project...</Text> : null}
       {!isSubmitting && browserError ? <Text style={emptyTextStyle}>{errorMessage}</Text> : null}
+      {!isSubmitting && currentDirectoryPath ? (
+        <DirectoryBrowserRow
+          label="Use this folder"
+          path={currentDirectoryPath}
+          icon="folder"
+          onPress={onSelectDirectory}
+        />
+      ) : null}
       {!isSubmitting
         ? roots.map((root) => (
             <DirectoryBrowserRow
@@ -462,6 +474,8 @@ export function ProjectPickerModal() {
                 browserError={browserError}
                 emptyTextStyle={stylesForRender.emptyTextStyle}
                 onBrowseDirectory={handleBrowseDirectory}
+                currentDirectoryPath={currentDirectoryPath}
+                onSelectDirectory={handleSelectPath}
               />
             </View>
           ) : (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactElement, type RefObject } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActivityIndicator,
   FlatList,
@@ -44,6 +44,7 @@ import { formatTimeAgo } from "@/utils/time";
 import { buildAbsoluteExplorerPath } from "@/utils/explorer-paths";
 import { useWebScrollViewScrollbar } from "@/components/use-web-scrollbar";
 import { isWeb } from "@/constants/platform";
+import { workspaceFileQueryPrefix } from "@/workspace/file-preview-query";
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "name", label: "Name" },
@@ -232,6 +233,7 @@ export function FileExplorerPane({
   const isMobile = useIsCompactFormFactor();
   const showDesktopWebScrollbar = isWeb && !isMobile;
 
+  const queryClient = useQueryClient();
   const daemons = useHosts();
   const daemonProfile = useMemo(
     () => daemons.find((daemon) => daemon.serverId === serverId),
@@ -392,8 +394,9 @@ export function FileExplorerPane({
   });
 
   const handleRefresh = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: workspaceFileQueryPrefix({ serverId }) });
     void refetchExplorer();
-  }, [refetchExplorer]);
+  }, [queryClient, refetchExplorer, serverId]);
 
   const currentSortLabel = resolveCurrentSortLabel(sortOption);
 

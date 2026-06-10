@@ -1950,6 +1950,40 @@ describe("HostRuntimeStore", () => {
     store.syncHosts([]);
   });
 
+  it("preserves an existing desktop daemon label during repeated status upserts", async () => {
+    const store = new HostRuntimeStore();
+    (
+      store as unknown as {
+        hosts: HostProfile[];
+      }
+    ).hosts = [
+      makeHost({
+        serverId: "srv_desktop",
+        label: "Studio Mac",
+        connections: [],
+        preferredConnectionId: null,
+      }),
+    ];
+
+    await store.upsertConnectionFromListen({
+      listenAddress: "127.0.0.1:6767",
+      serverId: "srv_desktop",
+      hostname: "192.168.5.12",
+    });
+
+    const host = store.getHosts().find((entry) => entry.serverId === "srv_desktop");
+    expect(host?.label).toBe("Studio Mac");
+    expect(host?.connections).toEqual([
+      {
+        id: "direct:localhost:6767",
+        type: "directTcp",
+        endpoint: "localhost:6767",
+      },
+    ]);
+
+    store.syncHosts([]);
+  });
+
   it("uses the advertised hostname when adding a relay host from a pairing offer", async () => {
     const store = new HostRuntimeStore({
       deps: {

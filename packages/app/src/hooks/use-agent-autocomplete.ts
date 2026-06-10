@@ -144,6 +144,7 @@ interface BuildAutocompleteOptionsInput {
   mode: AutocompleteMode;
   commands: AgentSlashCommand[];
   isDraftContext: boolean;
+  isCommandsLoading: boolean;
   commandFilterQuery: string;
   activeSlashCommand: SlashCommandRange | null;
   activeFileMention: FileMentionRange | null;
@@ -156,6 +157,9 @@ function buildCommandAutocompleteOptions(input: BuildAutocompleteOptionsInput) {
   }
 
   if (input.mode === "command") {
+    if (input.isCommandsLoading) {
+      return [];
+    }
     const providerCommands = input.commands.map(
       (command): AvailableCommand => ({ source: "provider", command }),
     );
@@ -353,7 +357,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
     draftConfig: queryDraftConfig,
   });
 
-  const isVisible = canShowAutocomplete && !(mode === "command" && isCommandsLoading);
+  const isVisible = canShowAutocomplete;
 
   const fileSuggestionsQuery = useQuery({
     queryKey: [
@@ -397,6 +401,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
         activeFileMention,
         commandFilterQuery,
         commands,
+        isCommandsLoading,
         activeSlashCommand,
         fileSuggestions: fileSuggestionsQuery.data ?? [],
         isDraftContext,
@@ -409,6 +414,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
       commandFilterQuery,
       commands,
       fileSuggestionsQuery.data,
+      isCommandsLoading,
       isDraftContext,
       isVisible,
       mode,

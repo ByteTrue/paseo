@@ -14,6 +14,7 @@ import { ActivityIndicator, BackHandler, Keyboard, Pressable, Text, View } from 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, type Href } from "expo-router";
 import * as Clipboard from "expo-clipboard";
+import { buildAbsoluteExplorerPath } from "@/utils/explorer-paths";
 import { DiffStat } from "@/components/diff-stat";
 import {
   CopyX,
@@ -178,6 +179,7 @@ import {
   type WorkspaceFileLocation,
   type WorkspaceFileOpenRequest,
 } from "@/workspace/file-open";
+import { workspaceFileQueryPrefix } from "@/workspace/file-preview-query";
 import { RenderProfile } from "@/utils/render-profiler";
 import { shouldShowWorkspaceBrowserTabs } from "@/screens/workspace/workspace-browser-support";
 
@@ -345,6 +347,7 @@ interface MobileWorkspaceTabSwitcherProps {
   onSelectSwitcherTab: (key: string) => void;
   onCopyResumeCommand: (agentId: string) => Promise<void> | void;
   onCopyAgentId: (agentId: string) => Promise<void> | void;
+  onCopyFilePath: (path: string) => Promise<void> | void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onCloseTab: (tabId: string) => Promise<void> | void;
@@ -524,6 +527,7 @@ function MobileWorkspaceTabOption({
   onPress,
   onCopyResumeCommand,
   onCopyAgentId,
+  onCopyFilePath,
   onReloadAgent,
   onRenameTab,
   onCloseTab,
@@ -541,6 +545,7 @@ function MobileWorkspaceTabOption({
   onPress: () => void;
   onCopyResumeCommand: (agentId: string) => Promise<void> | void;
   onCopyAgentId: (agentId: string) => Promise<void> | void;
+  onCopyFilePath: (path: string) => Promise<void> | void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onCloseTab: (tabId: string) => Promise<void> | void;
@@ -557,6 +562,7 @@ function MobileWorkspaceTabOption({
     menuTestIDBase,
     onCopyResumeCommand,
     onCopyAgentId,
+    onCopyFilePath,
     onReloadAgent,
     onRenameTab,
     onCloseTab,
@@ -613,6 +619,7 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
   onCopyResumeCommand,
   onCopyAgentId,
   onReloadAgent,
+  onCopyFilePath,
   onRenameTab,
   onCloseTab,
   onCloseTabsAbove,
@@ -666,6 +673,7 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
           onPress={onPress}
           onCopyResumeCommand={onCopyResumeCommand}
           onCopyAgentId={onCopyAgentId}
+          onCopyFilePath={onCopyFilePath}
           onReloadAgent={onReloadAgent}
           onRenameTab={onRenameTab}
           onCloseTab={onCloseTab}
@@ -683,6 +691,7 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
       normalizedWorkspaceId,
       onCopyResumeCommand,
       onCopyAgentId,
+      onCopyFilePath,
       onReloadAgent,
       onRenameTab,
       onCloseTab,
@@ -1646,6 +1655,14 @@ function WorkspaceScreenContent({
     toast,
   });
   const queryClient = useQueryClient();
+  const invalidateWorkspaceFilePreviews = useCallback(() => {
+    if (!normalizedServerId) {
+      return;
+    }
+    void queryClient.invalidateQueries({
+      queryKey: workspaceFileQueryPrefix({ serverId: normalizedServerId }),
+    });
+  }, [normalizedServerId, queryClient]);
   const {
     createMutation: createTerminalMutation,
     createTerminal,
@@ -2136,12 +2153,20 @@ function WorkspaceScreenContent({
       if (!location) {
         return;
       }
+      invalidateWorkspaceFilePreviews();
       const tabId = openWorkspaceTabFocused(persistenceKey, createWorkspaceFileTabTarget(location));
       if (tabId) {
         navigateToTabId(tabId);
       }
     },
-    [isMobile, navigateToTabId, openWorkspaceTabFocused, persistenceKey, showMobileAgent],
+    [
+      invalidateWorkspaceFilePreviews,
+      isMobile,
+      navigateToTabId,
+      openWorkspaceTabFocused,
+      persistenceKey,
+      showMobileAgent,
+    ],
   );
 
   const handleOpenFileFromChat = useCallback(
@@ -2156,6 +2181,7 @@ function WorkspaceScreenContent({
       if (!persistenceKey) {
         return;
       }
+      invalidateWorkspaceFilePreviews();
       const target = createWorkspaceFileTabTarget(normalizedLocation);
       const tabId = options?.parentTabId
         ? openWorkspaceChildTabFocused(persistenceKey, target, options.parentTabId)
@@ -2165,6 +2191,7 @@ function WorkspaceScreenContent({
       }
     },
     [
+      invalidateWorkspaceFilePreviews,
       isMobile,
       navigateToTabId,
       openWorkspaceChildTabFocused,
@@ -2184,6 +2211,7 @@ function WorkspaceScreenContent({
       if (!location) {
         return;
       }
+      invalidateWorkspaceFilePreviews();
       if (!persistenceKey || isMobile || !input.sourcePaneId) {
         handleOpenFileFromChat(location, { parentTabId: input.parentTabId });
         return;
@@ -2213,6 +2241,7 @@ function WorkspaceScreenContent({
       }
     },
     [
+      invalidateWorkspaceFilePreviews,
       handleOpenFileFromChat,
       isMobile,
       focusWorkspacePane,
@@ -2526,6 +2555,27 @@ function WorkspaceScreenContent({
       }
     },
     [normalizedServerId, toast],
+  );
+
+  const handleCopyFilePath = useCallback(
+    async (filePath: string) => {
+      if (!workspaceDirectory) {
+        toast.error("Workspace path not available");
+        return;
+      }
+      try {
+        await Clipboard.setStringAsync(
+          buildAbsoluteExplorerPath({
+            workspaceRoot: workspaceDirectory,
+            entryPath: filePath,
+          }),
+        );
+        toast.copied("File path");
+      } catch {
+        toast.error("Copy failed");
+      }
+    },
+    [toast, workspaceDirectory],
   );
 
   const handleReloadAgent = useCallback(
@@ -3305,6 +3355,7 @@ function WorkspaceScreenContent({
         onCloseTab={handleCloseTabById}
         onCopyResumeCommand={handleCopyResumeCommand}
         onCopyAgentId={handleCopyAgentId}
+        onCopyFilePath={handleCopyFilePath}
         onReloadAgent={handleReloadAgent}
         onRenameTab={handleRenameTab}
         onCloseTabsToLeft={handleCloseTabsToLeftInPane}
@@ -3339,6 +3390,7 @@ function WorkspaceScreenContent({
     handleCloseTabById,
     handleCopyResumeCommand,
     handleCopyAgentId,
+    handleCopyFilePath,
     handleReloadAgent,
     handleRenameTab,
     handleCloseTabsToLeftInPane,
@@ -3418,6 +3470,7 @@ function WorkspaceScreenContent({
           onSelectSwitcherTab={handleSelectSwitcherTab}
           onCopyResumeCommand={handleCopyResumeCommand}
           onCopyAgentId={handleCopyAgentId}
+          onCopyFilePath={handleCopyFilePath}
           onReloadAgent={handleReloadAgent}
           onRenameTab={handleRenameTab}
           onCloseTab={handleCloseTabById}
@@ -3439,6 +3492,7 @@ function WorkspaceScreenContent({
           onCloseTab={handleCloseTabById}
           onCopyResumeCommand={handleCopyResumeCommand}
           onCopyAgentId={handleCopyAgentId}
+          onCopyFilePath={handleCopyFilePath}
           onReloadAgent={handleReloadAgent}
           onRenameTab={handleRenameTab}
           onCloseTabsToLeft={handleCloseTabsToLeft}
