@@ -2001,6 +2001,216 @@ test("requests directory suggestions via RPC", async () => {
   });
 });
 
+test("requests local OS and filesystem integration RPCs", async () => {
+  const logger = createMockLogger();
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_unit_test",
+    logger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+
+  const connectPromise = client.connect();
+  mock.triggerOpen();
+  await connectPromise;
+
+  const targetsPromise = client.listLocalOpenTargets("req-local-targets");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "local.os.list_open_targets.request",
+    requestId: "req-local-targets",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "local.os.list_open_targets.response",
+      payload: {
+        requestId: "req-local-targets",
+        targets: [{ id: "vscode", label: "VS Code", kind: "editor" }],
+        error: null,
+      },
+    }),
+  );
+  await expect(targetsPromise).resolves.toEqual({
+    requestId: "req-local-targets",
+    targets: [{ id: "vscode", label: "VS Code", kind: "editor" }],
+    error: null,
+  });
+
+  const openPromise = client.openLocalTarget(
+    { editorId: "vscode", path: "/repo", cwd: "/repo", mode: "open" },
+    "req-open-local",
+  );
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "local.os.open_target.request",
+    requestId: "req-open-local",
+    editorId: "vscode",
+    path: "/repo",
+    cwd: "/repo",
+    mode: "open",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "local.os.open_target.response",
+      payload: { requestId: "req-open-local", success: true, error: null },
+    }),
+  );
+  await expect(openPromise).resolves.toEqual({
+    requestId: "req-open-local",
+    success: true,
+    error: null,
+  });
+
+  const rootsPromise = client.listLocalDirectoryRoots("req-local-roots");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "local.fs.list_roots.request",
+    requestId: "req-local-roots",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "local.fs.list_roots.response",
+      payload: {
+        requestId: "req-local-roots",
+        roots: [{ id: "home", label: "Home", path: "/Users/test", kind: "home" }],
+        error: null,
+      },
+    }),
+  );
+  await expect(rootsPromise).resolves.toEqual({
+    requestId: "req-local-roots",
+    roots: [{ id: "home", label: "Home", path: "/Users/test", kind: "home" }],
+    error: null,
+  });
+
+  const directoryPromise = client.listLocalDirectory("/Users/test", "req-local-directory");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "local.fs.list_directory.request",
+    requestId: "req-local-directory",
+    path: "/Users/test",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "local.fs.list_directory.response",
+      payload: {
+        requestId: "req-local-directory",
+        path: "/Users/test",
+        parentPath: "/Users",
+        entries: [{ name: "repo", path: "/Users/test/repo", kind: "directory", hidden: false }],
+        error: null,
+      },
+    }),
+  );
+  await expect(directoryPromise).resolves.toEqual({
+    requestId: "req-local-directory",
+    path: "/Users/test",
+    parentPath: "/Users",
+    entries: [{ name: "repo", path: "/Users/test/repo", kind: "directory", hidden: false }],
+    error: null,
+  });
+});
+
+test("requests daemon skills management RPCs", async () => {
+  const logger = createMockLogger();
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_unit_test",
+    logger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+
+  const connectPromise = client.connect();
+  mock.triggerOpen();
+  await connectPromise;
+
+  const statusPromise = client.getDaemonSkillsStatus("req-skills-status");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "daemon.skills.get_status.request",
+    requestId: "req-skills-status",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "daemon.skills.get_status.response",
+      payload: {
+        requestId: "req-skills-status",
+        status: { state: "drift", ops: [{ kind: "update", name: "paseo-epic" }] },
+        error: null,
+      },
+    }),
+  );
+  await expect(statusPromise).resolves.toEqual({
+    requestId: "req-skills-status",
+    status: { state: "drift", ops: [{ kind: "update", name: "paseo-epic" }] },
+    error: null,
+  });
+
+  const installPromise = client.installDaemonSkills("req-skills-install");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "daemon.skills.install.request",
+    requestId: "req-skills-install",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "daemon.skills.install.response",
+      payload: {
+        requestId: "req-skills-install",
+        status: { state: "up-to-date", ops: [] },
+        error: null,
+      },
+    }),
+  );
+  await expect(installPromise).resolves.toEqual({
+    requestId: "req-skills-install",
+    status: { state: "up-to-date", ops: [] },
+    error: null,
+  });
+
+  const updatePromise = client.updateDaemonSkills("req-skills-update");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "daemon.skills.update.request",
+    requestId: "req-skills-update",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "daemon.skills.update.response",
+      payload: {
+        requestId: "req-skills-update",
+        status: { state: "up-to-date", ops: [] },
+        error: null,
+      },
+    }),
+  );
+  await expect(updatePromise).resolves.toEqual({
+    requestId: "req-skills-update",
+    status: { state: "up-to-date", ops: [] },
+    error: null,
+  });
+
+  const uninstallPromise = client.uninstallDaemonSkills("req-skills-uninstall");
+  expect(parseSentFrame(mock.sent.at(-1))).toMatchObject({
+    type: "daemon.skills.uninstall.request",
+    requestId: "req-skills-uninstall",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "daemon.skills.uninstall.response",
+      payload: {
+        requestId: "req-skills-uninstall",
+        status: { state: "not-installed", ops: [] },
+        error: null,
+      },
+    }),
+  );
+  await expect(uninstallPromise).resolves.toEqual({
+    requestId: "req-skills-uninstall",
+    status: { state: "not-installed", ops: [] },
+    error: null,
+  });
+});
+
 test("requests checkout merge from base via RPC", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();

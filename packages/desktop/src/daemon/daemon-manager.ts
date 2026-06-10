@@ -25,6 +25,7 @@ import {
   uninstallSkills,
   updateSkills,
 } from "../integrations/skills/index.js";
+import { getBundledSkillsDir } from "../integrations/skills/paths.js";
 import {
   openLocalTransportSession,
   sendLocalTransportMessage,
@@ -331,6 +332,13 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     baseEnv: process.env,
   });
 
+  let bundledSkillsDir: string | null = null;
+  try {
+    bundledSkillsDir = getBundledSkillsDir();
+  } catch {
+    bundledSkillsDir = null;
+  }
+
   logDesktopDaemonLifecycle("starting detached daemon", {
     appIsPackaged: app.isPackaged,
     daemonRunnerEntry: daemonRunner.entryPath,
@@ -350,7 +358,10 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     detached: true,
     envMode: "internal",
     env: invocation.env,
-    envOverlay: { PASEO_DESKTOP_MANAGED: "1" },
+    envOverlay: {
+      PASEO_DESKTOP_MANAGED: "1",
+      ...(bundledSkillsDir ? { PASEO_SKILLS_SOURCE_DIR: bundledSkillsDir } : {}),
+    },
     stdio: ["ignore", "ignore", "ignore"],
   });
 

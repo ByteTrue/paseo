@@ -1,7 +1,7 @@
 ---
 doc_type: issue-fix
 issue: 2026-06-08-direct-lan-enrollment-rejected
-status: draft
+status: confirmed
 severity: P1
 summary: 局域网直连 daemon 时 enrollment 被拒绝，密码提示不出现，错误消息误导为 TLS 错误
 tags: [enrollment, auth, direct-tcp, ux, error-message]

@@ -12,6 +12,7 @@ import {
   expectHostLabelEditMode,
   expectHostConnectionsCard,
   expectHostInjectMcpCard,
+  expectHostSkillsManagementCard,
   expectHostActionCards,
   expectHostProvidersCard,
   expectHostNoLocalOnlyRows,
@@ -43,6 +44,20 @@ test.describe("Settings host page", () => {
     await openHostSection(page, serverId, "agents");
     await expectSettingsHeader(page, "Agents");
     await expectHostInjectMcpCard(page);
+  });
+
+  test("agents section shows the host skills management card when the host supports it", async ({
+    page,
+  }) => {
+    const serverId = getServerId();
+
+    await gotoAppShell(page);
+    await openSettings(page);
+    await openSettingsHost(page, serverId);
+
+    await openHostSection(page, serverId, "agents");
+    await expectSettingsHeader(page, "Agents");
+    await expectHostSkillsManagementCard(page);
   });
 
   test("providers section shows the providers card", async ({ page }) => {

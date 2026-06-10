@@ -298,6 +298,12 @@ export async function expectHostInjectMcpCard(page: Page): Promise<void> {
   await expect(card.getByRole("switch", { name: "Inject Paseo tools" })).toBeVisible();
 }
 
+export async function expectHostSkillsManagementCard(page: Page): Promise<void> {
+  const card = page.getByTestId("host-page-skills-card");
+  await expect(card).toBeVisible();
+  await expect(card.getByText("Orchestration skills", { exact: true })).toBeVisible();
+}
+
 export async function openHostSection(
   page: Page,
   serverId: string,

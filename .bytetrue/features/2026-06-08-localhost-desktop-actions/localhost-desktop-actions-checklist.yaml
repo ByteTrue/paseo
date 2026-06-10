@@ -1,0 +1,61 @@
+feature: 2026-06-08-localhost-desktop-actions
+design: localhost-desktop-actions-design.md
+status: done
+steps:
+  - id: protocol-local-os-fs
+    title: Add protocol contracts for local OS and FS actions
+    status: done
+    exit_signal: Protocol schemas parse the new feature flag, open-target RPCs, local-fs RPCs, and remain backward-compatible with old server_info payloads.
+  - id: server-local-safety-gate
+    title: Add daemon-side local connection safety gate
+    status: done
+    exit_signal: Local OS/FS RPC handlers can allow loopback/direct localhost requests and reject relay or non-loopback requests before spawn or filesystem reads.
+  - id: server-open-targets
+    title: Implement daemon-backed editor and file-manager targets
+    status: done
+    exit_signal: Daemon can list available editor/file-manager targets, validate paths and target ids, and launch or reveal paths with clear errors for unavailable targets.
+  - id: server-directory-picker
+    title: Implement daemon-backed directory picker data
+    status: done
+    exit_signal: Daemon can return directory roots and child directory entries, including parent paths, hidden flags, and readable errors for invalid or inaccessible paths.
+  - id: app-open-targets
+    title: Connect workspace open targets to Electron or localhost daemon sources
+    status: done
+    exit_signal: Workspace open target UI uses Electron bridge on desktop, daemon-backed targets for browser localhost, and keeps remote/GitHub behavior unchanged.
+  - id: app-directory-picker
+    title: Add browser-localhost directory picker for Open Project
+    status: done
+    exit_signal: Open Project uses native directory dialog on Electron, daemon-backed directory picker on browser localhost, and existing Project Picker fallback elsewhere.
+  - id: verification
+    title: Verify scope, tests, typecheck, and lint
+    status: done
+    exit_signal: Targeted tests pass, typecheck and lint pass, and manual smoke verifies at least one editor/file-manager target plus selecting a real project directory.
+checks:
+  - id: scope-open-targets
+    title: Browser localhost exposes editor and file-manager open targets
+    status: passed
+    source: design section 3 scenario 1-3
+  - id: scope-directory-picker
+    title: Browser localhost Open Project uses a class file-explorer directory picker
+    status: passed
+    source: design section 3 scenario 4-5
+  - id: safety-remote-denied
+    title: Relay and non-loopback connections cannot execute local OS or FS actions
+    status: passed
+    source: design section 3 scenario 6
+  - id: compatibility
+    title: Old daemons and old clients remain protocol-compatible
+    status: passed
+    source: design section 3 scenario 7
+  - id: error-semantics
+    title: Invalid targets and invalid paths return clear UI-visible errors
+    status: passed
+    source: design section 3 scenario 8
+  - id: electron-unchanged
+    title: Electron native directory dialog and bridge behavior do not regress
+    status: passed
+    source: design section 3 scenario 9
+  - id: exclusions
+    title: CLI installer, orchestration skills installer, MCP tools switch, and full Electron webview are not changed
+    status: passed
+    source: design section 3 scenario 10

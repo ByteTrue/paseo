@@ -1,13 +1,16 @@
-# Paseo 能力清单
+# Requirements Vision
 
-## 当前能力
+## Draft
 
-- **daemon-synced-settings** — 新设备连上就能工作：连上同一台主机的任何设备都能立刻看到主机名、上次选的模型偏好、供应商模型列表，不用等、不用重配。 [status: current]
+_暂无。_
 
-## 规划中的能力
+## Current
 
-暂无。新的能力愿景会在 `.bytetrue/requirements/` 下以 draft 状态起草。
+- [local-daemon-os-actions](local-daemon-os-actions.md) — 连接本机 Paseo 时，浏览器也能打开本机编辑器、文件管理器和项目目录。
+- [local-web-preview](local-web-preview.md) — 在浏览器端快速预览 daemon 本机的 dev server 或 workspace service。
+- [daemon-synced-settings](daemon-synced-settings.md) — 连上同一台主机的任何设备都能立刻开始工作——不用等、不用重选，之前的设置都在。
+- [web-host-skills-management](web-host-skills-management.md) — 浏览器端可对已连接 host 管理 Paseo orchestration skills。
 
-## 过时的能力
+## Outdated
 
-暂无。
+_暂无。_

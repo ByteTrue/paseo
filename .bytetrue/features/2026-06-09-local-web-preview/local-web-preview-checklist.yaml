@@ -1,0 +1,124 @@
+feature: 2026-06-09-local-web-preview
+design: .bytetrue/features/2026-06-09-local-web-preview/local-web-preview-design.md
+status: done
+
+steps:
+  - id: S1
+    title: Write browser entry parity tests
+    status: done
+    paradigm: red
+    summary: Cover Web visibility for New browser tab and running-service Open in browser tab.
+    files:
+      - packages/app/src/screens/workspace/workspace-screen.tsx
+      - packages/app/src/screens/workspace/workspace-scripts-button.tsx
+      - packages/app/src/screens/workspace/workspace-scripts-button.test.tsx
+    checks:
+      - Web does not hide all browser-tab entry points behind getIsElectron().
+      - Running service can create a browser tab on Web.
+
+  - id: S2
+    title: Write Web BrowserPane lite preview tests
+    status: done
+    paradigm: red
+    summary: Cover Web BrowserPane empty state, URL entry, iframe src, blocked fallback, and Open in new tab.
+    files:
+      - packages/app/src/components/browser-pane.web.tsx
+      - packages/app/src/components/browser-pane.web.test.tsx
+    checks:
+      - Empty browser tabs render a useful URL entry state.
+      - http/https URLs render into an iframe.
+      - unsupported URLs are rejected.
+      - blocked/timeout state offers Open in new tab.
+
+  - id: S3
+    title: Enable Web browser entry parity
+    status: done
+    paradigm: green
+    summary: Allow Web to create browser tabs through existing entry points while keeping Electron behavior unchanged.
+    files:
+      - packages/app/src/screens/workspace/workspace-screen.tsx
+      - packages/app/src/screens/workspace/workspace-scripts-button.tsx
+      - packages/app/src/utils/workspace-script-links.ts
+    checks:
+      - Web shows New browser tab where the client currently exposes browser tabs.
+      - handleOpenUrlInBrowserTab creates a Web lite preview tab instead of returning on non-Electron.
+      - Electron still opens the complete BrowserPane implementation.
+
+  - id: S4
+    title: Implement Web BrowserPane lite preview
+    status: done
+    paradigm: green
+    summary: Replace the Web desktop-only placeholder with iframe-based preview UI.
+    files:
+      - packages/app/src/components/browser-pane.web.tsx
+      - packages/app/src/stores/browser-store/index.ts
+    checks:
+      - Address bar supports http/https input.
+      - Iframe updates from browser store URL state.
+      - Refresh, copy URL, and Open in new tab controls are present.
+      - file/javascript/custom schemes remain blocked.
+
+  - id: S5
+    title: Refactor preview URL and iframe state helpers
+    status: done
+    paradigm: refactor
+    summary: Extract URL validation and iframe state helpers to keep Web BrowserPane maintainable.
+    files:
+      - packages/app/src/components/browser-pane.web.tsx
+      - packages/app/src/components/browser-pane.web.test.tsx
+    checks:
+      - Component complexity stays within lint limits.
+      - Helper tests cover URL normalization and blocked timeout behavior.
+
+  - id: S6
+    title: Add browser local preview e2e smoke
+    status: done
+    paradigm: red-green
+    summary: Verify Web browser tab entry and iframe preview in Playwright.
+    files:
+      - packages/app/e2e/local-web-preview.spec.ts
+    checks:
+      - Web can open a browser tab from a running service URL.
+      - Web BrowserPane no longer shows desktop-only placeholder.
+      - Blocked fallback is covered with a controlled URL or mocked page when practical.
+
+  - id: S7
+    title: Final docs and verification
+    status: done
+    paradigm: cleanup
+    summary: Update docs and run targeted checks.
+    files:
+      - docs/local-web-preview.md
+      - docs/architecture.md
+      - .bytetrue/requirements/local-web-preview.md
+    checks:
+      - Requirement remains current/draft according to acceptance outcome.
+      - Architecture/docs mention Web lite preview and deferred static HTML preview.
+      - Targeted tests, e2e smoke, typecheck, lint, format check, and git diff check pass.
+
+checks:
+  - id: C1
+    title: Scope boundary
+    status: passed
+    command: manual review against design
+    expectation: P2 implements HTTP/service URL lite preview only; repository HTML static preview stays deferred.
+  - id: C2
+    title: Web entry parity
+    status: passed
+    command: targeted tests and e2e
+    expectation: Web exposes browser-tab entry points that previously existed only in Electron.
+  - id: C3
+    title: BrowserPane behavior
+    status: passed
+    command: targeted tests and e2e
+    expectation: Web BrowserPane renders lite preview UI, iframe, blocked fallback, and controls.
+  - id: C4
+    title: Electron preservation
+    status: passed
+    command: targeted tests or diagnostics
+    expectation: Electron BrowserPane implementation remains unchanged.
+  - id: C5
+    title: CI checks
+    status: passed
+    command: npm run typecheck && npm --workspace-root run lint && npm run format:check
+    expectation: All checks pass.

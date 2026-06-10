@@ -76,6 +76,25 @@ export type {
 // Agent activity curator for CLI logs
 export { curateAgentActivity } from "./agent/activity-curator.js";
 export {
+  PASEO_SKILL_NAMES,
+  autoUpdateInstalledSkills,
+  getAgentsSkillsDir,
+  getClaudeSkillsDir,
+  getCodexSkillsDir,
+  getDefaultSkillTargets,
+  getSkillsStatus,
+  installSkills,
+  resolveBundledSkillsSource,
+  resolveBundledSkillsSourceSync,
+  uninstallSkills,
+  updateSkills,
+  type SkillOp,
+  type SkillsSourceResolution,
+  type SkillsState,
+  type SkillsStatus,
+  type SkillTargets,
+} from "./integrations/skills/operations.js";
+export {
   getStructuredAgentResponse,
   StructuredAgentResponseError,
   StructuredAgentFallbackError,

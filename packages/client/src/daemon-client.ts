@@ -67,6 +67,10 @@ import type {
   ProviderDiagnosticResponseMessage,
   DaemonGetStatusResponse,
   DaemonGetPairingOfferResponse,
+  DaemonSkillsGetStatusResponse,
+  DaemonSkillsInstallResponse,
+  DaemonSkillsUpdateResponse,
+  DaemonSkillsUninstallResponse,
   AgentRewindResponseMessage,
   ListTerminalsResponse,
   CreateTerminalResponse,
@@ -81,6 +85,10 @@ import type {
   SendAgentMessageRequest,
   PaseoConfigRaw,
   PaseoConfigRevision,
+  LocalOsListOpenTargetsResponse,
+  LocalOsOpenTargetResponse,
+  LocalFsListRootsResponse,
+  LocalFsListDirectoryResponse,
 } from "@bytetrue/protocol/messages";
 import type {
   AgentPermissionRequest,
@@ -3337,6 +3345,68 @@ export class DaemonClient {
     });
   }
 
+  async listLocalOpenTargets(
+    requestId?: string,
+  ): Promise<LocalOsListOpenTargetsResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "local.os.list_open_targets.request",
+      },
+      responseType: "local.os.list_open_targets.response",
+      timeout: 10000,
+    });
+  }
+
+  async openLocalTarget(
+    options: {
+      editorId: string;
+      path: string;
+      cwd?: string;
+      mode?: "open" | "reveal";
+    },
+    requestId?: string,
+  ): Promise<LocalOsOpenTargetResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "local.os.open_target.request",
+        editorId: options.editorId,
+        path: options.path,
+        ...(options.cwd ? { cwd: options.cwd } : {}),
+        ...(options.mode ? { mode: options.mode } : {}),
+      },
+      responseType: "local.os.open_target.response",
+      timeout: 10000,
+    });
+  }
+
+  async listLocalDirectoryRoots(requestId?: string): Promise<LocalFsListRootsResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "local.fs.list_roots.request",
+      },
+      responseType: "local.fs.list_roots.response",
+      timeout: 10000,
+    });
+  }
+
+  async listLocalDirectory(
+    path: string,
+    requestId?: string,
+  ): Promise<LocalFsListDirectoryResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "local.fs.list_directory.request",
+        path,
+      },
+      responseType: "local.fs.list_directory.response",
+      timeout: 10000,
+    });
+  }
+
   // ============================================================================
   // File Explorer
   // ============================================================================
@@ -3601,6 +3671,54 @@ export class DaemonClient {
       },
       responseType: "daemon.get_pairing_offer.response",
       timeout: 10000,
+    });
+  }
+
+  async getDaemonSkillsStatus(
+    requestId?: string,
+  ): Promise<DaemonSkillsGetStatusResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "daemon.skills.get_status.request",
+      },
+      responseType: "daemon.skills.get_status.response",
+      timeout: 15000,
+    });
+  }
+
+  async installDaemonSkills(requestId?: string): Promise<DaemonSkillsInstallResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "daemon.skills.install.request",
+      },
+      responseType: "daemon.skills.install.response",
+      timeout: 60000,
+    });
+  }
+
+  async updateDaemonSkills(requestId?: string): Promise<DaemonSkillsUpdateResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "daemon.skills.update.request",
+      },
+      responseType: "daemon.skills.update.response",
+      timeout: 60000,
+    });
+  }
+
+  async uninstallDaemonSkills(
+    requestId?: string,
+  ): Promise<DaemonSkillsUninstallResponse["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "daemon.skills.uninstall.request",
+      },
+      responseType: "daemon.skills.uninstall.response",
+      timeout: 60000,
     });
   }
 

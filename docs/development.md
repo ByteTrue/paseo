@@ -38,6 +38,21 @@ PASEO_DEV_SEED_HOME=/path/to/home npm run dev # seed from a different source hom
 PASEO_DEV_RESET_HOME=1 npm run dev            # clear and reseed the derived worktree home
 ```
 
+### Bundled skills source
+
+Host-side orchestration skills management needs the daemon to locate a bundled `skills/`
+directory. Desktop-managed daemons pass this automatically. For standalone or custom daemon
+launches, set `PASEO_SKILLS_SOURCE_DIR` when the daemon process would not otherwise have a
+discoverable bundle path:
+
+```bash
+PASEO_SKILLS_SOURCE_DIR=/absolute/path/to/skills npm run dev:server
+```
+
+Without a valid source dir, the daemon does not advertise
+`server_info.features.hostSkillsManagement`, and Web clients should show an update-host hint
+instead of skills actions.
+
 ### Daemon endpoints
 
 - Stable daemon launched by the desktop app: `localhost:6767`.

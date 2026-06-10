@@ -83,6 +83,16 @@ import { spawnWorkspaceScript } from "./worktree-bootstrap.js";
 import type { WorkspaceScriptRuntimeStore } from "./workspace-script-runtime-store.js";
 import type { DaemonConfigStore } from "./daemon-config-store.js";
 import { getErrorMessage, getErrorMessageOr } from "@bytetrue/protocol/error-utils";
+import { listAvailableLocalOpenTargets, openLocalTarget } from "./local-os/open-targets.js";
+import { listLocalDirectory, listLocalDirectoryRoots } from "./local-fs/directory-picker.js";
+import {
+  getDefaultSkillTargets,
+  getSkillsStatus as getManagedSkillsStatus,
+  installSkills as installManagedSkills,
+  resolveBundledSkillsSource,
+  uninstallSkills as uninstallManagedSkills,
+  updateSkills as updateManagedSkills,
+} from "./integrations/skills/operations.js";
 import { getAgentStatusPriority } from "@bytetrue/protocol/agent-state-bucket";
 import type {
   WorkspaceGitRuntimeSnapshot,
@@ -1768,6 +1778,7 @@ export class Session {
       this.dispatchAgentRewindMessage(msg) ??
       this.dispatchAgentLifecycleMessage(msg) ??
       this.dispatchAgentConfigMessage(msg) ??
+      this.dispatchLocalIntegrationMessage(msg) ??
       this.dispatchCheckoutMessage(msg) ??
       this.dispatchWorkspaceAndProjectMessage(msg) ??
       this.dispatchProviderMessage(msg) ??
@@ -1922,6 +1933,14 @@ export class Session {
           payload: { requestId: msg.requestId, config: this.daemonConfigStore.get() },
         });
         return undefined;
+      case "daemon.skills.get_status.request":
+        return this.handleDaemonSkillsGetStatusRequest(msg.requestId);
+      case "daemon.skills.install.request":
+        return this.handleDaemonSkillsInstallRequest(msg.requestId);
+      case "daemon.skills.update.request":
+        return this.handleDaemonSkillsUpdateRequest(msg.requestId);
+      case "daemon.skills.uninstall.request":
+        return this.handleDaemonSkillsUninstallRequest(msg.requestId);
       case "daemon.get_status.request":
         return this.handleDaemonGetStatusRequest(msg);
       case "daemon.get_pairing_offer.request":
@@ -1948,6 +1967,164 @@ export class Session {
         return this.handleWriteProjectConfigRequest(msg);
       default:
         return undefined;
+    }
+  }
+
+  private dispatchLocalIntegrationMessage(msg: SessionInboundMessage): Promise<void> | undefined {
+    switch (msg.type) {
+      case "local.os.list_open_targets.request":
+        this.emit({
+          type: "local.os.list_open_targets.response",
+          payload: {
+            requestId: msg.requestId,
+            targets: listAvailableLocalOpenTargets(),
+            error: null,
+          },
+        });
+        return undefined;
+      case "local.os.open_target.request":
+        return this.handleLocalOsOpenTargetRequest(msg);
+      case "local.fs.list_roots.request":
+        this.emit({
+          type: "local.fs.list_roots.response",
+          payload: {
+            requestId: msg.requestId,
+            roots: listLocalDirectoryRoots(),
+            error: null,
+          },
+        });
+        return undefined;
+      case "local.fs.list_directory.request":
+        return this.handleLocalFsListDirectoryRequest(msg);
+      default:
+        return undefined;
+    }
+  }
+
+  private async handleLocalOsOpenTargetRequest(
+    msg: Extract<SessionInboundMessage, { type: "local.os.open_target.request" }>,
+  ): Promise<void> {
+    try {
+      await openLocalTarget({
+        editorId: msg.editorId,
+        path: msg.path,
+        ...(msg.cwd ? { cwd: msg.cwd } : {}),
+        ...(msg.mode ? { mode: msg.mode } : {}),
+      });
+      this.emit({
+        type: "local.os.open_target.response",
+        payload: { requestId: msg.requestId, success: true, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "local.os.open_target.response",
+        payload: {
+          requestId: msg.requestId,
+          success: false,
+          error: getErrorMessage(error),
+        },
+      });
+    }
+  }
+
+  private async handleLocalFsListDirectoryRequest(
+    msg: Extract<SessionInboundMessage, { type: "local.fs.list_directory.request" }>,
+  ): Promise<void> {
+    try {
+      const listing = await listLocalDirectory(msg.path);
+      this.emit({
+        type: "local.fs.list_directory.response",
+        payload: {
+          requestId: msg.requestId,
+          path: listing.path,
+          parentPath: listing.parentPath,
+          entries: listing.entries,
+          error: null,
+        },
+      });
+    } catch (error) {
+      this.emit({
+        type: "local.fs.list_directory.response",
+        payload: {
+          requestId: msg.requestId,
+          path: msg.path,
+          parentPath: null,
+          entries: [],
+          error: getErrorMessage(error),
+        },
+      });
+    }
+  }
+
+  private async resolveManagedSkillsTargets() {
+    const source = await resolveBundledSkillsSource();
+    if (!source.available || !source.sourceDir) {
+      throw new Error("Host skills management is unavailable: bundled skills source not found");
+    }
+    return getDefaultSkillTargets(source.sourceDir);
+  }
+
+  private async handleDaemonSkillsGetStatusRequest(requestId: string): Promise<void> {
+    try {
+      const targets = await this.resolveManagedSkillsTargets();
+      const status = await getManagedSkillsStatus(targets);
+      this.emit({
+        type: "daemon.skills.get_status.response",
+        payload: { requestId, status, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "daemon.skills.get_status.response",
+        payload: { requestId, status: null, error: getErrorMessage(error) },
+      });
+    }
+  }
+
+  private async handleDaemonSkillsInstallRequest(requestId: string): Promise<void> {
+    try {
+      const targets = await this.resolveManagedSkillsTargets();
+      const status = await installManagedSkills(targets);
+      this.emit({
+        type: "daemon.skills.install.response",
+        payload: { requestId, status, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "daemon.skills.install.response",
+        payload: { requestId, status: null, error: getErrorMessage(error) },
+      });
+    }
+  }
+
+  private async handleDaemonSkillsUpdateRequest(requestId: string): Promise<void> {
+    try {
+      const targets = await this.resolveManagedSkillsTargets();
+      const status = await updateManagedSkills(targets);
+      this.emit({
+        type: "daemon.skills.update.response",
+        payload: { requestId, status, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "daemon.skills.update.response",
+        payload: { requestId, status: null, error: getErrorMessage(error) },
+      });
+    }
+  }
+
+  private async handleDaemonSkillsUninstallRequest(requestId: string): Promise<void> {
+    try {
+      const targets = await this.resolveManagedSkillsTargets();
+      const status = await uninstallManagedSkills(targets);
+      this.emit({
+        type: "daemon.skills.uninstall.response",
+        payload: { requestId, status, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "daemon.skills.uninstall.response",
+        payload: { requestId, status: null, error: getErrorMessage(error) },
+      });
     }
   }
 

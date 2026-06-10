@@ -63,6 +63,7 @@ import { AuthorizedClientStore, type AuthorizedClient } from "./authorized-clien
 import { AuthAttemptThrottler } from "./auth-attempt-throttler.js";
 import { loadPersistedConfig, savePersistedConfig } from "./persisted-config.js";
 import { bytesToBase64, verifyDaemonAuthChallengeSignature } from "@bytetrue/protocol/daemon-auth";
+import { resolveBundledSkillsSourceSync } from "./integrations/skills/operations.js";
 
 const WS_CLOSE_DAEMON_AUTH_FAILED = 4401;
 
@@ -301,6 +302,7 @@ interface SessionConnection {
   clientCapabilities: Record<string, unknown> | null;
   connectionLogger: pino.Logger;
   sockets: Set<WebSocketLike>;
+  localOsIntegrationSockets: Set<WebSocketLike>;
   externalDisconnectCleanupTimeout: ReturnType<typeof setTimeout> | null;
   sessionKey: string;
   authorizedClientId: string | null;
@@ -396,6 +398,7 @@ export class VoiceAssistantWebSocketServer {
   private readonly pushTokenStore: PushTokenStore;
   private readonly pushNotificationSender: PushNotificationSender;
   private readonly mcpBaseUrl: string | null;
+  private readonly hostSkillsManagementAvailable: boolean;
   private speech!: SpeechService | null;
   private terminalManager!: TerminalManager | null;
   private serviceProxy!: ServiceProxySubsystem | null;
@@ -507,6 +510,7 @@ export class VoiceAssistantWebSocketServer {
       join(paseoHome, "authorized-clients.json"),
     );
     this.mcpBaseUrl = mcpBaseUrl;
+    this.hostSkillsManagementAvailable = resolveBundledSkillsSourceSync().available;
     this.assignOptionalServices({
       speech,
       terminalManager,
@@ -900,6 +904,7 @@ export class VoiceAssistantWebSocketServer {
     sessionKey: string;
     authorizedClient: AuthorizedClient | null;
     authAdminAllowed: boolean;
+    localOsIntegrationAllowed: boolean;
     authAdministrationThrottleKey: string | null;
   }): SessionConnection {
     const {
@@ -911,6 +916,7 @@ export class VoiceAssistantWebSocketServer {
       sessionKey,
       authorizedClient,
       authAdminAllowed,
+      localOsIntegrationAllowed,
       authAdministrationThrottleKey,
     } = params;
     let connection: SessionConnection | null = null;
@@ -1006,6 +1012,7 @@ export class VoiceAssistantWebSocketServer {
       clientCapabilities,
       connectionLogger,
       sockets: new Set([ws]),
+      localOsIntegrationSockets: localOsIntegrationAllowed ? new Set([ws]) : new Set(),
       externalDisconnectCleanupTimeout: null,
       sessionKey,
       authorizedClientId: authorizedClient?.id ?? null,
@@ -1112,6 +1119,9 @@ export class VoiceAssistantWebSocketServer {
         existing.session.updateClientCapabilities(hello.clientCapabilities);
       }
       existing.sockets.add(ws);
+      if (pending.trustedLocal) {
+        existing.localOsIntegrationSockets.add(ws);
+      }
       this.sessions.set(ws, existing);
       this.sendToClient(ws, this.createServerInfoMessage());
       existing.connectionLogger.trace(
@@ -1139,6 +1149,7 @@ export class VoiceAssistantWebSocketServer {
       sessionKey,
       authorizedClient,
       authAdminAllowed: pending.authAdminAllowed,
+      localOsIntegrationAllowed: pending.trustedLocal,
       authAdministrationThrottleKey: this.getAuthAdministrationThrottleKey(
         pending,
         hello,
@@ -1665,6 +1676,10 @@ export class VoiceAssistantWebSocketServer {
       providerSnapshotCache: true,
       // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
       checkoutMetadataDrafts: true,
+      // COMPAT(localOsIntegration): added in v0.1.94, remove gate after 2026-12-08.
+      localOsIntegration: true,
+      // COMPAT(hostSkillsManagement): added in v0.1.95, remove gate after 2026-12-10.
+      ...(this.hostSkillsManagementAvailable ? { hostSkillsManagement: true } : {}),
     };
 
     const payload = {
@@ -1789,6 +1804,7 @@ export class VoiceAssistantWebSocketServer {
 
     this.sessions.delete(ws);
     connection.sockets.delete(ws);
+    connection.localOsIntegrationSockets.delete(ws);
 
     if (connection.sockets.size === 0) {
       this.incrementRuntimeCounter("sessionDisconnectedWaitingReconnect");
@@ -1847,6 +1863,7 @@ export class VoiceAssistantWebSocketServer {
       this.sessions.delete(socket);
     }
     connection.sockets.clear();
+    connection.localOsIntegrationSockets.clear();
     const existing = this.externalSessionsByKey.get(connection.sessionKey);
     if (existing === connection) {
       this.externalSessionsByKey.delete(connection.sessionKey);
@@ -2077,7 +2094,7 @@ export class VoiceAssistantWebSocketServer {
       }
 
       if (message.type === "session") {
-        await this.dispatchSessionMessage(activeConnection, message);
+        await this.dispatchSessionMessage(ws, activeConnection, message);
       }
     } catch (error) {
       this.handleRawMessageError({ ws, data, error, log });
@@ -2085,11 +2102,29 @@ export class VoiceAssistantWebSocketServer {
   }
 
   private async dispatchSessionMessage(
+    ws: WebSocketLike,
     activeConnection: SessionConnection,
     message: Extract<WSInboundMessage, { type: "session" }>,
   ): Promise<void> {
     this.recordInboundSessionRequestType(message.message.type);
     const startMs = performance.now();
+    const localOsRequestId = getLocalOsIntegrationRequestId(message.message);
+    if (localOsRequestId && !activeConnection.localOsIntegrationSockets.has(ws)) {
+      this.sendToClient(
+        ws,
+        wrapSessionMessage({
+          type: "rpc_error",
+          payload: {
+            requestId: localOsRequestId,
+            requestType: message.message.type,
+            error: "Local OS integration requires a direct localhost connection",
+            code: "local_connection_required",
+          },
+        }),
+      );
+      return;
+    }
+
     await activeConnection.session.handleMessage(message.message);
     const durationMs = performance.now() - startMs;
     this.recordRequestLatency(message.message.type, durationMs);
@@ -2408,6 +2443,18 @@ function isLocalSocketRequest(metadata: SocketRequestMetadata): boolean {
     remoteAddress.startsWith("127.") ||
     remoteAddress.startsWith("::ffff:127.")
   );
+}
+
+function getLocalOsIntegrationRequestId(message: SessionInboundMessage): string | null {
+  switch (message.type) {
+    case "local.os.list_open_targets.request":
+    case "local.os.open_target.request":
+    case "local.fs.list_roots.request":
+    case "local.fs.list_directory.request":
+      return message.requestId;
+    default:
+      return null;
+  }
 }
 
 function isTlsSocketRequest(request: unknown): boolean {

@@ -12,8 +12,12 @@ export interface OpenServiceUrlOptions {
 
 export async function openServiceUrl(url: string, options?: OpenServiceUrlOptions): Promise<void> {
   const openInApp = options?.openInApp;
-  if (!openInApp || !isElectronRuntime()) {
+  if (!openInApp) {
     await openExternalUrl(url);
+    return;
+  }
+  if (!isElectronRuntime()) {
+    openInApp(url);
     return;
   }
 
