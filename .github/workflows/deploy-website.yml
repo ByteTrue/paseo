@@ -31,6 +31,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --include-workspace-root --include=optional
 
+      - name: Install Tailwind native binding
+        run: |
+          npm install --no-save "@tailwindcss/oxide-linux-x64-gnu@$(node -p \"require('./node_modules/@tailwindcss/oxide/package.json').version\")"
+
       - name: Typecheck
         run: npm run typecheck --workspace=@bytetrue/website
 
