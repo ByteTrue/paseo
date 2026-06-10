@@ -1,6 +1,6 @@
 ---
-title: Open Source Codex App Alternative With Linux, Browser Access, and Multi-Provider Support
-description: Paseo is an open source alternative to Codex App for developers who want Linux, browser access from anywhere, a self-hosted daemon, and Codex alongside Claude Code, OpenCode, Copilot, and more.
+title: Open Source Codex App Alternative With Linux, Mobile, and Multi-Provider Support
+description: Paseo is an open source alternative to Codex App for developers who want Linux, native mobile apps, a self-hosted daemon, and Codex alongside Claude Code, OpenCode, Copilot, and more.
 nav: Codex App
 order: 105
 ---
@@ -9,9 +9,9 @@ order: 105
 
 Codex App is OpenAI's desktop app for working with Codex threads in parallel. It runs on macOS and Windows, with local, worktree, and cloud modes.
 
-Paseo is an app for orchestrating coding agents, with a desktop app, web app, and CLI. Open source (AGPL-3.0).
+Paseo is an app for orchestrating coding agents, with native clients on desktop, mobile, web, and the CLI. Open source (AGPL-3.0).
 
-![Paseo desktop and web app](/hero-mockup.png)
+![Paseo desktop and mobile app](/hero-mockup.png)
 
 ## When to pick what
 
@@ -20,7 +20,7 @@ Pick Codex App if you want OpenAI's first-party app for Codex, with Codex-specif
 Pick Paseo if you want:
 
 - Linux alongside macOS and Windows
-- A web app you can use from your phone browser
+- A native iOS and Android app
 - Codex, Claude Code, OpenCode, Copilot, Pi, and 30+ more agents in one interface
 - A self-hosted daemon you can run on a laptop, VM, or dev server
 - A CLI and MCP server for scripting and multi-agent workflows
@@ -28,7 +28,7 @@ Pick Paseo if you want:
 
 ## Architecture
 
-Paseo runs a daemon on your machine. Desktop, web, and CLI clients connect to it over a websocket. The daemon launches Codex and other providers as local processes, using your installed CLIs and credentials.
+Paseo runs a daemon on your machine. Desktop, web, mobile, and CLI clients connect to it over a websocket. The daemon launches Codex and other providers as local processes, using your installed CLIs and credentials.
 
 Codex App is a desktop app for Codex. It can run local and worktree threads on your computer, and cloud threads on OpenAI-managed infrastructure.
 
@@ -44,9 +44,9 @@ Codex App is available on macOS and Windows. OpenAI lists Linux as not available
 
 Paseo ships on macOS, Linux, and Windows.
 
-## Phone access
+## Mobile
 
-Paseo gives you a web app you can use from your phone browser against the same daemon.
+Paseo ships native iOS and Android apps with the same agent workflow as the desktop app.
 
 Codex can be controlled remotely through OpenAI's mobile surfaces, including ChatGPT mobile remote connections. Codex App itself is a desktop app.
 
@@ -93,7 +93,7 @@ Paseo supports dictation and realtime voice mode. Speech-to-text and text-to-spe
 | ---------------------------- | --------------------------------------------------------------- | ---------------------------- |
 | License                      | Open source (AGPL-3.0)                                          | Not published as open source |
 | Desktop platforms            | macOS, Linux, Windows                                           | macOS, Windows               |
-| Phone access                 | Web app in browser                                              | No                           |
+| Native mobile                | iOS, Android                                                    | No                           |
 | Providers                    | Codex, Claude Code, OpenCode, Pi + 30+ via ACP catalog + custom | Codex                        |
 | Local execution              | Yes                                                             | Yes                          |
 | Cloud execution              | Cloud waitlist                                                  | Yes                          |

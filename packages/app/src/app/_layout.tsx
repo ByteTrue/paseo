@@ -3,6 +3,7 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { PortalProvider } from "@gorhom/portal";
 import { QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import { Stack, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import {
   createContext,
@@ -84,7 +85,6 @@ import { resolveActiveHost } from "@/utils/active-host";
 import { toggleDesktopSidebarsWithCheckoutIntent } from "@/utils/desktop-sidebar-toggle";
 import {
   buildHostRootRoute,
-  mapPathnameToServer,
   parseHostAgentRouteFromPathname,
   parseServerIdFromPathname,
   parseWorkspaceOpenIntent,
@@ -116,6 +116,7 @@ const HostRuntimeBootstrapContext = createContext<HostRuntimeBootstrapState>({
 function PushNotificationRouter() {
   const router = useRouter();
   const pathname = usePathname();
+  const lastHandledIdRef = useRef<string | null>(null);
   const openNotification = useStableEvent((data: Record<string, unknown> | undefined) => {
     const target = resolveNotificationTarget(data);
     const serverId = target.serverId;
@@ -129,59 +130,91 @@ function PushNotificationRouter() {
   });
 
   useEffect(() => {
-    let removeDesktopNotificationListener: (() => void) | null = null;
-    let cancelled = false;
+    if (isWeb) {
+      let removeDesktopNotificationListener: (() => void) | null = null;
+      let cancelled = false;
 
-    if (getIsElectronRuntime()) {
-      void ensureOsNotificationPermission();
+      if (getIsElectronRuntime()) {
+        void ensureOsNotificationPermission();
 
-      const unlistenResult = getDesktopHost()?.events?.on?.(
-        "notification-click",
-        (payload: unknown) => {
-          const data =
-            typeof payload === "object" &&
-            payload !== null &&
-            "data" in payload &&
-            typeof (payload as { data?: unknown }).data === "object" &&
-            (payload as { data?: unknown }).data !== null
-              ? (payload as { data: Record<string, unknown> }).data
-              : undefined;
-          openNotification(data);
-        },
-      );
+        const unlistenResult = getDesktopHost()?.events?.on?.(
+          "notification-click",
+          (payload: unknown) => {
+            const data =
+              typeof payload === "object" &&
+              payload !== null &&
+              "data" in payload &&
+              typeof (payload as { data?: unknown }).data === "object" &&
+              (payload as { data?: unknown }).data !== null
+                ? (payload as { data: Record<string, unknown> }).data
+                : undefined;
+            openNotification(data);
+          },
+        );
 
-      void Promise.resolve(unlistenResult).then((unlisten) => {
-        if (typeof unlisten !== "function") {
-          return null;
-        }
-        if (cancelled) {
-          unlisten();
-          return null;
-        }
-        removeDesktopNotificationListener = unlisten;
-        return null;
-      });
-    }
+        void Promise.resolve(unlistenResult).then((unlisten) => {
+          if (typeof unlisten !== "function") {
+            return;
+          }
+          if (cancelled) {
+            unlisten();
+            return;
+          }
+          removeDesktopNotificationListener = unlisten;
+          return;
+        });
+      }
 
-    if (typeof window === "undefined") {
+      const openFromWebClick = (event: Event) => {
+        const customEvent = event as CustomEvent<WebNotificationClickDetail>;
+        event.preventDefault();
+        openNotification(customEvent.detail?.data);
+      };
+
+      window.addEventListener(WEB_NOTIFICATION_CLICK_EVENT, openFromWebClick as EventListener);
+
       return () => {
         cancelled = true;
         removeDesktopNotificationListener?.();
+        window.removeEventListener(WEB_NOTIFICATION_CLICK_EVENT, openFromWebClick as EventListener);
       };
     }
 
-    const openFromWebClick = (event: Event) => {
-      const customEvent = event as CustomEvent<WebNotificationClickDetail>;
-      event.preventDefault();
-      openNotification(customEvent.detail?.data);
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        // When the app is open, don't show OS banners.
+        shouldShowAlert: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+
+    const openFromResponse = (response: Notifications.NotificationResponse) => {
+      const identifier = response.notification.request.identifier;
+      if (lastHandledIdRef.current === identifier) {
+        return;
+      }
+      lastHandledIdRef.current = identifier;
+
+      const data = response.notification.request.content.data as
+        | Record<string, unknown>
+        | undefined;
+      openNotification(data);
     };
 
-    window.addEventListener(WEB_NOTIFICATION_CLICK_EVENT, openFromWebClick as EventListener);
+    const subscription = Notifications.addNotificationResponseReceivedListener(openFromResponse);
+
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        openFromResponse(response);
+      }
+      return;
+    });
 
     return () => {
-      cancelled = true;
-      removeDesktopNotificationListener?.();
-      window.removeEventListener(WEB_NOTIFICATION_CLICK_EVENT, openFromWebClick as EventListener);
+      subscription.remove();
     };
   }, [openNotification]);
 
@@ -787,7 +820,6 @@ function OpenProjectListener() {
 }
 
 function AppWithSidebar({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ open?: string | string[] }>();
   const hosts = useHosts();
@@ -795,16 +827,6 @@ function AppWithSidebar({ children }: { children: ReactNode }) {
   const activeServerId = useMemo(() => parseServerIdFromPathname(pathname), [pathname]);
   const shouldShowAppChrome =
     storeReady && activeServerId !== null && hosts.some((host) => host.serverId === activeServerId);
-
-  useEffect(() => {
-    if (!activeServerId || hosts.length === 0) {
-      return;
-    }
-    if (hosts.some((host) => host.serverId === activeServerId)) {
-      return;
-    }
-    router.replace(mapPathnameToServer(pathname, hosts[0].serverId));
-  }, [activeServerId, hosts, pathname, router]);
 
   // Parse selectedAgentKey directly from pathname
   // useLocalSearchParams doesn't update when navigating between same-pattern routes
@@ -861,6 +883,7 @@ function RootStack() {
         <Stack.Screen name="settings/[section]" />
         <Stack.Screen name="settings/projects/index" />
         <Stack.Screen name="settings/projects/[projectKey]" />
+        <Stack.Screen name="pair-scan" />
       </Stack.Protected>
       {/*
         Do not add getId or dangerouslySingular back to the workspace route.

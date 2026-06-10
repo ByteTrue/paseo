@@ -117,7 +117,6 @@ vi.mock("lucide-react-native", () => {
   };
   return {
     ChevronRight: icon("ChevronRight"),
-    Plus: icon("Plus"),
     MoreVertical: icon("MoreVertical"),
     Trash2: icon("Trash2"),
   };
@@ -165,8 +164,8 @@ vi.mock("@/stores/provider-settings-store", () => ({
     selector({ open: openProviderSettingsMock }),
 }));
 
-vi.mock("@/components/add-provider-modal", () => ({
-  AddProviderModal: () => null,
+vi.mock("@/components/provider-catalog-list", () => ({
+  ProviderCatalogList: () => null,
 }));
 
 vi.mock("@/components/combined-model-selector", () => ({

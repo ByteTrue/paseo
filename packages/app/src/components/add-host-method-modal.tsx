@@ -1,8 +1,9 @@
 import { useCallback } from "react";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Link2, ClipboardPaste } from "lucide-react-native";
+import { QrCode, Link2, ClipboardPaste } from "lucide-react-native";
 import { AdaptiveModalSheet, type SheetHeader } from "./adaptive-modal-sheet";
+import { isNative } from "@/constants/platform";
 
 const ADD_CONNECTION_HEADER: SheetHeader = { title: "Add connection" };
 
@@ -36,6 +37,7 @@ export interface AddHostMethodModalProps {
   visible: boolean;
   onClose: () => void;
   onDirectConnection: () => void;
+  onScanQr: () => void;
   onPasteLink: () => void;
 }
 
@@ -43,6 +45,7 @@ export function AddHostMethodModal({
   visible,
   onClose,
   onDirectConnection,
+  onScanQr,
   onPasteLink,
 }: AddHostMethodModalProps) {
   const { theme } = useUnistyles();
@@ -50,6 +53,10 @@ export function AddHostMethodModal({
   const handleDirect = useCallback(() => {
     onDirectConnection();
   }, [onDirectConnection]);
+
+  const handleScan = useCallback(() => {
+    onScanQr();
+  }, [onScanQr]);
 
   const handlePaste = useCallback(() => {
     onPasteLink();
@@ -75,6 +82,21 @@ export function AddHostMethodModal({
           <Text style={styles.optionSubtext}>Local network or VPN.</Text>
         </View>
       </Pressable>
+
+      {isNative ? (
+        <Pressable
+          style={styles.option}
+          onPress={handleScan}
+          accessibilityRole="button"
+          accessibilityLabel="Scan QR code"
+        >
+          <QrCode size={18} color={theme.colors.foreground} />
+          <View style={styles.optionBody}>
+            <Text style={styles.optionText}>Scan QR code</Text>
+            <Text style={styles.optionSubtext}>Encrypted relay connection.</Text>
+          </View>
+        </Pressable>
+      ) : null}
 
       <Pressable
         style={styles.option}

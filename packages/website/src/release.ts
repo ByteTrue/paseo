@@ -49,8 +49,8 @@ interface ReleaseInfo {
   windowsArm64Asset: string | null;
 }
 
-const GITHUB_RELEASES_URL = "https://api.github.com/repos/getpaseo/paseo/releases?per_page=10";
-const RELEASE_CACHE_KEY = "github-release:v1";
+const GITHUB_RELEASES_URL = "https://api.github.com/repos/ByteTrue/paseo/releases?per_page=10";
+const RELEASE_CACHE_KEY = "github-release:ByteTrue/paseo:v1";
 
 async function fetchLatestReadyRelease(): Promise<ReleaseInfo> {
   const res = await fetch(GITHUB_RELEASES_URL, {

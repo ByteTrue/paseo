@@ -54,7 +54,6 @@ import {
 } from "./agent-stream-coalescer.js";
 import { ForegroundRunState, type ForegroundTurnWaiter } from "./foreground-run-state.js";
 import { getAgentProviderDefinition } from "@bytetrue/protocol/provider-manifest";
-import { IMPORTABLE_PROVIDERS } from "./provider-registry.js";
 import { invokeRewindCapability, type RewindMode } from "./rewind/rewind.js";
 import { isSystemInjectedEnvelope } from "./agent-prompt.js";
 import { stripInternalPaseoMcpServer, withRuntimePaseoMcpServer } from "./runtime-mcp-config.js";
@@ -149,8 +148,7 @@ interface HydrateTimelineOptions {
 
 export type ImportablePersistedAgentQueryOptions = ListPersistedAgentsOptions & {
   /**
-   * When set, only providers in this set are scanned, in addition to the
-   * built-in importable allowlist + enabled + non-derived rules.
+   * When set, only providers in this set are scanned, in addition to enabled rules.
    */
   providerFilter?: Set<string>;
 };
@@ -419,7 +417,6 @@ function buildExplicitTimelineSeedForRegister(
 export class AgentManager {
   private readonly clients = new Map<AgentProvider, AgentClient>();
   private readonly providerEnabled = new Map<AgentProvider, boolean>();
-  private readonly providerDerivedFromId = new Map<AgentProvider, string | null>();
   private readonly agents = new Map<string, LiveManagedAgent>();
   private readonly timelineStore = new InMemoryAgentTimelineStore();
   private readonly agentsAwaitingInitialSnapshotPersist = new Set<string>();
@@ -483,11 +480,6 @@ export class AgentManager {
         this.providerEnabled.delete(provider);
       }
     }
-    for (const provider of Array.from(this.providerDerivedFromId.keys())) {
-      if (!nextProviders.has(provider)) {
-        this.providerDerivedFromId.delete(provider);
-      }
-    }
     for (const provider of Array.from(this.clients.keys())) {
       if (!nextClients.has(provider)) {
         this.clients.delete(provider);
@@ -497,7 +489,6 @@ export class AgentManager {
     for (const [provider, definition] of Object.entries(input.providerDefinitions)) {
       if (definition) {
         this.providerEnabled.set(provider, definition.enabled);
-        this.providerDerivedFromId.set(provider, definition.derivedFromProviderId ?? null);
       }
     }
     for (const [provider, client] of Object.entries(input.clients)) {
@@ -670,13 +661,7 @@ export class AgentManager {
     provider: AgentProvider,
     providerFilter: Set<string> | undefined,
   ): boolean {
-    if (!IMPORTABLE_PROVIDERS.includes(provider as (typeof IMPORTABLE_PROVIDERS)[number])) {
-      return false;
-    }
     if (this.providerEnabled.get(provider) === false) {
-      return false;
-    }
-    if (this.providerDerivedFromId.get(provider) != null) {
       return false;
     }
     if (providerFilter && !providerFilter.has(provider)) {

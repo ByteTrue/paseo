@@ -1,7 +1,9 @@
 import { useCallback, useRef } from "react";
 import { Alert } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { getDesktopHost, isElectronRuntime } from "@/desktop/host";
 import {
+  normalizePickedImageAssets,
   openImagePathsWithDesktopDialog,
   type PickedImageAttachmentInput,
 } from "@/hooks/image-attachment-picker";
@@ -11,73 +13,32 @@ interface UseImageAttachmentPickerResult {
   pickImages: () => Promise<PickedImageAttachmentInput[] | null>;
 }
 
-function openBrowserImagePicker(): Promise<PickedImageAttachmentInput[] | null> {
-  if (!isWeb || typeof document === "undefined") {
-    throw new Error("Browser image picker is not available in this environment.");
-  }
-
-  return new Promise((resolve) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.multiple = true;
-    input.style.display = "none";
-
-    let settled = false;
-
-    const cleanup = () => {
-      input.removeEventListener("change", handleChange);
-      input.removeEventListener("cancel", handleCancel);
-      window.removeEventListener("focus", handleWindowFocus);
-      input.remove();
-    };
-
-    const settle = (value: PickedImageAttachmentInput[] | null) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      resolve(value);
-    };
-
-    const handleChange = () => {
-      const files = Array.from(input.files ?? []);
-      if (files.length === 0) {
-        settle(null);
-        return;
-      }
-      settle(
-        files.map((file) => ({
-          source: { kind: "blob" as const, blob: file },
-          mimeType: file.type || null,
-          fileName: file.name || null,
-        })),
-      );
-    };
-
-    const handleCancel = () => {
-      settle(null);
-    };
-
-    const handleWindowFocus = () => {
-      window.setTimeout(() => {
-        if (!settled && (input.files?.length ?? 0) === 0) {
-          settle(null);
-        }
-      }, 0);
-    };
-
-    input.addEventListener("change", handleChange);
-    input.addEventListener("cancel", handleCancel);
-    window.addEventListener("focus", handleWindowFocus, { once: true });
-    document.body.appendChild(input);
-    input.click();
-  });
-}
-
 export function useImageAttachmentPicker(): UseImageAttachmentPickerResult {
+  const [mediaPermission, requestMediaPermission] = ImagePicker.useMediaLibraryPermissions();
   const isPickingRef = useRef(false);
+
+  const ensurePermission = useCallback(async () => {
+    let currentPermission = mediaPermission;
+
+    if (
+      !currentPermission ||
+      currentPermission.status === ImagePicker.PermissionStatus.UNDETERMINED
+    ) {
+      currentPermission = await requestMediaPermission();
+    } else if (!currentPermission.granted) {
+      currentPermission = await requestMediaPermission();
+    }
+
+    if (!currentPermission?.granted) {
+      Alert.alert(
+        "Permission required",
+        "Please allow access to your photo library to attach images.",
+      );
+      return false;
+    }
+
+    return true;
+  }, [mediaPermission, requestMediaPermission]);
 
   const pickImages = useCallback(async () => {
     if (isPickingRef.current) {
@@ -87,7 +48,7 @@ export function useImageAttachmentPicker(): UseImageAttachmentPickerResult {
     isPickingRef.current = true;
 
     try {
-      if (isElectronRuntime()) {
+      if (isWeb && isElectronRuntime()) {
         const selectedPaths = await openImagePathsWithDesktopDialog(getDesktopHost()?.dialog);
         if (selectedPaths.length === 0) {
           return null;
@@ -99,7 +60,27 @@ export function useImageAttachmentPicker(): UseImageAttachmentPickerResult {
         }));
       }
 
-      return await openBrowserImagePicker();
+      const hasPermission = await ensurePermission();
+      if (!hasPermission) {
+        return null;
+      }
+
+      const pendingResult = await ImagePicker.getPendingResultAsync();
+      if (pendingResult && "canceled" in pendingResult && !pendingResult.canceled) {
+        return await normalizePickedImageAssets(pendingResult.assets);
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"] as ImagePicker.MediaType[],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return null;
+      }
+
+      return await normalizePickedImageAssets(result.assets);
     } catch (error) {
       console.error("[ImageAttachmentPicker] Failed to pick image:", error);
       Alert.alert("Error", "Failed to select image");
@@ -107,7 +88,7 @@ export function useImageAttachmentPicker(): UseImageAttachmentPickerResult {
     } finally {
       isPickingRef.current = false;
     }
-  }, []);
+  }, [ensurePermission]);
 
   return { pickImages };
 }
