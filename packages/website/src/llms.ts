@@ -56,10 +56,10 @@ ${agents}
 ## Optional
 
 - [Changelog](${SITE_URL}/changelog): Release notes for the Paseo daemon, CLI, desktop, and mobile apps.
-- [Download](${SITE_URL}/download): Install Paseo on Mac, Windows, Linux, iOS, Android, or run the web app.
+- [Download](${SITE_URL}/download): Install Paseo on Mac, Windows, Linux, Android, iOS TestFlight, or run the web app.
 - [Paseo Cloud](${SITE_URL}/cloud): Waitlist for the hosted multi-user version of Paseo.
 - [Blog](${SITE_URL}/blog): Updates and technical posts from the Paseo team.
 - [Privacy](${SITE_URL}/privacy): Privacy policy.
-- [GitHub](https://github.com/getpaseo/paseo): Source code, issues, and releases.
+- [GitHub](https://github.com/ByteTrue/paseo): Source code, issues, and releases.
 `;
 }

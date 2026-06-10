@@ -1,7 +1,10 @@
 import * as React from "react";
 
+export const gitHubRepositoryUrl = "https://github.com/ByteTrue/paseo";
+export const gitHubReleasesUrl = `${gitHubRepositoryUrl}/releases`;
+
 export function releaseBase(version: string) {
-  return `https://github.com/getpaseo/paseo/releases/download/v${version}`;
+  return `${gitHubReleasesUrl}/download/v${version}`;
 }
 
 export interface ReleaseAssetInfo {
@@ -24,7 +27,6 @@ export function downloadUrls(release: ReleaseAssetInfo) {
   };
 }
 
-export const appStoreUrl = "https://apps.apple.com/app/paseo-pocket-engineer/id6758887924";
 export const playStoreUrl = "https://play.google.com/store/apps/details?id=sh.paseo";
 export const webAppUrl = "https://paseo.zijieapi.de5.net";
 

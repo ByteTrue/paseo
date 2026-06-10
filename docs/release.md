@@ -47,7 +47,7 @@ Fork facts:
 - Browser web deploy: `deploy-app.yml` to the `paseo-zijieapi-de5-net` Pages project.
 - Relay deploy: `deploy-relay.yml` to the ByteTrue Cloudflare account.
 - Website deploy: `deploy-website.yml` to the ByteTrue Cloudflare account.
-- Shipped app surfaces: browser web, Electron desktop, native iOS/Android through EAS/App Store/Play Store, and Android APK release assets.
+- Shipped app surfaces: browser web, Electron desktop, native iOS through TestFlight, Android through Play Store, and Android APK release assets.
 - macOS desktop releases publish Apple Silicon arm64 artifacts only; Intel x64 macOS artifacts are not shipped.
 
 Publishable npm packages, in dependency order:
@@ -75,7 +75,7 @@ Before running any stable patch release command:
 npm run release:patch
 ```
 
-This bumps the version across all workspaces, runs checks, publishes to npm, and pushes the branch + tag. The tag push triggers `Desktop Release`, `Android APK Release`, and `Release Notes Sync` on GitHub Actions. EAS picks up the same tag via the EAS GitHub app and starts the iOS + Android store builds in parallel (see "Mobile builds (EAS)" below) — there is no `release-mobile.yml` in this repo.
+This bumps the version across all workspaces, runs checks, publishes to npm, and pushes the branch + tag. The tag push triggers `Desktop Release`, `Android APK Release`, and `Release Notes Sync` on GitHub Actions. EAS picks up the same tag via the EAS GitHub app and starts the iOS + Android store builds in parallel (see "Mobile builds (EAS)" below) — there is no GitHub Actions `release-mobile.yml` in this repo.
 
 **Releases are always patch.** "Release paseo", "release stable", "ship stable", and similar always mean a patch bump from the previous stable. Never bump minor or major to trigger a build, ever — minor and major bumps are reserved for genuinely larger product cuts and require an explicit user instruction with the word "minor" or "major". If you find yourself reaching for `release:minor` to retrigger a failed build, you are doing the wrong thing — push a retry tag instead (see "Fixing a failed release build" below).
 
@@ -211,6 +211,8 @@ iOS and Android store builds are not in `.github/workflows`. They are triggered 
 - **Android APK (GitHub Release asset)** — separate, via `.github/workflows/android-apk-release.yml`. This is the only Android-related workflow that lives in this repo.
 
 The EAS workflow definition lives at `packages/app/.eas/workflows/release-mobile.yml`. It is executed by Expo/EAS, not by GitHub Actions.
+
+`packages/app/app.config.js` intentionally does not hard-code an Expo owner or EAS project ID. Configure `EXPO_OWNER` and `EAS_PROJECT_ID` in EAS/GitHub release environments so mobile builds target the ByteTrue Expo project instead of upstream.
 
 ### Watching mobile builds from the terminal
 

@@ -4,7 +4,7 @@ import { SiteShell } from "~/components/site-shell";
 import { pageMeta } from "~/meta";
 import {
   downloadUrls,
-  appStoreUrl,
+  gitHubReleasesUrl,
   playStoreUrl,
   webAppUrl,
   AppleIcon,
@@ -20,8 +20,8 @@ import "~/styles.css";
 export const Route = createFileRoute("/download")({
   head: () =>
     pageMeta(
-      "Download Paseo for macOS, Windows, Linux, iOS, and Android",
-      "Install Paseo on every platform. Native desktop apps for macOS, Windows, and Linux. Mobile apps for iOS and Android. Self-hosted, open source, free to download.",
+      "Download Paseo for macOS, Windows, Linux, iOS TestFlight, and Android",
+      "Install Paseo on desktop, Android, iOS TestFlight, and the web. Self-hosted, open source, free to download.",
       "/download",
     ),
   component: Download,
@@ -127,7 +127,9 @@ function Download() {
               <span className="font-medium">iOS</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <DownloadPill href={appStoreUrl} label="App Store" external />
+              <span className="inline-flex items-center justify-center rounded-full border border-border px-4 py-1.5 text-sm font-medium text-muted-foreground">
+                TestFlight invite required
+              </span>
             </div>
           </div>
         </div>
@@ -184,7 +186,7 @@ function Download() {
               <TerminalIcon className="h-5 w-5 text-foreground" />
               <span className="font-medium">Nix</span>
             </div>
-            <CodeBlock size="sm">nix run github:getpaseo/paseo</CodeBlock>
+            <CodeBlock size="sm">nix run github:ByteTrue/paseo</CodeBlock>
           </div>
         </div>
       </section>
@@ -192,7 +194,7 @@ function Download() {
       <p className="text-center text-xs text-muted-foreground mt-8">
         All releases are available on{" "}
         <a
-          href="https://github.com/getpaseo/paseo/releases"
+          href={gitHubReleasesUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-foreground transition-colors"

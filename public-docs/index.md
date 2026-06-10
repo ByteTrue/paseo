@@ -11,7 +11,7 @@ Paseo runs your coding agents on your machine and gives you a mobile, desktop, w
 
 ## Desktop app (recommended)
 
-Download from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/getpaseo/paseo/releases). Open it and you're done.
+Download from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/ByteTrue/paseo/releases). Open it and you're done.
 
 The desktop app bundles its own daemon and starts it automatically, no separate install required. On first launch you'll see a brief startup screen, then connect from your phone by scanning the QR code in Settings.
 
@@ -32,7 +32,7 @@ Configuration and local state live under `PASEO_HOME` (defaults to `~/.paseo`).
 
 - [Providers](/docs/providers), what a provider is and how Paseo wraps existing CLIs.
 - [CLI reference](/docs/cli), every command.
-- [GitHub repo](https://github.com/getpaseo/paseo)
+- [GitHub repo](https://github.com/ByteTrue/paseo)
 - [Report an issue](https://github.com/getpaseo/paseo/issues)
 
 ## Prerequisites

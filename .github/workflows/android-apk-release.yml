@@ -25,6 +25,10 @@ jobs:
       contents: write
       packages: read
     runs-on: ubuntu-latest
+    env:
+      EXPO_OWNER: ${{ vars.EXPO_OWNER || secrets.EXPO_OWNER }}
+      EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID || secrets.EAS_PROJECT_ID }}
+      EXPO_PUBLIC_EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID || secrets.EAS_PROJECT_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +72,7 @@ jobs:
           node-version: "22"
           cache: "npm"
           registry-url: "https://npm.pkg.github.com"
-          scope: "@boudra"
+          scope: "@bytetrue"
 
       - name: Install JS dependencies
         run: npm ci

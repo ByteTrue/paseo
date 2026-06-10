@@ -57,6 +57,8 @@ Stable tag pushes like `v0.1.0` trigger:
 
 iOS uploads to App Store Connect/TestFlight via EAS-managed credentials; it does not auto-submit for App Store review. Android auto-submits to the Play Store via EAS-managed credentials.
 
+`packages/app/app.config.js` reads `EXPO_OWNER` and `EAS_PROJECT_ID` from the release environment. Keep those values pointed at the ByteTrue Expo project; do not hard-code upstream `getpaseo` project settings.
+
 Beta tags like `v0.1.1-beta.1` only trigger the GitHub APK workflow. They publish a GitHub prerelease APK for testing and do not submit to the stores.
 
 `android-v*` tags also trigger only the GitHub APK workflow — useful when you want to ship an APK without going through stores. The GitHub APK workflow supports `workflow_dispatch` with an existing `tag` input so you can rebuild without cutting a new tag.

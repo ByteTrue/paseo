@@ -3,6 +3,19 @@ const path = require("node:path");
 const pkg = require("./package.json");
 const appVariant = process.env.APP_VARIANT ?? "production";
 
+function readTrimmedEnv(key) {
+  const value = process.env[key];
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+
+  return undefined;
+}
+
+const easProjectId =
+  readTrimmedEnv("EAS_PROJECT_ID") ?? readTrimmedEnv("EXPO_PUBLIC_EAS_PROJECT_ID");
+const expoOwner = readTrimmedEnv("EXPO_OWNER");
+
 function resolveSecretFile(params) {
   const fromEnv = process.env[params.envKey];
   if (typeof fromEnv === "string" && fromEnv.trim().length > 0) {
@@ -59,9 +72,13 @@ export default {
     runtimeVersion: {
       policy: "appVersion",
     },
-    updates: {
-      url: "https://u.expo.dev/0e7f65ce-0367-46c8-a238-2b65963d235a",
-    },
+    ...(easProjectId
+      ? {
+          updates: {
+            url: `https://u.expo.dev/${easProjectId}`,
+          },
+        }
+      : {}),
     ios: {
       supportsTablet: true,
       infoPlist: {
@@ -147,10 +164,14 @@ export default {
     },
     extra: {
       router: {},
-      eas: {
-        projectId: "0e7f65ce-0367-46c8-a238-2b65963d235a",
-      },
+      ...(easProjectId
+        ? {
+            eas: {
+              projectId: easProjectId,
+            },
+          }
+        : {}),
     },
-    owner: "getpaseo",
+    ...(expoOwner ? { owner: expoOwner } : {}),
   },
 };

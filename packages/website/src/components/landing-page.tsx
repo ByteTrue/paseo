@@ -32,12 +32,10 @@ import { CursorFieldProvider } from "~/components/butterfly";
 import { CommandDialog } from "~/components/command-dialog";
 import { AGENT_PAGES } from "~/data/agent-pages";
 import {
-  appStoreUrl,
   playStoreUrl,
   webAppUrl,
   getDownloadOptions,
   useDetectedPlatform,
-  AppleIcon,
   PlayStoreIcon,
   TerminalIcon,
   GlobeIcon,
@@ -1217,15 +1215,6 @@ function GetStarted() {
         >
           <GlobeIcon className="h-4 w-4" />
           Web App
-        </a>
-        <a
-          href={appStoreUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center rounded-lg border border-white/20 px-3 py-2 text-white hover:bg-white/10 transition-colors"
-          aria-label="App Store"
-        >
-          <AppleIcon className="h-5 w-5" />
         </a>
         <a
           href={playStoreUrl}
