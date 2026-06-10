@@ -174,6 +174,12 @@ defaults. The default rotation is `10m` x `3` files everywhere.
 `worktree.setup` and `worktree.teardown` accept either a multiline shell script or an array
 of commands. Both run sequentially.
 
+Worktree setup/teardown and service command entries run as raw shell commands,
+not npm scripts. npm does not inject `node_modules/.bin` into `PATH` here, so
+call project binaries through `npm run`, an explicit `./node_modules/.bin/...`
+path, or plain shell syntax such as `VAR=value command` when the command only
+needs environment variables.
+
 ```json
 {
   "worktree": {
