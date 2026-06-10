@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Tailwind native binding
         run: |
-          oxide_version="$(node -e \"console.log(require('./node_modules/@tailwindcss/oxide/package.json').version)\")"
+          oxide_version=$(node -p "require('./node_modules/@tailwindcss/oxide/package.json').version")
           npm install --no-save "@tailwindcss/oxide-linux-x64-gnu@${oxide_version}"
 
       - name: Typecheck
