@@ -2416,19 +2416,19 @@ export const ServerInfoStatusPayloadSchema = z
         titleGenerationSettings: z.boolean().optional(),
         // COMPAT(metadataGenerationSettings): added in v0.1.92, remove gate after 2026-12-06.
         metadataGenerationSettings: z.boolean().optional(),
-        // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-07.
+        // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-10.
         providerRemovalSettings: z.boolean().optional(),
-        // COMPAT(daemonDisplayName): added in v0.1.94, remove gate after 2026-12-08.
+        // COMPAT(daemonDisplayName): added in v0.1.93, remove gate after 2026-12-10.
         daemonDisplayName: z.boolean().optional(),
-        // COMPAT(daemonAgentFormPreferences): added in v0.1.94, remove gate after 2026-12-08.
+        // COMPAT(daemonAgentFormPreferences): added in v0.1.93, remove gate after 2026-12-10.
         daemonAgentFormPreferences: z.boolean().optional(),
-        // COMPAT(providerSnapshotCache): added in v0.1.94, remove gate after 2026-12-08.
+        // COMPAT(providerSnapshotCache): added in v0.1.93, remove gate after 2026-12-10.
         providerSnapshotCache: z.boolean().optional(),
         // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
         checkoutMetadataDrafts: z.boolean().optional(),
-        // COMPAT(localOsIntegration): added in v0.1.94, remove gate after 2026-12-08.
+        // COMPAT(localOsIntegration): added in v0.1.93, remove gate after 2026-12-10.
         localOsIntegration: z.boolean().optional(),
-        // COMPAT(hostSkillsManagement): added in v0.1.95, remove gate after 2026-12-10.
+        // COMPAT(hostSkillsManagement): added in v0.1.93, remove gate after 2026-12-10.
         hostSkillsManagement: z.boolean().optional(),
       })
       .optional(),

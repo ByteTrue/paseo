@@ -1666,19 +1666,19 @@ export class VoiceAssistantWebSocketServer {
       titleGenerationSettings: true,
       // COMPAT(metadataGenerationSettings): added in v0.1.92, remove gate after 2026-12-06.
       metadataGenerationSettings: true,
-      // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-07.
+      // COMPAT(providerRemovalSettings): added in v0.1.93, remove gate after 2026-12-10.
       providerRemovalSettings: true,
-      // COMPAT(daemonDisplayName): added in v0.1.94, remove gate after 2026-12-08.
+      // COMPAT(daemonDisplayName): added in v0.1.93, remove gate after 2026-12-10.
       daemonDisplayName: true,
-      // COMPAT(daemonAgentFormPreferences): added in v0.1.94, remove gate after 2026-12-08.
+      // COMPAT(daemonAgentFormPreferences): added in v0.1.93, remove gate after 2026-12-10.
       daemonAgentFormPreferences: true,
-      // COMPAT(providerSnapshotCache): added in v0.1.94, remove gate after 2026-12-08.
+      // COMPAT(providerSnapshotCache): added in v0.1.93, remove gate after 2026-12-10.
       providerSnapshotCache: true,
       // COMPAT(checkoutMetadataDrafts): added in v0.1.92, remove gate after 2026-12-06.
       checkoutMetadataDrafts: true,
-      // COMPAT(localOsIntegration): added in v0.1.94, remove gate after 2026-12-08.
+      // COMPAT(localOsIntegration): added in v0.1.93, remove gate after 2026-12-10.
       localOsIntegration: true,
-      // COMPAT(hostSkillsManagement): added in v0.1.95, remove gate after 2026-12-10.
+      // COMPAT(hostSkillsManagement): added in v0.1.93, remove gate after 2026-12-10.
       ...(this.hostSkillsManagementAvailable ? { hostSkillsManagement: true } : {}),
     };
 
