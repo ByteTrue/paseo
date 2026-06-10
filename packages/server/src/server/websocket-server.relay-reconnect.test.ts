@@ -684,7 +684,9 @@ describe("relay external socket reconnect behavior", () => {
     socket.emit("message", JSON.stringify({ type: "session", message: request }));
     await waitForSocketMessages(server, socket);
 
-    expect(session?.handleMessage).toHaveBeenCalledWith(request);
+    await vi.waitFor(() => {
+      expect(session?.handleMessage).toHaveBeenCalledWith(request);
+    });
 
     await server.close();
   });
@@ -713,13 +715,15 @@ describe("relay external socket reconnect behavior", () => {
     );
     await waitForSocketMessages(server, socket);
 
-    expect(session?.handleMessage).toHaveBeenCalledTimes(callCount);
-    const lastEnvelope = parseSentEnvelope(socket.sent.at(-1));
-    expect(lastEnvelope.message?.type).toBe("rpc_error");
-    expect(lastEnvelope.message?.payload).toMatchObject({
-      requestId: "local-os-relay-1",
-      requestType: "local.os.list_open_targets.request",
-      code: "local_connection_required",
+    await vi.waitFor(() => {
+      expect(session?.handleMessage).toHaveBeenCalledTimes(callCount);
+      const lastEnvelope = parseSentEnvelope(socket.sent.at(-1));
+      expect(lastEnvelope.message?.type).toBe("rpc_error");
+      expect(lastEnvelope.message?.payload).toMatchObject({
+        requestId: "local-os-relay-1",
+        requestType: "local.os.list_open_targets.request",
+        code: "local_connection_required",
+      });
     });
 
     await server.close();
