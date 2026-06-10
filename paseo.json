@@ -5,7 +5,7 @@
       "if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then gh repo set-default ByteTrue/paseo >/dev/null 2>&1 || true; fi",
       "PASEO_DEV_MANAGED_HOME=1 PASEO_DEV_SEED_HOME=\"$PASEO_SOURCE_CHECKOUT_PATH/.dev/paseo-home\" PASEO_HOME=\"$PASEO_WORKTREE_PATH/.dev/paseo-home\" ./scripts/dev-home.sh",
       "npm run build:server",
-      "cp \"$PASEO_SOURCE_CHECKOUT_PATH/packages/server/.env\" \"$PASEO_WORKTREE_PATH/packages/server/.env\""
+      "cp \"$PASEO_SOURCE_CHECKOUT_PATH/packages/server/.env\" \"$PASEO_WORKTREE_PATH/packages/server/.env\" 2>/dev/null || cp \"$PASEO_SOURCE_CHECKOUT_PATH/packages/server/.env.example\" \"$PASEO_WORKTREE_PATH/packages/server/.env\" 2>/dev/null || true"
     ]
   },
   "scripts": {

@@ -42,6 +42,7 @@ import { createPreviewAttachmentId, getFileNameFromPath } from "@/attachments/ut
 import { explorerFileFromReadResult } from "@/file-explorer/read-result";
 import { resolveFilePreviewReadTarget } from "@/file-explorer/preview-target";
 import type { WorkspaceFileLocation } from "@/workspace/file-open";
+import { workspaceFileQueryKey } from "@/workspace/file-preview-query";
 
 interface CodeLineProps {
   tokens: HighlightToken[];
@@ -722,7 +723,11 @@ export function FilePane({
   );
 
   const query = useQuery({
-    queryKey: ["workspaceFile", serverId, readTarget?.cwd ?? null, readTarget?.path ?? null],
+    queryKey: workspaceFileQueryKey({
+      serverId,
+      cwd: readTarget?.cwd ?? null,
+      path: readTarget?.path ?? null,
+    }),
     enabled: Boolean(client && readTarget),
     queryFn: async () => {
       if (!client || !readTarget) {

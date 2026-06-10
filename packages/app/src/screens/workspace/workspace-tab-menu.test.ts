@@ -260,4 +260,46 @@ describe("buildWorkspaceTabMenuEntries", () => {
     expect(agentSeparator?.key).toBe("rename-separator");
     expect(terminalSeparator?.key).toBe("rename-separator");
   });
+
+  it("adds a copy path entry for file tabs", () => {
+    const onCopyFilePath = vi.fn();
+    const fileTab: WorkspaceTabDescriptor = {
+      key: "file_readme",
+      tabId: "file_readme",
+      kind: "file",
+      target: { kind: "file", path: "docs/readme.md" },
+    };
+    const entries = buildWorkspaceTabMenuEntries({
+      surface: "desktop",
+      tab: fileTab,
+      index: 0,
+      tabCount: 1,
+      menuTestIDBase: "workspace-tab-context-file_readme",
+      onCopyResumeCommand: vi.fn(),
+      onCopyAgentId: vi.fn(),
+      onCopyFilePath,
+      onReloadAgent: vi.fn(),
+      onRenameTab: vi.fn(),
+      onCloseTab: vi.fn(),
+      onCloseTabsBefore: vi.fn(),
+      onCloseTabsAfter: vi.fn(),
+      onCloseOtherTabs: vi.fn(),
+    });
+
+    const copyEntry = entries.find(
+      (entry) => entry.kind === "item" && entry.key === "copy-file-path",
+    );
+    if (!copyEntry || copyEntry.kind !== "item") throw new Error("Copy path entry missing");
+
+    expect(copyEntry).toEqual(
+      expect.objectContaining({
+        label: "Copy path",
+        icon: "copy",
+        testID: "workspace-tab-context-file_readme-copy-file-path",
+      }),
+    );
+
+    copyEntry.onSelect();
+    expect(onCopyFilePath).toHaveBeenCalledWith("docs/readme.md");
+  });
 });

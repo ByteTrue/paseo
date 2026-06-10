@@ -37,6 +37,7 @@ interface BuildWorkspaceTabMenuEntriesInput {
   menuTestIDBase: string;
   onCopyResumeCommand: (agentId: string) => Promise<void> | void;
   onCopyAgentId: (agentId: string) => Promise<void> | void;
+  onCopyFilePath?: (path: string) => Promise<void> | void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onCloseTab: (tabId: string) => Promise<void> | void;
@@ -51,6 +52,7 @@ interface BuildWorkspaceDesktopTabActionsInput {
   tabCount: number;
   onCopyResumeCommand: (agentId: string) => Promise<void> | void;
   onCopyAgentId: (agentId: string) => Promise<void> | void;
+  onCopyFilePath?: (path: string) => Promise<void> | void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onCloseTab: (tabId: string) => Promise<void> | void;
@@ -112,6 +114,7 @@ export function buildWorkspaceTabMenuEntries(
     onCopyResumeCommand,
     onCopyAgentId,
     onReloadAgent,
+    onCopyFilePath,
     onRenameTab,
     onCloseTab,
     onCloseTabsBefore,
@@ -145,6 +148,24 @@ export function buildWorkspaceTabMenuEntries(
       onSelect: () => {
         void onCopyAgentId(agentId);
       },
+    });
+  }
+
+  if (tab.target.kind === "file" && onCopyFilePath) {
+    const { path } = tab.target;
+    entries.push({
+      kind: "item",
+      key: "copy-file-path",
+      label: "Copy path",
+      icon: "copy",
+      testID: `${menuTestIDBase}-copy-file-path`,
+      onSelect: () => {
+        void onCopyFilePath(path);
+      },
+    });
+    entries.push({
+      kind: "separator",
+      key: "copy-file-path-separator",
     });
   }
 
@@ -240,6 +261,7 @@ export function buildWorkspaceDesktopTabActions(
       menuTestIDBase: contextMenuTestId,
       onCopyResumeCommand: input.onCopyResumeCommand,
       onCopyAgentId: input.onCopyAgentId,
+      onCopyFilePath: input.onCopyFilePath,
       onReloadAgent: input.onReloadAgent,
       onRenameTab: input.onRenameTab,
       onCloseTab: input.onCloseTab,

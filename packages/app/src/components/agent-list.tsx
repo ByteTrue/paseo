@@ -31,6 +31,7 @@ interface AgentListProps {
   onAgentSelect?: () => void;
   listFooterComponent?: ReactElement | null;
   showAttentionIndicator?: boolean;
+  groupBy?: "date" | "workspace";
 }
 
 type FlatListItem =
@@ -120,6 +121,14 @@ function deriveDateSectionLabel(lastActivityAt: Date): string {
     return "This month";
   }
   return "Older";
+}
+
+function deriveWorkspaceSectionLabel(agent: AggregatedAgent): string {
+  const label = shortenPath(agent.cwd).trim();
+  if (label) {
+    return label;
+  }
+  return "Unknown workspace";
 }
 
 function formatStatusLabel(status: AggregatedAgent["status"]): string {
@@ -287,6 +296,7 @@ export function AgentList({
   onAgentSelect,
   listFooterComponent,
   showAttentionIndicator = true,
+  groupBy = "date",
 }: AgentListProps) {
   const { theme } = useUnistyles();
   const insets = useSafeAreaInsets();
@@ -354,6 +364,28 @@ export function AgentList({
   }, [actionAgent, actionClient, archiveAgent]);
 
   const flatItems = useMemo((): FlatListItem[] => {
+    if (groupBy === "workspace") {
+      const buckets = new Map<string, { title: string; agents: AggregatedAgent[] }>();
+      for (const agent of agents) {
+        const key = `${agent.serverId}:${agent.cwd}`;
+        const existing = buckets.get(key);
+        if (existing) {
+          existing.agents.push(agent);
+        } else {
+          buckets.set(key, { title: deriveWorkspaceSectionLabel(agent), agents: [agent] });
+        }
+      }
+
+      const result: FlatListItem[] = [];
+      for (const [key, bucket] of buckets) {
+        result.push({ type: "header", key: `workspace:${key}`, title: bucket.title });
+        for (const agent of bucket.agents) {
+          result.push({ type: "agent", key: `${agent.serverId}:${agent.id}`, agent });
+        }
+      }
+      return result;
+    }
+
     const order = ["Today", "Yesterday", "This week", "This month", "Older"] as const;
     const buckets = new Map<string, AggregatedAgent[]>();
     for (const agent of agents) {
@@ -375,7 +407,7 @@ export function AgentList({
       }
     }
     return result;
-  }, [agents]);
+  }, [agents, groupBy]);
 
   const renderItem: ListRenderItem<FlatListItem> = useCallback(
     ({ item }) => {

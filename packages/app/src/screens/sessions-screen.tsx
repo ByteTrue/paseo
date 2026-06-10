@@ -83,6 +83,7 @@ function SessionsScreenContent({ serverId }: { serverId: string }) {
         <AgentList
           agents={sortedAgents}
           showCheckoutInfo={false}
+          groupBy="workspace"
           isRefreshing={isManualRefresh && isRevalidating}
           onRefresh={handleRefresh}
           listFooterComponent={listFooterComponent}

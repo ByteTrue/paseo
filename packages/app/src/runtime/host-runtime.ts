@@ -1595,9 +1595,11 @@ export class HostRuntimeStore {
     if (!serverId) {
       throw new Error("Desktop daemon did not return a server id.");
     }
+    const existing = this.hosts.find((host) => host.serverId === serverId);
+    const shouldUseDaemonHostname = !existing || existing.label === existing.serverId;
     return this.upsertHostConnection({
       serverId,
-      label: input.hostname ?? undefined,
+      label: shouldUseDaemonHostname ? (input.hostname ?? undefined) : undefined,
       connection,
     });
   }
