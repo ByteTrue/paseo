@@ -15,6 +15,7 @@ import {
 import {
   checkForAppUpdate,
   downloadAndInstallUpdate,
+  type AppUpdateCheckIntent,
   type AppReleaseChannel,
 } from "../features/auto-updater.js";
 import { getCliInstallStatus, installCli } from "../integrations/cli-install/index.js";
@@ -80,6 +81,12 @@ function parseReleaseChannel(
     return "stable";
   }
   return undefined;
+}
+
+function parseAppUpdateCheckIntent(
+  args: Record<string, unknown> | undefined,
+): AppUpdateCheckIntent {
+  return args?.intent === "manual" ? "manual" : "automatic";
 }
 
 // ---------------------------------------------------------------------------
@@ -528,6 +535,7 @@ export function createDaemonCommandHandlers(): Record<string, DesktopCommandHand
       return checkForAppUpdate({
         currentVersion,
         releaseChannel: await resolveRequestedReleaseChannel(args),
+        intent: parseAppUpdateCheckIntent(args),
       });
     },
     install_app_update: async (args) => {

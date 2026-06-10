@@ -77,7 +77,11 @@ describe("resolveWorkspaceScriptLink", () => {
           publicProxyUrl: "https://web--feature--paseo.services.example.com",
           proxyUrl: "https://web--feature--paseo.services.example.com",
         },
-        activeConnection: { type: "relay", endpoint: "relay.paseo.sh:443", display: "relay" },
+        activeConnection: {
+          type: "relay",
+          endpoint: "relay.paseo.zijieapi.de5.net:443",
+          display: "relay",
+        },
       }),
     ).toEqual({
       openUrl: "https://web--feature--paseo.services.example.com",
@@ -168,7 +172,11 @@ describe("resolveWorkspaceScriptLink", () => {
     expect(
       resolveWorkspaceScriptLink({
         script: oldPayload,
-        activeConnection: { type: "relay", endpoint: "relay.paseo.sh:443", display: "relay" },
+        activeConnection: {
+          type: "relay",
+          endpoint: "relay.paseo.zijieapi.de5.net:443",
+          display: "relay",
+        },
       }),
     ).toEqual({
       openUrl: "https://web--feature--paseo.services.example.com",

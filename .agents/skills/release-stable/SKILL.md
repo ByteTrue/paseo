@@ -8,4 +8,4 @@ user-invocable: true
 
 Read `docs/release.md` in the Paseo repo and follow the **Standard release (patch)** flow if cutting fresh, or the **Beta flow** promotion step if promoting an existing beta. Run the **Stable release (or promotion)** completion checklist at the bottom of that doc.
 
-This is also the entry point for fork npm release triage. Do not create a separate npm-only release path; the fork package list, Trusted Publishing setup, resumable publish behavior, Cloudflare deploy notes, and no-native-mobile release invariant live in `docs/release.md`.
+This is also the entry point for fork npm release triage. Do not create a separate npm-only release path; the fork package list, Trusted Publishing setup, resumable publish behavior, Cloudflare deploy notes, and mobile release flow live in `docs/release.md`.

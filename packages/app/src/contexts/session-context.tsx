@@ -3,6 +3,7 @@ import { Buffer } from "buffer";
 import { AppState } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useClientActivity } from "@/hooks/use-client-activity";
+import { usePushTokenRegistration } from "@/hooks/use-push-token-registration";
 import { clearArchiveAgentPending } from "@/hooks/use-archive-agent";
 import { prefetchProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { generateMessageId, type StreamItem } from "@/types/stream";
@@ -815,8 +816,9 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     ],
   );
 
-  // Client activity tracking (heartbeat)
+  // Client activity tracking (heartbeat, push token registration)
   useClientActivity({ client, focusedAgentId, onAppResumed: handleAppResumed });
+  usePushTokenRegistration({ client, serverId });
 
   const notifyAgentAttention = useCallback(
     (params: {

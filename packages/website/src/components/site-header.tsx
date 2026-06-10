@@ -35,6 +35,12 @@ export function SiteHeader() {
           Download
         </a>
         <a
+          href="/sponsor"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Sponsor
+        </a>
+        <a
           href="https://discord.gg/jz8T2uahpH"
           target="_blank"
           rel="noopener noreferrer"
@@ -53,7 +59,7 @@ export function SiteHeader() {
           </svg>
         </a>
         <a
-          href="https://github.com/getpaseo/paseo"
+          href="https://github.com/ByteTrue/paseo"
           target="_blank"
           rel="noopener noreferrer"
           aria-label={stars ? `GitHub, ${stars} stars` : "GitHub"}

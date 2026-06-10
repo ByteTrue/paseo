@@ -1,6 +1,6 @@
 # Architecture
 
-Paseo is a client-server system for monitoring and controlling local AI coding agents. The daemon runs on your machine, manages agent processes, and streams their output in real time over WebSocket. Clients (web app, CLI, desktop app) connect to the daemon to observe and interact with agents.
+Paseo is a client-server system for monitoring and controlling local AI coding agents. The daemon runs on your machine, manages agent processes, and streams their output in real time over WebSocket. Clients (mobile app, CLI, desktop app) connect to the daemon to observe and interact with agents.
 
 Your code never leaves your machine. Paseo is local-first.
 
@@ -8,10 +8,9 @@ Your code never leaves your machine. Paseo is local-first.
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Web App   │    │     CLI     │    │ Desktop App │
-│ (Browser /  │    │ (Commander) │    │ (Electron)  │
-│ mobile web) │    │             │    │             │
-└──────┬──────┘    └──────┬──────┘    └──────┬──────┘
+│  Mobile App  │    │     CLI     │    │ Desktop App │
+│   (Expo)     │    │ (Commander) │    │ (Electron)  │
+└──────┬───────┘    └──────┬──────┘    └──────┬──────┘
        │                   │                  │
        │    WebSocket      │    WebSocket     │    Managed subprocess
        │    (direct or     │    (direct)      │    + WebSocket
@@ -23,19 +22,19 @@ Your code never leaves your machine. Paseo is local-first.
             │  (Node.js)  │
             └──────┬──────┘
                    │
-     ┌─────────────┼────────────┬────────────┬────────────┐
-     │             │            │            │            │
-┌────▼─────┐ ┌────▼────┐ ┌──────▼─────┐ ┌────▼─────┐ ┌────▼────┐
-│  Claude  │ │ Codex   │ │  Copilot   │ │ OpenCode │ │   Pi    │
-│  Agent   │ │ Agent   │ │   Agent    │ │  Agent   │ │ Agent   │
-│  SDK     │ │ Server  │ │    ACP     │ │          │ │         │
-└──────────┘ └─────────┘ └────────────┘ └──────────┘ └─────────┘
+      ┌────────────┼────────────┬────────────┬────────────┐
+      │            │            │            │            │
+┌─────▼─────┐ ┌───▼────┐ ┌──────▼─────┐ ┌────▼─────┐ ┌────▼────┐
+│  Claude   │ │ Codex  │ │  Copilot   │ │ OpenCode │ │   Pi    │
+│  Agent    │ │ Agent  │ │   Agent    │ │  Agent   │ │ Agent   │
+│  SDK      │ │ Server │ │    ACP     │ │          │ │         │
+└───────────┘ └────────┘ └────────────┘ └──────────┘ └─────────┘
 ```
 
 ## Components at a glance
 
 - **Daemon:** Local server that spawns and manages agent processes and exposes the WebSocket API.
-- **App:** Expo web client for browser/mobile-web usage and the shared renderer used by desktop.
+- **App:** Cross-platform Expo client for iOS, Android, web, and the shared UI used by desktop.
 - **CLI:** Terminal interface for agent workflows that can also start and manage the daemon.
 - **Desktop app:** Electron wrapper around the web app that bundles and auto-manages its own daemon.
 - **Relay:** Optional encrypted bridge for remote access without opening ports directly.
@@ -86,9 +85,9 @@ facade. App and CLI may import the low-level driver from
 `@bytetrue/client/internal/daemon-client` during migration, while new SDK-shaped
 code imports from `@bytetrue/client`.
 
-### `packages/app` — Web client + shared desktop renderer (Expo)
+### `packages/app` — Mobile + web client (Expo)
 
-Expo web / React Native Web app that connects to one or more daemons. It is used directly in the browser and bundled into the Electron desktop app as the renderer.
+Cross-platform React Native app that connects to one or more daemons.
 
 - Expo Router navigation (`/h/[serverId]/workspace/[workspaceId]`, `/h/[serverId]/agent/[agentId]`, etc.)
 - `HostRuntimeController` manages saved host connections, reconnection, and per-host runtime state
@@ -245,7 +244,7 @@ initializing → idle ⇄ running
 
 Each provider implements the `AgentClient` interface in `agent/agent-sdk-types.ts`. Provider implementations live in `agent/providers/`.
 
-The built-in, user-facing providers are Claude Code, Codex, Copilot, OpenCode, and Pi. Additional adapters exist in the same directory for ACP-compatible agents and internal use:
+The built-in, user-facing providers are Claude Code, Codex, Copilot, OpenCode, Pi, and OMP. Additional adapters exist in the same directory for ACP-compatible agents and internal use:
 
 | Provider           | Wraps                                | Session format                                     |
 | ------------------ | ------------------------------------ | -------------------------------------------------- |

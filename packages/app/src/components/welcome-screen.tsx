@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Link2, ClipboardPaste, ExternalLink, Settings } from "lucide-react-native";
+import { QrCode, Link2, ClipboardPaste, ExternalLink, Settings } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { HostProfile } from "@/types/host-connection";
 import { AddHostModal } from "./add-host-modal";
@@ -13,15 +13,15 @@ import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { buildHostRootRoute } from "@/utils/host-routes";
 import { PaseoLogo } from "@/components/icons/paseo-logo";
 import { openExternalUrl } from "@/utils/open-external-url";
-import { isNative } from "@/constants/platform";
+import { isWeb, isNative } from "@/constants/platform";
 import { shouldNavigateAfterHostConnect } from "@/utils/host-connect-navigation";
 
 interface WelcomeAction {
-  key: "direct-connection" | "paste-pairing-link";
+  key: "scan-qr" | "direct-connection" | "paste-pairing-link";
   label: string;
   testID: string;
   primary: boolean;
-  icon: typeof Link2;
+  icon: typeof QrCode;
   onPress: () => void;
 }
 
@@ -164,6 +164,9 @@ export function WelcomeScreen({
   const handleCloseDirect = useCallback(() => setIsDirectOpen(false), []);
   const handleOpenPasteLink = useCallback(() => setIsPasteLinkOpen(true), []);
   const handleClosePasteLink = useCallback(() => setIsPasteLinkOpen(false), []);
+  const handleScanQr = useCallback(() => {
+    router.push("/pair-scan?source=onboarding");
+  }, [router]);
 
   const handleHostSaved = useCallback(
     ({ profile, serverId }: { profile: HostProfile; serverId: string }) => {
@@ -173,24 +176,51 @@ export function WelcomeScreen({
     [onHostAdded, finishOnboarding],
   );
 
-  const actions: WelcomeAction[] = [
-    {
-      key: "direct-connection",
-      label: "Direct connection",
-      testID: "welcome-direct-connection",
-      primary: true,
-      icon: Link2,
-      onPress: handleOpenDirect,
-    },
-    {
-      key: "paste-pairing-link",
-      label: "Paste pairing link",
-      testID: "welcome-paste-pairing-link",
-      primary: false,
-      icon: ClipboardPaste,
-      onPress: handleOpenPasteLink,
-    },
-  ];
+  const actions: WelcomeAction[] = isWeb
+    ? [
+        {
+          key: "direct-connection",
+          label: "Direct connection",
+          testID: "welcome-direct-connection",
+          primary: true,
+          icon: Link2,
+          onPress: handleOpenDirect,
+        },
+        {
+          key: "paste-pairing-link",
+          label: "Paste pairing link",
+          testID: "welcome-paste-pairing-link",
+          primary: false,
+          icon: ClipboardPaste,
+          onPress: handleOpenPasteLink,
+        },
+      ]
+    : [
+        {
+          key: "scan-qr",
+          label: "Scan QR code",
+          testID: "welcome-scan-qr",
+          primary: true,
+          icon: QrCode,
+          onPress: handleScanQr,
+        },
+        {
+          key: "direct-connection",
+          label: "Direct connection",
+          testID: "welcome-direct-connection",
+          primary: false,
+          icon: Link2,
+          onPress: handleOpenDirect,
+        },
+        {
+          key: "paste-pairing-link",
+          label: "Paste pairing link",
+          testID: "welcome-paste-pairing-link",
+          primary: false,
+          icon: ClipboardPaste,
+          onPress: handleOpenPasteLink,
+        },
+      ];
 
   const scrollContentContainerStyle = useMemo(
     () => [styles.container, { paddingBottom: theme.spacing[6] + insets.bottom }],
