@@ -1,0 +1,108 @@
+feature: 2026-06-11-custom-provider-form
+created: 2026-06-11
+
+steps:
+  - action: "micro-refactor: 创建 use-custom-provider-form.ts 和 custom-provider-form.tsx 骨架"
+    exit_signal: "两个新文件存在，typecheck 通过，providers-section.tsx 无行为变化"
+    status: done
+
+  - action: "static structure: CustomProviderForm 组件骨架 + 表单字段布局"
+    exit_signal: "点击 'Add custom provider' 展开表单，所有字段可见可交互"
+    status: done
+
+  - action: "interaction logic: 表单校验 + buildExtendsProviderConfigPatch + 提交流程"
+    exit_signal: "合法输入提交后 patchConfig 被调用；非法输入显示 inline error"
+    status: done
+
+  - action: "state integration: 成功后 refresh snapshot + 新 provider 出现在列表中"
+    exit_signal: "新 provider 在列表中显示正确的 status/model count"
+    status: done
+
+  - action: "edge cases + polish: 重复 id 拦截、env var 空行过滤、loading 状态、Cancel 行为、disallowedTools 条件显示"
+    exit_signal: "所有 acceptance scenario 有正确的 UI 反馈"
+    status: done
+
+  - action: "test coverage: buildExtendsProviderConfigPatch 单元测试 + providers-section 集成测试"
+    exit_signal: "测试通过，覆盖 key scenarios 中的正常/边界/错误路径"
+    status: done
+
+checks:
+  - item: "buildExtendsProviderConfigPatch 正确构造 patch（含 env vars 转换、空值过滤、disallowedTools）"
+    source: term-contract
+    status: passed
+
+  - item: "providerId 格式校验：合法/非法/重复/空字符串"
+    source: term-contract
+    status: passed
+
+  - item: "label trim 校验：非空/纯空白拒绝"
+    source: term-contract
+    status: passed
+
+  - item: "表单展开 → 填写 → 提交 → 列表刷新 主流程可跑通"
+    source: orchestration-skeleton
+    status: passed
+
+  - item: "提交中 disable Save 按钮，防止 double-submit"
+    source: flow-level-constraint
+    status: passed
+
+  - item: "Cancel 按钮收起表单并清空，不提交任何 patch"
+    source: flow-level-constraint
+    status: passed
+
+  - item: "CustomProviderForm 组件挂载在 providers-section.tsx 的 Add provider section 内"
+    source: mount-point
+    status: passed
+
+  - item: "buildExtendsProviderConfigPatch 在 use-custom-provider-form.ts 中"
+    source: mount-point
+    status: passed
+
+  - item: "代码中不存在编辑已有 custom provider 的 UI 入口"
+    source: scope-guard
+    status: passed
+
+  - item: "代码中不存在 command/params/additionalModels/order 字段的表单输入"
+    source: scope-guard
+    status: passed
+
+  - item: "ProviderOverrideSchema 和 MutableDaemonConfigPatchSchema 定义不变"
+    source: scope-guard
+    status: passed
+
+  - item: "Scenario 1: 选择 claude 创建 my-zai，disallowedTools 自动写入"
+    source: acceptance-scenario
+    status: passed
+
+  - item: "Scenario 2-4: label 空、id 重复、id 大写 → inline error"
+    source: acceptance-scenario
+    status: passed
+
+  - item: "Scenario 5: daemon 返回错误 → Alert + 表单保持打开"
+    source: acceptance-scenario
+    status: passed
+
+  - item: "Scenario 6: env var 空 key 过滤"
+    source: acceptance-scenario
+    status: passed
+
+  - item: "Scenario 7-8: 不填 models / 填自定义 models"
+    source: acceptance-scenario
+    status: passed
+
+  - item: "Scenario 9-11: 空 id、纯空格 label、重复 custom provider id"
+    source: acceptance-scenario
+    status: passed
+
+  - item: "Scenario 12-13: double-submit 防护、Cancel 行为"
+    source: acceptance-scenario
+    status: passed
+
+  - item: "Scenario 14-15: 非 claude 不显示 disallowedTools、手动取消 WebSearch"
+    source: acceptance-scenario
+    status: passed
+
+  - item: "buildExtendsProviderConfigPatch 单元测试覆盖正常/边界/错误路径"
+    source: test-seam
+    status: passed
