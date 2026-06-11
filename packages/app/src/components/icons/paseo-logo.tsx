@@ -5,14 +5,19 @@ const LOGO_MARK_PATH =
 
 interface PaseoLogoProps {
   size?: number;
-  color?: string;
+  markColor?: string;
+  backgroundColor?: string;
 }
 
-export function PaseoLogo({ size = 64, color = "#ffffff" }: PaseoLogoProps) {
+export function PaseoLogo({
+  size = 64,
+  markColor = "#ffffff",
+  backgroundColor = "#050505",
+}: PaseoLogoProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 1024 1024" accessibilityRole="image">
-      <Rect x={8} y={8} width={1008} height={1008} rx={196} fill="#050505" />
-      <Path d={LOGO_MARK_PATH} fill={color} fillRule="evenodd" />
+      <Rect x={8} y={8} width={1008} height={1008} rx={196} fill={backgroundColor} />
+      <Path d={LOGO_MARK_PATH} fill={markColor} fillRule="evenodd" />
     </Svg>
   );
 }

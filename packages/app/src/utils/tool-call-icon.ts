@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { createElement, type ComponentType } from "react";
 import {
   Bot,
   Brain,
@@ -14,7 +14,16 @@ import type { ToolCallDetail } from "@bytetrue/protocol/agent-types";
 import { PaseoLogo } from "@/components/icons/paseo-logo";
 import { resolveToolCallIconName, type ToolCallIcon } from "./tool-call-icon-name";
 
-export type ToolCallIconComponent = ComponentType<{ size?: number; color?: string }>;
+export interface ToolCallIconProps {
+  size?: number;
+  color?: string;
+}
+
+export type ToolCallIconComponent = ComponentType<ToolCallIconProps>;
+
+function PaseoToolCallIcon({ size }: ToolCallIconProps) {
+  return createElement(PaseoLogo, { size });
+}
 
 const ICON_COMPONENTS: Record<ToolCallIcon, ToolCallIconComponent> = {
   wrench: Wrench,
@@ -26,7 +35,7 @@ const ICON_COMPONENTS: Record<ToolCallIcon, ToolCallIconComponent> = {
   sparkles: Sparkles,
   brain: Brain,
   mic_vocal: MicVocal,
-  paseo: PaseoLogo,
+  paseo: PaseoToolCallIcon,
 };
 
 export function componentForToolCallIcon(name: ToolCallIcon): ToolCallIconComponent {
