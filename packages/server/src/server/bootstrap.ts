@@ -480,6 +480,17 @@ export async function createPaseoDaemon(
     next();
   });
 
+  // Generate an internal MCP token so agents can authenticate against /mcp/agents
+  // without needing the raw daemon password. The token is accepted by the bearer
+  // middleware alongside the daemon password and is injected into agent MCP configs.
+  // Must be generated BEFORE createRequireBearerMiddleware so the middleware closure
+  // captures it.
+  const mcpToken = randomUUID();
+  if (config.auth?.password) {
+    config.auth = { ...config.auth, mcpToken };
+    logger.info("MCP token generated for agent authentication");
+  }
+
   app.use(
     createRequireBearerMiddleware(config.auth, (context) => {
       logger.warn(context, "Rejected HTTP request with invalid daemon password");
@@ -614,6 +625,10 @@ export async function createPaseoDaemon(
     appendSystemPrompt: config.appendSystemPrompt,
     logger,
   });
+
+  if (config.auth?.mcpToken) {
+    agentManager.setMcpToken(config.auth.mcpToken);
+  }
 
   const detachAgentStoragePersistence = attachAgentStoragePersistence(
     logger,
@@ -1033,6 +1048,7 @@ export async function createPaseoDaemon(
               daemonConfigStore,
               mcpBaseUrl,
               { allowedOrigins, hostnames: configuredHostnames },
+              config.auth?.mcpToken,
               config.auth,
               speechService,
               terminalManager,

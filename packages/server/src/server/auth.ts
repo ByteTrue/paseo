@@ -5,6 +5,9 @@ export const DAEMON_PASSWORD_BCRYPT_COST = 12;
 
 export interface DaemonAuthConfig {
   password?: string;
+  /** Internal MCP token auto-generated at daemon startup. Agents use this to authenticate
+   *  against the /mcp/agents endpoint without needing the raw daemon password. */
+  mcpToken?: string;
 }
 
 export interface BearerAuthRejectContext {
@@ -91,8 +94,9 @@ export function createRequireBearerMiddleware(
   onReject?: (context: BearerAuthRejectContext) => void,
 ): RequestHandler {
   const password = auth?.password;
+  const mcpToken = auth?.mcpToken;
   return (req, res, next) => {
-    if (!password || shouldBypassBearerAuth(req.method, req.path)) {
+    if ((!password && !mcpToken) || shouldBypassBearerAuth(req.method, req.path)) {
       next();
       return;
     }
@@ -100,7 +104,11 @@ export function createRequireBearerMiddleware(
     void (async () => {
       try {
         const token = extractHttpBearerToken(req.header("authorization"));
-        if (!(await isBearerTokenValidAsync({ password, token }))) {
+        // Accept either the daemon password or the internal MCP token.
+        const valid =
+          (password && (await isBearerTokenValidAsync({ password, token }))) ||
+          (mcpToken && token === mcpToken);
+        if (!valid) {
           onReject?.({
             path: req.path,
             method: req.method,

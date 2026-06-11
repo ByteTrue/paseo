@@ -30,19 +30,27 @@ export function withRuntimePaseoMcpServer(params: {
   config: AgentSessionConfig;
   agentId: string;
   mcpBaseUrl: string | null;
+  mcpToken?: string | null;
 }): AgentSessionConfig {
   const storedConfig = stripInternalPaseoMcpServer(params.config);
   if (!params.mcpBaseUrl || storedConfig.mcpServers?.[PASEO_MCP_SERVER_NAME]) {
     return storedConfig;
   }
 
+  const serverConfig: McpServerConfig = {
+    type: "http",
+    url: `${params.mcpBaseUrl}?callerAgentId=${params.agentId}`,
+  };
+  if (params.mcpToken) {
+    serverConfig.headers = {
+      Authorization: `Bearer ${params.mcpToken}`,
+    };
+  }
+
   return {
     ...storedConfig,
     mcpServers: {
-      [PASEO_MCP_SERVER_NAME]: {
-        type: "http",
-        url: `${params.mcpBaseUrl}?callerAgentId=${params.agentId}`,
-      },
+      [PASEO_MCP_SERVER_NAME]: serverConfig,
       ...storedConfig.mcpServers,
     },
   };

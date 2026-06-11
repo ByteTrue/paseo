@@ -614,6 +614,7 @@ export interface SessionOptions {
   workspaceGitService: WorkspaceGitService;
   daemonConfigStore: DaemonConfigStore;
   mcpBaseUrl?: string | null;
+  mcpToken?: string | null;
   authAdministration?: SessionAuthAdministration;
   stt: Resolvable<SpeechToTextProvider | null>;
   sttLanguage?: string;
@@ -822,6 +823,7 @@ export class Session {
   private readonly daemonConfigStore: DaemonConfigStore;
   private readonly authAdministration: SessionAuthAdministration | null;
   private readonly mcpBaseUrl: string | null;
+  private readonly mcpToken: string | null;
   private readonly downloadTokenStore: DownloadTokenStore;
   private readonly pushTokenStore: PushTokenStore;
   private unsubscribeAgentEvents: (() => void) | null = null;
@@ -896,6 +898,7 @@ export class Session {
       workspaceGitService,
       daemonConfigStore,
       mcpBaseUrl,
+      mcpToken,
       stt,
       sttLanguage,
       tts,
@@ -947,6 +950,7 @@ export class Session {
     this.daemonConfigStore = daemonConfigStore;
     this.authAdministration = authAdministration ?? null;
     this.mcpBaseUrl = mcpBaseUrl ?? null;
+    this.mcpToken = mcpToken ?? null;
     this.terminalManager = terminalManager;
     this.terminalController = new TerminalSessionController({
       terminalManager,
@@ -1260,7 +1264,11 @@ export class Session {
         );
         return;
       }
-      const transport = new StreamableHTTPClientTransport(new URL(this.mcpBaseUrl));
+      const transport = new StreamableHTTPClientTransport(new URL(this.mcpBaseUrl), {
+        requestInit: this.mcpToken
+          ? { headers: { Authorization: `Bearer ${this.mcpToken}` } }
+          : undefined,
+      });
 
       this.agentMcpClient = await experimental_createMCPClient({
         transport,

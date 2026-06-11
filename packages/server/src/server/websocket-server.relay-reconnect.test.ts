@@ -256,6 +256,7 @@ function createServer(options?: { speechReadiness?: SpeechReadinessSnapshot | nu
     createStub<DaemonConfigStore>(daemonConfigStore),
     null,
     { allowedOrigins: new Set() },
+    undefined,
     { password: CORRECT_PASSWORD_HASH },
     speechReadiness
       ? {

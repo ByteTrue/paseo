@@ -398,6 +398,7 @@ export class VoiceAssistantWebSocketServer {
   private readonly pushTokenStore: PushTokenStore;
   private readonly pushNotificationSender: PushNotificationSender;
   private readonly mcpBaseUrl: string | null;
+  private readonly mcpToken: string | null;
   private readonly hostSkillsManagementAvailable: boolean;
   private speech!: SpeechService | null;
   private terminalManager!: TerminalManager | null;
@@ -435,6 +436,7 @@ export class VoiceAssistantWebSocketServer {
     daemonConfigStore: DaemonConfigStore,
     mcpBaseUrl: string | null,
     wsConfig: WebSocketServerConfig,
+    mcpToken?: string | null,
     auth?: DaemonAuthConfig,
     speech?: SpeechService | null,
     terminalManager?: TerminalManager | null,
@@ -510,6 +512,7 @@ export class VoiceAssistantWebSocketServer {
       join(paseoHome, "authorized-clients.json"),
     );
     this.mcpBaseUrl = mcpBaseUrl;
+    this.mcpToken = mcpToken ?? null;
     this.hostSkillsManagementAvailable = resolveBundledSkillsSourceSync().available;
     this.assignOptionalServices({
       speech,
@@ -961,6 +964,7 @@ export class VoiceAssistantWebSocketServer {
         authAdministrationThrottleKey,
       ),
       mcpBaseUrl: this.mcpBaseUrl,
+      mcpToken: this.mcpToken,
       stt: () => this.speech?.resolveStt() ?? null,
       sttLanguage: this.speech?.resolveSttLanguage() ?? "en",
       tts: () => this.speech?.resolveTts() ?? null,
