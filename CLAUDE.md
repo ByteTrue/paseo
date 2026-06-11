@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Paseo is a mobile app for monitoring and controlling your local AI coding agents from anywhere. Your dev environment, in your pocket. Connects directly to your actual development environment — your code stays on your machine.
+Paseo is a web, desktop, and CLI app for monitoring and controlling your local AI coding agents from anywhere. Your dev environment, in your pocket. Connects directly to your actual development environment — your code stays on your machine.
 
 **Supported agents:** Claude Code, Codex, GitHub Copilot, OpenCode, and Pi.
 
@@ -9,7 +9,7 @@ Paseo is a mobile app for monitoring and controlling your local AI coding agents
 This is an npm workspace monorepo:
 
 - `packages/server` — Daemon: agent lifecycle, WebSocket API, MCP server
-- `packages/app` — Mobile + web client (Expo)
+- `packages/app` — Web client + shared desktop renderer (Expo)
 - `packages/cli` — Docker-style CLI (`paseo run/ls/logs/wait`)
 - `packages/relay` — E2E encrypted relay for remote access
 - `packages/desktop` — Electron desktop wrapper
@@ -40,9 +40,7 @@ At the start of non-trivial work, list `docs/` and skim anything relevant to the
 | [docs/development.md](docs/development.md)                     | Dev server, build sync gotchas, CLI reference, agent state, Playwright MCP                                                     |
 | [docs/rpc-namespacing.md](docs/rpc-namespacing.md)             | WebSocket RPC naming convention — dotted namespaces and `.request`/`.response` pairs                                           |
 | [docs/testing.md](docs/testing.md)                             | TDD workflow, determinism, real dependencies over mocks, test organization                                                     |
-| [docs/mobile-testing.md](docs/mobile-testing.md)               | Maestro and mobile test workflows                                                                                              |
 | [docs/ad-hoc-daemon-testing.md](docs/ad-hoc-daemon-testing.md) | Isolated in-process daemon test harness                                                                                        |
-| [docs/android.md](docs/android.md)                             | App variants, local/cloud builds, EAS workflows                                                                                |
 | [docs/release.md](docs/release.md)                             | Release playbook, draft releases, completion checklist                                                                         |
 | [SECURITY.md](SECURITY.md)                                     | Relay threat model, E2E encryption, DNS rebinding, agent auth                                                                  |
 
@@ -101,27 +99,27 @@ See [docs/development.md](docs/development.md) for full setup, build sync requir
 
 ## Platform gating
 
-The app runs on iOS, Android, web (browser), and web (Electron desktop). Code is cross-platform by default. Gate only when you must. Import gates from `@/constants/platform`.
+The official app runs on web (browser/mobile web/PWA) and web (Electron desktop). Code is cross-platform by default. Gate only when you must. Import gates from `@/constants/platform`.
 
 ### The four gates
 
 | Gate                       | Type      | When to use                                                                                                                 |
 | -------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `isWeb`                    | constant  | DOM APIs — `document`, `window`, `<div>`, `addEventListener`, `ResizeObserver`. This is the **exception**, not the default. |
-| `isNative`                 | constant  | Native-only APIs — Haptics, `StatusBar.currentHeight`, push tokens, camera/scanner, `expo-av`.                              |
+| `isNative`                 | constant  | Legacy/native-only APIs. Do not add new official phone-store dependencies unless native support is explicitly reintroduced. |
 | `getIsElectron()`          | cached fn | Desktop wrapper features — file dialogs, titlebar drag region, daemon management, app updates, dock badges.                 |
 | `useIsCompactFormFactor()` | hook      | Layout decisions — sidebar overlay vs pinned, modal vs full screen, single-panel vs split. From `@/constants/layout`.       |
 
 ### Decision matrix
 
-| I need to...                                                   | Use                                                                       |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Access DOM (`document`, `window`, `<div>`, `addEventListener`) | `if (isWeb)`                                                              |
-| Use a native-only API (Haptics, push tokens, camera)           | `if (isNative)`                                                           |
-| Use an Electron bridge (file dialog, titlebar, updates)        | `if (getIsElectron())`                                                    |
-| Switch layout between phone and tablet/desktop                 | `useIsCompactFormFactor()`                                                |
-| Show something on hover, always-visible on native              | `isHovered \|\| isNative \|\| isCompact` (hover only works on web)        |
-| Gate to iOS or Android specifically                            | `Platform.OS === "ios"` / `Platform.OS === "android"` (rare, keep inline) |
+| I need to...                                                   | Use                                                                                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Access DOM (`document`, `window`, `<div>`, `addEventListener`) | `if (isWeb)`                                                                                           |
+| Use a legacy native-only API                                   | Avoid for new official features; otherwise `if (isNative)`                                             |
+| Use an Electron bridge (file dialog, titlebar, updates)        | `if (getIsElectron())`                                                                                 |
+| Switch layout between phone and tablet/desktop                 | `useIsCompactFormFactor()`                                                                             |
+| Show something on hover, always-visible on native              | `isHovered \|\| isNative \|\| isCompact` (hover only works on web)                                     |
+| Gate to iOS or Android specifically                            | Avoid for new official features; legacy-only code may use `Platform.OS === "ios"` / `"android"` inline |
 
 ### Rules
 
@@ -130,7 +128,6 @@ The app runs on iOS, Android, web (browser), and web (Electron desktop). Code is
   ```
   hooks/
     use-audio-recorder.web.ts    ← uses Web Audio API
-    use-audio-recorder.native.ts ← uses expo-audio
   ```
   Import as `@/hooks/use-audio-recorder` — Metro picks the right file automatically.
 - **Use `.electron.ts` / `.electron.tsx` for Electron-only web modules.** Electron is still the Metro `web` platform, but desktop dev/build sets `PASEO_WEB_PLATFORM=electron`, so Metro first looks for `.electron.*` files and falls back to normal `.web.*` files. Use this when the implementation depends on Electron-only behavior such as `webviewTag`, desktop preload APIs, or the Electron bridge. Keep plain browser web in `.web.*`, and keep native fallbacks in the base file or `.native.*`.

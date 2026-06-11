@@ -7,7 +7,7 @@ order: 12
 
 # Security
 
-Paseo follows a client-server architecture, similar to Docker. The daemon runs on your machine and manages your coding agents. Clients (the mobile app, CLI, or web interface) connect to the daemon to monitor and control those agents.
+Paseo follows a client-server architecture, similar to Docker. The daemon runs on your machine and manages your coding agents. Clients (the web/PWA app, desktop app, or CLI) connect to the daemon to monitor and control those agents.
 
 Your code never leaves your machine. Paseo is a local-first tool that connects directly to your development environment.
 
@@ -57,7 +57,7 @@ By default, the daemon listens on `127.0.0.1:6767` (localhost only). This is saf
 
 ### Socket file (CLI only)
 
-For maximum isolation, you can configure the daemon to listen on a Unix socket file instead of a TCP port. This prevents any network access entirely, only processes on the same machine can connect. The CLI supports this mode, but the mobile app and web interface require a network connection.
+For maximum isolation, you can configure the daemon to listen on a Unix socket file instead of a TCP port. This prevents any network access entirely, only processes on the same machine can connect. The CLI supports this mode, but browser/PWA clients require a network connection.
 
 ### VPN access
 
@@ -105,7 +105,7 @@ The password is stored as a bcrypt hash in `config.json`, the daemon never store
 - You don't fully trust your local network (shared office, public Wi-Fi with a VPN, etc.).
 - You're exposing the daemon via a reverse proxy and want an additional authentication layer.
 
-We still recommend the relay for mobile access, it combines authentication with end-to-end encryption out of the box. Password auth is primarily useful for direct LAN or VPN connections where you want access control without the relay.
+We still recommend the relay for phone-browser access, it combines authentication with end-to-end encryption out of the box. Password auth is primarily useful for direct LAN or VPN connections where you want access control without the relay.
 
 ## Agent authentication
 
@@ -119,7 +119,7 @@ Paseo never stores or transmits provider API keys. Agents run in your user conte
 
 ## Recommendations
 
-- **Use the relay** for mobile access, it's the simplest option and all traffic is end-to-end encrypted
+- **Use the relay** for phone-browser access, it's the simplest option and all traffic is end-to-end encrypted
 - **Treat the QR code like a password**, anyone with the pairing offer can connect to your daemon
 - **Set a password** if you bind to a network address, it prevents unauthorized clients from controlling your agents
 - **Never bind to 0.0.0.0 without a password**, without one, any device on your network can connect

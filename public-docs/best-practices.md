@@ -1,6 +1,6 @@
 ---
 title: Best practices
-description: Tips for getting the most out of Paseo and mobile-first agent workflows.
+description: Tips for getting the most out of Paseo and phone-friendly agent workflows.
 nav: Best practices
 order: 13
 ---

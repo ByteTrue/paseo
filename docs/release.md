@@ -47,7 +47,7 @@ Fork facts:
 - Browser web deploy: `deploy-app.yml` to the `paseo-zijieapi-de5-net` Pages project.
 - Relay deploy: `deploy-relay.yml` to the ByteTrue Cloudflare account.
 - Website deploy: `deploy-website.yml` to the ByteTrue Cloudflare account.
-- Shipped app surfaces: browser web, Electron desktop, and Android APK release assets (built locally).
+- Shipped app surfaces: browser web/mobile web, Electron desktop, and npm/CLI packages. Separate mobile-store clients are not release surfaces.
 - macOS desktop releases publish Apple Silicon arm64 artifacts only; Intel x64 macOS artifacts are not shipped.
 
 Publishable npm packages, in dependency order:
@@ -95,7 +95,7 @@ npm run release:push         # Push HEAD + tag (triggers CI workflows)
 
 ```bash
 npm run release:beta:patch       # Bump to X.Y.Z-beta.1, push commit + tag
-# ... test desktop and APK prerelease assets from GitHub Releases ...
+# ... test desktop prerelease assets from GitHub Releases ...
 npm run release:beta:next        # Optional: cut X.Y.Z-beta.2, beta.3, ...
 npm run release:promote          # Promote X.Y.Z-beta.N to stable X.Y.Z
 ```
@@ -202,25 +202,6 @@ If N+1 is a hotfix for a bug in N, dispatch `desktop-rollout.yml -f tag=v0.1.<N+
 - **Bootstrap caveat.** Clients running a build older than the rollout feature ignore `rolloutHours` and admit immediately. Rollout protection only applies to clients running the rollout-aware version or later.
 - **Up to ~30 min automatic admission latency.** Renderer polls every 30 minutes, so a stable user may take up to that long to be evaluated against the rollout window. Clicking **Check** is manual and bypasses rollout admission.
 
-## Local Android APK build
-
-This fork does not use EAS for mobile builds. iOS is not shipped. Android APKs are built locally and uploaded to the GitHub Release.
-
-After a release tag is pushed, build and upload the APK:
-
-```bash
-bash scripts/release-android-apk-local.sh [tag]
-```
-
-If no tag is given, the latest git tag is used. The script:
-
-1. Builds client dependencies (`npm run build:client`)
-2. Prebuilds the Android project (`expo prebuild --platform android`)
-3. Assembles the release APK (`./gradlew assembleRelease`)
-4. Uploads the APK to the GitHub Release via `gh release upload`
-
-Prerequisites: Java 17+, Android SDK, `gh` CLI authenticated.
-
 ## Release notes on GitHub
 
 The GitHub Release body is populated automatically by the `Release Notes Sync` workflow (`.github/workflows/release-notes-sync.yml`). It triggers on every `v*` tag push and on any push to `main` that touches `CHANGELOG.md`, then runs `scripts/sync-release-notes-from-changelog.mjs` to mirror the matching changelog entry into the release body. You don't need to write release notes on GitHub manually — keep `CHANGELOG.md` correct and the workflow will sync it. To force a re-sync, dispatch the workflow with the tag input.
@@ -253,8 +234,6 @@ git tag -f desktop-macos-v0.1.28 HEAD && git push origin desktop-macos-v0.1.28 -
 git tag -f desktop-linux-v0.1.28 HEAD && git push origin desktop-linux-v0.1.28 --force
 git tag -f desktop-windows-v0.1.28 HEAD && git push origin desktop-windows-v0.1.28 --force
 
-# Android APK
-git tag -f android-v0.1.28 HEAD && git push origin android-v0.1.28 --force
 
 # Beta
 git tag -f v0.1.29-beta.2 HEAD && git push origin v0.1.29-beta.2 --force
@@ -265,7 +244,6 @@ This ensures the checkout ref matches the actual code on `main` with the fix inc
 - `vX.Y.Z` or `vX.Y.Z-beta.N` rebuilds the full tagged release
 - `desktop-vX.Y.Z` rebuilds desktop for all desktop platforms only
 - `desktop-macos-vX.Y.Z`, `desktop-linux-vX.Y.Z`, and `desktop-windows-vX.Y.Z` rebuild only that desktop platform
-- `android-vX.Y.Z` rebuilds the Android APK release only
 
 ## Notes
 
@@ -394,7 +372,6 @@ The changelog covers **stable-to-stable**. Betas are not represented. When you p
 - [ ] Working tree is clean and the intended commit is on `main`
 - [ ] `npm run release:beta:patch` (or `:next`) completes successfully
 - [ ] GitHub `Desktop Release` workflow for the `v*-beta.N` tag is green
-- [ ] Local Android APK built and uploaded: `bash scripts/release-android-apk-local.sh`
 
 ### Stable release (or promotion)
 
@@ -405,4 +382,3 @@ The changelog covers **stable-to-stable**. Betas are not represented. When you p
 - [ ] Verify the changelog heading follows strict `## X.Y.Z - YYYY-MM-DD` format
 - [ ] `npm run release:patch` or `npm run release:promote` completes successfully
 - [ ] GitHub `Desktop Release` workflow for the `v*` tag is green
-- [ ] Local Android APK built and uploaded: `bash scripts/release-android-apk-local.sh`

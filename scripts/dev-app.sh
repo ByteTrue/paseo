@@ -23,6 +23,5 @@ echo "════════════════════════�
 
 exec cross-env \
   BROWSER="${BROWSER:-none}" \
-  APP_VARIANT=development \
   EXPO_PUBLIC_LOCAL_DAEMON="$DAEMON_ENDPOINT" \
   npm run start:expo --workspace=@bytetrue/app -- --port "$EXPO_PORT"

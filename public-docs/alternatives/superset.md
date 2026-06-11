@@ -1,6 +1,6 @@
 ---
 title: Superset Alternative With Linux, Windows, and Mobile
-description: Paseo is open source under an OSI license, has no login wall, ships native mobile, and runs on macOS, Linux, and Windows. Superset is source-available, macOS only, and gates the desktop app on a Superset login.
+description: Paseo is open source under an OSI license, has no login wall, ships mobile web/PWA, and runs on macOS, Linux, and Windows. Superset is source-available, macOS only, and gates the desktop app on a Superset login.
 nav: Superset
 order: 101
 ---
@@ -9,9 +9,9 @@ order: 101
 
 Superset is a macOS desktop app for running CLI coding agents in parallel git worktrees. Source-available under the Elastic License 2.0.
 
-Paseo is an app for orchestrating coding agents, with native clients on desktop, mobile, web, and the CLI. Open source (AGPL-3.0).
+Paseo is an app for orchestrating coding agents, with desktop, web/PWA, and CLI clients. Open source (AGPL-3.0).
 
-![Paseo desktop and mobile app](/hero-mockup.png)
+![Paseo desktop and web app](/hero-mockup.png)
 
 ## When to pick what
 
@@ -21,7 +21,7 @@ Pick Paseo if you want:
 
 - An OSI-approved open source license (AGPL-3.0)
 - Linux or Windows
-- A native mobile app
+- A mobile web/PWA
 - No login wall
 - A per-agent UI with modes, slash commands, and file pickers
 - Free without seat limits
@@ -40,7 +40,7 @@ Paseo does not require any login.
 
 ## Architecture
 
-The Paseo daemon runs as its own process. Desktop, web, mobile, and CLI clients connect to it. Run the daemon on your laptop, on a server, or in Docker, and connect from anywhere.
+The Paseo daemon runs as its own process. Desktop, web/PWA, and CLI clients connect to it. Run the daemon on your laptop, on a server, or in Docker, and connect from anywhere.
 
 Superset's desktop is the host. Agents run inside it.
 
@@ -82,7 +82,7 @@ Paseo also gives each worktree its own dev server URL like `web.fix-auth.my-app.
 
 ## Mobile
 
-Paseo ships native iOS and Android apps with the same feature set as the desktop. Superset does not have a mobile app.
+Paseo ships mobile web/PWA with the same feature set as the desktop. Superset does not have a mobile app.
 
 ## Voice
 
@@ -100,7 +100,7 @@ Superset is free for one seat with local workspaces only. Team features and sync
 | ---------------------------- | ----------------------------------------------------- | -------------------------------------- |
 | License                      | Open source (AGPL-3.0)                                | Source-available (Elastic License 2.0) |
 | Platforms                    | macOS, Linux, Windows                                 | macOS only                             |
-| Native mobile                | iOS, Android                                          | —                                      |
+| Mobile web/PWA               | Web/PWA                                               | —                                      |
 | Login required               | No                                                    | Yes (Superset account)                 |
 | Pricing                      | Free                                                  | Free 1 seat, $20/seat/mo Pro           |
 | Per-agent native UI          | Yes (modes, slash commands, file picker, diff viewer) | Terminal output                        |

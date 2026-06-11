@@ -1,0 +1,105 @@
+feature: 2026-06-12-lean-client-surface
+created: 2026-06-12
+
+steps:
+  - action: "release/build skeleton: remove native release and build entry points from package scripts, release helpers, and APK script path"
+    exit_signal: "Root/app package scripts and release helpers no longer expose official Android/iOS/APK/EAS/TestFlight/App Store commands, while desktop/web/CLI release paths remain"
+    status: done
+  - action: "app config and package graph: collapse Expo app config to web/shared-renderer config and remove native-only workspace/dependencies"
+    exit_signal: "npm install refreshes the workspace graph; build:app-deps no longer references deleted native workspaces; packages/app still has web/build/typecheck/test scripts"
+    status: done
+  - action: "native-only app source prune: delete native-only routes, hooks, components, modules, Maestro flows, and adjust web/base exports"
+    exit_signal: "App typecheck passes and no import path references deleted native files or app-side Expo push-token registration"
+    status: done
+  - action: "website and public docs surface cleanup: remove Android/iOS download rows, APK URLs, native-mobile copy, and native-client claims"
+    exit_signal: "Website typecheck or targeted route checks pass, and download page exposes desktop/web/server install paths without Android/iOS native actions"
+    status: done
+  - action: "project docs and support templates: update docs, README/SECURITY/public docs, issue template, and ByteTrue architecture implications"
+    exit_signal: "Official docs consistently describe Web/mobile-web/PWA, Electron desktop, and CLI; no release checklist asks for APK/EAS/TestFlight/App Store"
+    status: done
+  - action: "verification and cleanup: run targeted grep classification, relevant utility tests, lint, and typecheck"
+    exit_signal: "Targeted tests, lint, and typecheck pass; remaining native/mobile terms are classified as mobile-web/responsive, legacy protocol compatibility, or unrelated"
+    status: done
+
+checks:
+  - item: "Native mobile client surface means official Android/iOS build, release, test, native-only source, and native-only workspace paths; it does not mean mobile web/PWA"
+    source: term-contract
+    status: passed
+  - item: "Mobile web/PWA and compact responsive UI remain official supported surfaces"
+    source: term-contract
+    status: passed
+  - item: "Legacy clientType mobile, heartbeat deviceType mobile, and register_push_token remain accepted by daemon/protocol for compatibility"
+    source: term-contract
+    status: passed
+  - item: "New official clients do not register Expo push tokens or promise native push-notification behavior"
+    source: flow-level-constraint
+    status: passed
+  - item: "Do not delete packages/app"
+    source: scope-guard
+    status: passed
+  - item: "Do not delete mobile web/PWA responsive UI or compact layout state merely because names contain mobile"
+    source: scope-guard
+    status: passed
+  - item: "Do not remove Electron desktop or CLI surfaces"
+    source: scope-guard
+    status: passed
+  - item: "Do not narrow existing WebSocket protocol enums/messages as part of this feature"
+    source: scope-guard
+    status: passed
+  - item: "Root package scripts/workspaces no longer mount Android/iOS scripts or native-only workspace/build graph entries"
+    source: mount-point
+    status: passed
+  - item: "App package/config no longer mounts Android/iOS scripts, EAS config, native build profiles, or native-only dependencies"
+    source: mount-point
+    status: passed
+  - item: "Release utilities no longer mount Android retry tags or APK upload release paths"
+    source: mount-point
+    status: passed
+  - item: "Website download and metadata mount points expose desktop/web/server install surfaces without Android/iOS native download actions"
+    source: mount-point
+    status: passed
+  - item: "Documentation/support mount points no longer advertise Android/iOS/native mobile as official supported surfaces"
+    source: mount-point
+    status: passed
+  - item: "Download page inspection after cleanup shows desktop, web, and server/CLI paths remain while Android APK and iOS rows are gone"
+    source: acceptance-scenario
+    status: passed
+  - item: "Release helper/tag parser behavior rejects or no longer documents android-vX.Y.Z while vX.Y.Z and desktop retry tags still work"
+    source: acceptance-scenario
+    status: passed
+  - item: "Root and app package script inspection finds no official android, ios, EAS, APK, TestFlight, or App Store commands"
+    source: acceptance-scenario
+    status: passed
+  - item: "Workspace graph inspection finds no deleted native-only workspace in workspaces or build:app-deps"
+    source: acceptance-scenario
+    status: passed
+  - item: "App config inspection finds no official ios, android, EAS project, native notification, native camera, or native build profile config"
+    source: acceptance-scenario
+    status: passed
+  - item: "Native-only app files and Maestro/native mobile tests are removed or any remaining file is explicitly justified as web/desktop-required"
+    source: acceptance-scenario
+    status: passed
+  - item: "App runtime no longer imports or calls Expo push-token registration"
+    source: acceptance-scenario
+    status: passed
+  - item: "Targeted grep for Android APK, EAS, TestFlight, App Store, native iOS, native Android, production-apk, release-android-apk-local, and android-v has no unclassified official support promise"
+    source: acceptance-scenario
+    status: passed
+  - item: "Targeted grep for generic mobile and phone classifies remaining hits as mobile web/responsive UI, legacy protocol compatibility, provider/product copy that does not promise native app distribution, or unrelated examples"
+    source: acceptance-scenario
+    status: passed
+  - item: "packages/app web/typecheck path remains healthy and Electron desktop build path still uses shared renderer"
+    source: acceptance-scenario
+    status: passed
+  - item: "Protocol schema inspection confirms legacy mobile and push-token messages remain accepted for compatibility"
+    source: acceptance-scenario
+    status: passed
+  - item: "TDD seam 1: release utility tests cover Android retry-tag removal while preserving normal and desktop retry tags"
+    source: acceptance-scenario
+    status: passed
+  - item: "TDD seam 2: website download data or route checks cover absence of Android/iOS native actions and presence of desktop/web/CLI paths"
+    source: acceptance-scenario
+    status: passed
+  - item: "TDD seam 3: package graph and app typecheck prove native-only workspace/dependency/script prune did not break web/shared renderer"
+    source: acceptance-scenario
+    status: passed

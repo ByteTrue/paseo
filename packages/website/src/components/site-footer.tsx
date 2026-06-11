@@ -116,7 +116,7 @@ export function SiteFooter({ width = "default" }: SiteFooterProps) {
               href="/download"
               className="block text-muted-foreground hover:text-foreground transition-colors"
             >
-              Android APK
+              All downloads
             </a>
             <a
               href={gitHubReleasesUrl}

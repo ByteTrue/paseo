@@ -1,6 +1,6 @@
 ---
 title: Open Source Claude Desktop Alternative With Linux, Mobile, and Multi-Provider Support
-description: Paseo is an open source Claude Desktop alternative for developers who want Linux, self-hosting, native mobile apps, and Claude Code alongside Codex, OpenCode, Copilot, and more.
+description: Paseo is an open source Claude Desktop alternative for developers who want Linux, self-hosting, mobile web/PWA, and Claude Code alongside Codex, OpenCode, Copilot, and more.
 nav: Claude Desktop
 order: 106
 ---
@@ -9,9 +9,9 @@ order: 106
 
 Claude Desktop is Anthropic's desktop app for Claude. It includes Chat, Cowork, and Claude Code in one app. Claude Code runs in the desktop app on macOS and Windows.
 
-Paseo is an app for orchestrating coding agents, with native clients on desktop, mobile, web, and the CLI. Open source (AGPL-3.0).
+Paseo is an app for orchestrating coding agents, with desktop, web/PWA, and CLI clients. Open source (AGPL-3.0).
 
-![Paseo desktop and mobile app](/hero-mockup.png)
+![Paseo desktop and web app](/hero-mockup.png)
 
 ## When to pick what
 
@@ -20,7 +20,7 @@ Pick Claude Desktop if you want Anthropic's first-party app for Claude, Claude C
 Pick Paseo if you want:
 
 - Linux alongside macOS and Windows
-- A native iOS and Android app for the same agent workflow
+- A mobile web/PWA for the same agent workflow
 - Claude Code, Codex, OpenCode, Copilot, Pi, and 30+ more agents in one interface
 - A self-hosted daemon you can run on a laptop, VM, or dev server
 - A CLI and MCP server for scripting and multi-agent workflows
@@ -28,7 +28,7 @@ Pick Paseo if you want:
 
 ## Architecture
 
-Paseo runs a daemon on your machine. Desktop, web, mobile, and CLI clients connect to it over a websocket. The daemon launches Claude Code and other providers as local processes, using your installed CLIs, credentials, MCP servers, skills, and project config.
+Paseo runs a daemon on your machine. Desktop, web/PWA, and CLI clients connect to it over a websocket. The daemon launches Claude Code and other providers as local processes, using your installed CLIs, credentials, MCP servers, skills, and project config.
 
 Claude Desktop is the host app. The Code tab can run Claude Code locally, connect over SSH, or run remote sessions on Anthropic infrastructure.
 
@@ -46,7 +46,7 @@ Paseo ships on macOS, Linux, and Windows.
 
 ## Mobile
 
-Paseo ships native iOS and Android apps with the same agent workflow as the desktop app.
+Paseo ships mobile web/PWA with the same agent workflow as the desktop app.
 
 Claude has iOS and Android apps. Claude Code can be controlled from mobile through Remote Control, and Claude Desktop can pair with mobile for some workflows.
 
@@ -99,7 +99,7 @@ Claude supports voice in Claude's own mobile and app surfaces. Claude Code itsel
 | ---------------------------- | --------------------------------------------------------------- | --------------------------------- |
 | License                      | Open source (AGPL-3.0)                                          | Not published as open source      |
 | Desktop platforms            | macOS, Linux, Windows                                           | macOS, Windows                    |
-| Native mobile                | iOS, Android                                                    | iOS, Android Claude apps          |
+| Mobile web/PWA               | Web/PWA                                                         | iOS, Android Claude apps          |
 | Coding agents                | Claude Code, Codex, OpenCode, Pi + 30+ via ACP catalog + custom | Claude Code                       |
 | General chat                 | No                                                              | Claude Chat                       |
 | Cloud agent                  | Cloud waitlist                                                  | Claude Cowork and remote sessions |
