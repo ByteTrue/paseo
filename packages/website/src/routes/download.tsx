@@ -5,7 +5,6 @@ import { pageMeta } from "~/meta";
 import {
   downloadUrls,
   gitHubReleasesUrl,
-  playStoreUrl,
   webAppUrl,
   AppleIcon,
   AndroidIcon,
@@ -20,8 +19,8 @@ import "~/styles.css";
 export const Route = createFileRoute("/download")({
   head: () =>
     pageMeta(
-      "Download Paseo for macOS, Windows, Linux, iOS TestFlight, and Android",
-      "Install Paseo on desktop, Android, iOS TestFlight, and the web. Self-hosted, open source, free to download.",
+      "Download Paseo for macOS, Windows, Linux, and Android",
+      "Install Paseo on desktop, Android, and the web. Self-hosted, open source, free to download.",
       "/download",
     ),
   component: Download,
@@ -115,7 +114,6 @@ function Download() {
               <span className="font-medium">Android</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <DownloadPill href={playStoreUrl} label="Play Store" external />
               <DownloadPill href={urls.androidApk} label="APK" />
             </div>
           </div>
@@ -128,7 +126,7 @@ function Download() {
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-center justify-center rounded-full border border-border px-4 py-1.5 text-sm font-medium text-muted-foreground">
-                TestFlight invite required
+                Build with personal Apple ID
               </span>
             </div>
           </div>

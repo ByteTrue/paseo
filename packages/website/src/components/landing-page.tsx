@@ -32,11 +32,10 @@ import { CursorFieldProvider } from "~/components/butterfly";
 import { CommandDialog } from "~/components/command-dialog";
 import { AGENT_PAGES } from "~/data/agent-pages";
 import {
-  playStoreUrl,
   webAppUrl,
   getDownloadOptions,
   useDetectedPlatform,
-  PlayStoreIcon,
+  AndroidIcon,
   TerminalIcon,
   GlobeIcon,
 } from "~/downloads";
@@ -1217,13 +1216,11 @@ function GetStarted() {
           Web App
         </a>
         <a
-          href={playStoreUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+          href="/download"
           className="inline-flex items-center justify-center rounded-lg border border-white/20 px-3 py-2 text-white hover:bg-white/10 transition-colors"
-          aria-label="Google Play"
+          aria-label="Download"
         >
-          <PlayStoreIcon className="h-5 w-5" />
+          <AndroidIcon className="h-5 w-5" />
         </a>
         <ServerInstallButton />
       </div>
@@ -1684,7 +1681,8 @@ function PhoneShowcase() {
           <br className="md:hidden" /> you can.
         </p>
         <p className="text-sm text-white/50 text-center">
-          The native mobile app has full feature parity with desktop.
+          The web app (PWA) has full feature parity with desktop. Android APKs are available for
+          download.
         </p>
       </motion.div>
 

@@ -47,7 +47,7 @@ Fork facts:
 - Browser web deploy: `deploy-app.yml` to the `paseo-zijieapi-de5-net` Pages project.
 - Relay deploy: `deploy-relay.yml` to the ByteTrue Cloudflare account.
 - Website deploy: `deploy-website.yml` to the ByteTrue Cloudflare account.
-- Shipped app surfaces: browser web, Electron desktop, native iOS through TestFlight, Android through Play Store, and Android APK release assets.
+- Shipped app surfaces: browser web, Electron desktop, and Android APK release assets (built locally).
 - macOS desktop releases publish Apple Silicon arm64 artifacts only; Intel x64 macOS artifacts are not shipped.
 
 Publishable npm packages, in dependency order:
@@ -75,7 +75,7 @@ Before running any stable patch release command:
 npm run release:patch
 ```
 
-This bumps the version across all workspaces, runs checks, publishes to npm, and pushes the branch + tag. The tag push triggers `Desktop Release`, `Android APK Release`, and `Release Notes Sync` on GitHub Actions. EAS picks up the same tag via the EAS GitHub app and starts the iOS + Android store builds in parallel (see "Mobile builds (EAS)" below) — there is no GitHub Actions `release-mobile.yml` in this repo.
+This bumps the version across all workspaces, runs checks, publishes to npm, and pushes the branch + tag. The tag push triggers `Desktop Release` and `Release Notes Sync` on GitHub Actions.
 
 **Releases are always patch.** "Release paseo", "release stable", "ship stable", and similar always mean a patch bump from the previous stable. Never bump minor or major to trigger a build, ever — minor and major bumps are reserved for genuinely larger product cuts and require an explicit user instruction with the word "minor" or "major". If you find yourself reaching for `release:minor` to retrigger a failed build, you are doing the wrong thing — push a retry tag instead (see "Fixing a failed release build" below).
 
@@ -202,82 +202,24 @@ If N+1 is a hotfix for a bug in N, dispatch `desktop-rollout.yml -f tag=v0.1.<N+
 - **Bootstrap caveat.** Clients running a build older than the rollout feature ignore `rolloutHours` and admit immediately. Rollout protection only applies to clients running the rollout-aware version or later.
 - **Up to ~30 min automatic admission latency.** Renderer polls every 30 minutes, so a stable user may take up to that long to be evaluated against the rollout window. Clicking **Check** is manual and bypasses rollout admission.
 
-## Mobile builds (EAS)
+## Local Android APK build
 
-iOS and Android store builds are not in `.github/workflows`. They are triggered by the EAS GitHub app the moment the `v*` tag is pushed:
+This fork does not use EAS for mobile builds. iOS is not shipped. Android APKs are built locally and uploaded to the GitHub Release.
 
-- **Android (Play Store)** — EAS builds with profile `production` and auto-submits to the Play Store via `eas submit` (EAS-managed credentials, no Fastlane).
-- **iOS (TestFlight)** — EAS builds with profile `production` and uploads to App Store Connect/TestFlight via `eas submit` (EAS-managed credentials, no local certificate required). TestFlight still requires an Apple Developer Program account and App Store Connect access for the `sh.paseo` app.
-- **Android APK (GitHub Release asset)** — separate, via `.github/workflows/android-apk-release.yml`. This is the only Android-related workflow that lives in this repo.
-
-The EAS workflow definition lives at `packages/app/.eas/workflows/release-mobile.yml`. It is executed by Expo/EAS, not by GitHub Actions.
-
-`packages/app/app.config.js` intentionally does not hard-code an Expo owner or EAS project ID. Configure `EXPO_OWNER` and `EAS_PROJECT_ID` in EAS/GitHub release environments so mobile builds target the ByteTrue Expo project instead of upstream.
-
-### Watching mobile builds from the terminal
-
-Use the EAS CLI from `packages/app/`:
+After a release tag is pushed, build and upload the APK:
 
 ```bash
-cd packages/app
-
-# Recent builds (newest first). Pipe to jq for status only.
-npx eas build:list --limit 8 --non-interactive --json | jq '.[] | {platform, status, appVersion, gitCommitHash}'
-
-# Recent EAS workflow runs. This is the source of truth for submit jobs.
-npx eas workflow:runs --json | jq '.[] | {status, workflowName, trigger, gitCommitHash, startedAt, finishedAt}'
-
-# Filter by platform.
-npx eas build:list --platform ios --limit 5 --non-interactive --json
-npx eas build:list --platform android --limit 5 --non-interactive --json
-
-# Inspect a specific build.
-npx eas build:view <build-id>
-
-# Inspect the full release workflow, including submit_ios and submit_android.
-npx eas workflow:view <workflow-run-id> --json
-
-# Read failed submit job logs.
-npx eas workflow:logs <workflow-job-id> --all-steps --non-interactive
-
-# Stream logs for a build.
-npx eas build:view <build-id> --json | jq '.logFiles[]'
+bash scripts/release-android-apk-local.sh [tag]
 ```
 
-A build's `gitCommitHash` must match the release tag commit. `status` walks through `NEW` → `IN_QUEUE` → `IN_PROGRESS` → `FINISHED` (or `ERRORED`/`CANCELED`). The EAS workflow run's `gitCommitHash` and `trigger` must also match the release tag.
+If no tag is given, the latest git tag is used. The script:
 
-Once a build is `FINISHED`, EAS still has release-critical work to do: Android must submit to the Play Store, and iOS must upload to App Store Connect/TestFlight. The release is not done until Android is on its Play Store track and the iOS build is visible/processed for TestFlight distribution.
+1. Builds client dependencies (`npm run build:client`)
+2. Prebuilds the Android project (`expo prebuild --platform android`)
+3. Assembles the release APK (`./gradlew assembleRelease`)
+4. Uploads the APK to the GitHub Release via `gh release upload`
 
-For the `Release Mobile` EAS workflow, these jobs must pass:
-
-- `build_ios` — iOS binary built
-- `submit_ios` — iOS binary uploaded to App Store Connect/TestFlight
-- `build_android` — Android store binary built
-- `submit_android` — Android binary submitted to the Play Store
-
-Do not treat `build_ios: SUCCESS` as a completed iOS release. `submit_ios: SUCCESS` means EAS uploaded the build; App Store Connect/TestFlight processing is the final iOS ground truth before testers can install it.
-
-To confirm the submission landed, inspect the EAS workflow with `npx eas workflow:view <workflow-run-id> --json`. App Store Connect/TestFlight (processed build for the matching version/build) and the Play Console track are the final ground truth.
-
-### Babysitting mobile after a release
-
-The user rarely opens the Expo dashboard. A failed EAS build or submit job can sit silently until users complain about a stale version. After every stable release, set up a long-delay babysit that re-checks GitHub Actions, EAS builds, and the EAS `Release Mobile` workflow for the release tag. If any build is `ERRORED`/`CANCELED`, any workflow is `FAILURE`, or any required submit job fails, surface it immediately. If all builds are `FINISHED` and all required submit jobs are `SUCCESS`, confirm and stop.
-
-**Use `create_heartbeat`, never `create_schedule`, for release babysitting.** Babysitting fires back into the current conversation as a wake-up prompt. `create_schedule` starts a fresh agent the user has to find and read; `create_heartbeat` surfaces the build status inline in the conversation that owns the release, where it is impossible to miss. If you find yourself reaching for `create_schedule` for a release babysit, you are about to ship a status report into a void.
-
-Pattern:
-
-```jsonc
-// mcp__paseo__create_heartbeat arguments
-{
-  "name": "vX.Y.Z release babysit heartbeat",
-  "cron": "*/15 * * * *",
-  "maxRuns": 8, // covers ~2h of build + store-submission window
-  "prompt": "Heartbeat: check vX.Y.Z release. Run gh run list, eas build:list, eas workflow:runs, and eas workflow:view for the matching Release Mobile run. Report concisely. The release is not done until desktop/APK workflows are green, EAS builds are FINISHED, Android submit_android is SUCCESS, and iOS submit_ios is SUCCESS with the matching build visible/processed in TestFlight. Flag any ERRORED/FAILED/CANCELED/FAILURE loudly.",
-}
-```
-
-Tight cadence on purpose. The first run fires immediately, giving a near-real-time status check before the conversation closes. Subsequent runs at 15-minute intervals catch transitions quickly: a failed EAS build or failed store/TestFlight submission at +20m should not wait until +50m to surface. Keep the prompt short — the heartbeat is a status probe, not a research task — and have it bail out as soon as every platform is actually on its store path so the remaining runs do not generate noise.
+Prerequisites: Java 17+, Android SDK, `gh` CLI authenticated.
 
 ## Release notes on GitHub
 
@@ -452,7 +394,7 @@ The changelog covers **stable-to-stable**. Betas are not represented. When you p
 - [ ] Working tree is clean and the intended commit is on `main`
 - [ ] `npm run release:beta:patch` (or `:next`) completes successfully
 - [ ] GitHub `Desktop Release` workflow for the `v*-beta.N` tag is green
-- [ ] GitHub `Android APK Release` workflow for the same tag is green
+- [ ] Local Android APK built and uploaded: `bash scripts/release-android-apk-local.sh`
 
 ### Stable release (or promotion)
 
@@ -463,10 +405,4 @@ The changelog covers **stable-to-stable**. Betas are not represented. When you p
 - [ ] Verify the changelog heading follows strict `## X.Y.Z - YYYY-MM-DD` format
 - [ ] `npm run release:patch` or `npm run release:promote` completes successfully
 - [ ] GitHub `Desktop Release` workflow for the `v*` tag is green
-- [ ] GitHub `Android APK Release` workflow for the same tag is green
-- [ ] EAS `Release Mobile` workflow for the same tag is green
-- [ ] EAS iOS `build_ios` completes for the same tag
-- [ ] EAS iOS `submit_ios` succeeds, uploading the build to App Store Connect/TestFlight
-- [ ] App Store Connect/TestFlight shows the matching iOS build as processed and available to testers
-- [ ] EAS Android `build_android` completes for the same tag
-- [ ] EAS Android `submit_android` succeeds, putting the build on its Play Store track
+- [ ] Local Android APK built and uploaded: `bash scripts/release-android-apk-local.sh`

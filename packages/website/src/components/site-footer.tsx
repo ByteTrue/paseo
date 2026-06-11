@@ -1,4 +1,4 @@
-import { gitHubReleasesUrl, gitHubRepositoryUrl, playStoreUrl, webAppUrl } from "~/downloads";
+import { gitHubReleasesUrl, gitHubRepositoryUrl, webAppUrl } from "~/downloads";
 
 interface SiteFooterProps {
   width?: "default" | "prose";
@@ -113,12 +113,10 @@ export function SiteFooter({ width = "default" }: SiteFooterProps) {
           <p className="text-white/60 font-medium">Download</p>
           <div className="space-y-2">
             <a
-              href={playStoreUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/download"
               className="block text-muted-foreground hover:text-foreground transition-colors"
             >
-              Google Play
+              Android APK
             </a>
             <a
               href={gitHubReleasesUrl}

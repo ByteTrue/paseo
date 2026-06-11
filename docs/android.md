@@ -9,7 +9,7 @@ Controlled by `APP_VARIANT` in `packages/app/app.config.js` (vanilla Expo, no cu
 | `production`  | Paseo       | `sh.paseo`       |
 | `development` | Paseo Debug | `sh.paseo.debug` |
 
-EAS profiles: `development`, `production`, and `production-apk` in `packages/app/eas.json`.
+Build profiles in `packages/app/eas.json`: `development`, `production`, and `production-apk`.
 
 `development` uses Android `debug`.
 
@@ -48,34 +48,20 @@ Keep `react` and `react-dom` pinned to the React version embedded by the current
 adb exec-out screencap -p > screenshot.png
 ```
 
-## Cloud build + submit (EAS)
+## Local APK build
 
-Stable tag pushes like `v0.1.0` trigger:
+This fork does not use EAS for cloud builds. Android APKs are built locally.
 
-- The EAS GitHub app on Expo servers (iOS + Android production builds + store submit). There is no workflow file in this repo for it.
-- `.github/workflows/android-apk-release.yml` on GitHub Actions (APK asset on GitHub Release).
-
-iOS uploads to App Store Connect/TestFlight via EAS-managed credentials; it does not auto-submit for App Store review. Android auto-submits to the Play Store via EAS-managed credentials.
-
-`packages/app/app.config.js` reads `EXPO_OWNER` and `EAS_PROJECT_ID` from the release environment. Keep those values pointed at the ByteTrue Expo project; do not hard-code upstream `getpaseo` project settings.
-
-Beta tags like `v0.1.1-beta.1` only trigger the GitHub APK workflow. They publish a GitHub prerelease APK for testing and do not submit to the stores.
-
-`android-v*` tags also trigger only the GitHub APK workflow — useful when you want to ship an APK without going through stores. The GitHub APK workflow supports `workflow_dispatch` with an existing `tag` input so you can rebuild without cutting a new tag.
-
-### Useful commands
+From repo root:
 
 ```bash
-cd packages/app
-
-# Recent builds
-npx eas build:list --limit 10 --non-interactive --json | jq '.[] | {platform, status, appVersion, gitCommitHash}'
-
-# Inspect a build (the printed `Logs` URL opens the build's Expo dashboard page,
-# which has a Submissions section showing the auto-submit to the Play Store).
-npx eas build:view <build-id>
+npm run android:production     # Build and install release APK to connected device
 ```
 
-The Play Console (Internal testing → Production tracks) is the final confirmation that the binary reached the store.
+To build an APK and upload it to a GitHub Release:
 
-See [docs/release.md](release.md) for the full mobile-build babysitting flow.
+```bash
+bash scripts/release-android-apk-local.sh [tag]
+```
+
+See [docs/release.md](release.md) for the full release flow.

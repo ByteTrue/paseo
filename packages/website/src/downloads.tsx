@@ -27,7 +27,6 @@ export function downloadUrls(release: ReleaseAssetInfo) {
   };
 }
 
-export const playStoreUrl = "https://play.google.com/store/apps/details?id=sh.paseo";
 export const webAppUrl = "https://paseo.zijieapi.de5.net";
 
 type Platform = "mac-silicon" | "windows" | "linux";

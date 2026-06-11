@@ -69,7 +69,7 @@ Anyone who builds software:
 
 ## Current state (May 2026)
 
-- Desktop (Electron), mobile (iOS/Android), web, CLI
+- Desktop (Electron), mobile web (PWA), web, CLI. Native Android APKs are built locally. iOS is not distributed; users who need it can build with their own Apple ID.
 - Built-in providers: Claude Code (Agent SDK), Codex (app-server), GitHub Copilot (ACP), OpenCode, Pi, OMP
 - One-click ACP provider catalog: Cursor, DeepSeek TUI, Hermes, Qwen Coder, Kimi Code, and others — plus custom ACP providers
 - Voice mode: dictate prompts or talk through problems hands-free
