@@ -50,9 +50,9 @@ export const Route = createRootRoute({
       { name: "twitter:image", content: "https://paseo-website.bytetrue.workers.dev/og-image.png" },
     ],
     links: [
-      { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "apple-touch-icon", href: "/favicon.svg" },
+      { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
+      { rel: "apple-touch-icon", href: "/favicon.png" },
     ],
   }),
   component: RootComponent,
