@@ -36,6 +36,7 @@ Your code never leaves your machine. Paseo is local-first.
 
 - **Daemon:** Local server that spawns and manages agent processes and exposes the WebSocket API.
 - **App:** Expo web client for browser/mobile-web usage and the shared renderer used by desktop.
+  Native Android/iOS app builds are not official client surfaces in this fork; phone usage is the browser/mobile-web PWA path. Legacy protocol values such as `clientType: "mobile"` and push-token messages remain accepted for backward compatibility with old or forked clients, but the official app no longer registers Expo push tokens.
 - **CLI:** Terminal interface for agent workflows that can also start and manage the daemon.
 - **Desktop app:** Electron wrapper around the web app that bundles and auto-manages its own daemon.
 - **Relay:** Optional encrypted bridge for remote access without opening ports directly.
@@ -162,6 +163,8 @@ Server → Client:  status message with payload { status: "server_info",
 ```
 
 There is no dedicated welcome message; the server emits a `status` session message after accepting the hello, then begins streaming. The session stores client capabilities from the hello and rehydrates them on reconnect, so the wire boundary can ask one question: `session.supports(...)`.
+
+**Client surface note:** `clientType: "mobile"` is a legacy/compatibility value in the wire schema. Official current clients are browser/mobile-web, CLI, and Electron desktop; do not treat the accepted `mobile` enum as evidence that native Android/iOS clients are still release surfaces.
 
 **Top-level WS envelopes** are `hello`, `recording_state`, `ping`/`pong`, and `session` (which wraps the rich union of session messages).
 

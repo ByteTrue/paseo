@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="https://paseo.sh/mobile-mockup.png" alt="Paseo mobile app" width="100%">
+  <img src="https://paseo.sh/mobile-mockup.png" alt="Paseo mobile web app" width="100%">
 </p>
 
 > [!NOTE]
@@ -43,12 +43,12 @@ Run agents in parallel on your own machines. Ship from your phone or your desk.
 - **Self-hosted:** Agents run on your machine with your full dev environment. Use your tools, your configs, and your skills.
 - **Multi-provider:** Claude Code, Codex, Copilot, OpenCode, and Pi through the same interface. Pick the right model for each job.
 - **Voice control:** Dictate tasks or talk through problems in voice mode. Hands-free when you need it.
-- **Cross-device:** iOS, Android, desktop, web, and CLI. Start work at your desk, check in from your phone, script it from the terminal.
+- **Cross-device:** Desktop, web/mobile web (PWA), and CLI. Start work at your desk, check in from your phone browser, script it from the terminal.
 - **Privacy-first:** Paseo doesn't have any telemetry, tracking, or forced log-ins.
 
 ## Getting Started
 
-Paseo runs a local server called the daemon that manages your coding agents. Clients like the desktop app, mobile app, web app, and CLI connect to it.
+Paseo runs a local server called the daemon that manages your coding agents. Clients like the desktop app, web app/PWA, and CLI connect to it.
 
 ### Prerequisites
 
@@ -64,7 +64,7 @@ You need at least one agent CLI installed and configured with your credentials:
 
 Download it from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/ByteTrue/paseo/releases). Open the app and the daemon starts automatically. Nothing else to install.
 
-To connect from your phone, scan the QR code shown in Settings.
+To connect from your phone, open the web app/PWA and use the pairing link shown in Settings.
 
 ### CLI / headless
 
@@ -120,7 +120,7 @@ Then use them in any agent conversation:
 Quick monorepo package map:
 
 - `packages/server`: Paseo daemon (agent process orchestration, WebSocket API, MCP server)
-- `packages/app`: Expo client (iOS, Android, web)
+- `packages/app`: Expo web client and shared desktop renderer
 - `packages/cli`: `paseo` CLI for daemon and agent workflows
 - `packages/desktop`: Electron desktop app
 - `packages/relay`: Relay package for remote connectivity

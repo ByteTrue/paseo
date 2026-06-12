@@ -1,6 +1,6 @@
 # Architecture
 
-Paseo is a client-server system for monitoring and controlling local AI coding agents. The daemon runs on your machine, manages agent processes, and streams their output in real time over WebSocket. Clients (mobile app, CLI, desktop app) connect to the daemon to observe and interact with agents.
+Paseo is a client-server system for monitoring and controlling local AI coding agents. The daemon runs on your machine, manages agent processes, and streams their output in real time over WebSocket. Clients (web app, CLI, desktop app) connect to the daemon to observe and interact with agents.
 
 Your code never leaves your machine. Paseo is local-first.
 
@@ -8,8 +8,9 @@ Your code never leaves your machine. Paseo is local-first.
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Mobile App  │    │     CLI     │    │ Desktop App │
-│   (Expo)     │    │ (Commander) │    │ (Electron)  │
+│   Web App   │    │     CLI     │    │ Desktop App │
+│ (Browser /  │    │ (Commander) │    │ (Electron)  │
+│ mobile web) │    │             │    │             │
 └──────┬───────┘    └──────┬──────┘    └──────┬──────┘
        │                   │                  │
        │    WebSocket      │    WebSocket     │    Managed subprocess
@@ -34,7 +35,7 @@ Your code never leaves your machine. Paseo is local-first.
 ## Components at a glance
 
 - **Daemon:** Local server that spawns and manages agent processes and exposes the WebSocket API.
-- **App:** Cross-platform Expo client for Android, web, and the shared UI used by desktop. iOS can be built locally with a personal Apple ID.
+- **App:** Expo web client for browser/mobile-web usage and the shared renderer used by desktop.
 - **CLI:** Terminal interface for agent workflows that can also start and manage the daemon.
 - **Desktop app:** Electron wrapper around the web app that bundles and auto-manages its own daemon.
 - **Relay:** Optional encrypted bridge for remote access without opening ports directly.
@@ -85,9 +86,9 @@ facade. App and CLI may import the low-level driver from
 `@bytetrue/client/internal/daemon-client` during migration, while new SDK-shaped
 code imports from `@bytetrue/client`.
 
-### `packages/app` — Mobile + web client (Expo)
+### `packages/app` — Web client + shared desktop renderer (Expo)
 
-Cross-platform React Native app that connects to one or more daemons.
+Expo web / React Native Web app that connects to one or more daemons. It is used directly in the browser and bundled into the Electron desktop app as the renderer.
 
 - Expo Router navigation (`/h/[serverId]/workspace/[workspaceId]`, `/h/[serverId]/agent/[agentId]`, etc.)
 - `HostRuntimeController` manages saved host connections, reconnection, and per-host runtime state

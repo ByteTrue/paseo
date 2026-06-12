@@ -43,9 +43,7 @@ body:
       label: Where did this happen
       description: The surface you saw the bug on. Pick the closest match.
       options:
-        - iOS app
-        - Android app
-        - Web (browser)
+        - Web / mobile web (browser/PWA)
         - Desktop (Electron)
         - CLI
         - Daemon
@@ -66,7 +64,7 @@ body:
     id: os-version
     attributes:
       label: OS version
-      description: Only relevant for desktop, CLI, or daemon issues. Skip for mobile or web.
+      description: Only relevant for desktop, CLI, or daemon issues. Skip for browser/PWA issues.
       placeholder: "macOS 15.2, Windows 11, Ubuntu 24.04"
 
   - type: dropdown

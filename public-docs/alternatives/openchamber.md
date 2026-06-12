@@ -1,6 +1,6 @@
 ---
 title: OpenChamber Alternative With Linux, Windows, and Mobile
-description: Paseo ships native iOS and Android apps, runs on macOS, Linux, and Windows, and supports 30+ agents. OpenChamber is macOS only with a PWA and is built around OpenCode.
+description: Paseo ships mobile web/PWA, runs on macOS, Linux, and Windows, and supports 30+ agents. OpenChamber is macOS only with a PWA and is built around OpenCode.
 nav: OpenChamber
 order: 103
 ---
@@ -9,24 +9,24 @@ order: 103
 
 OpenChamber is a macOS desktop app for OpenCode. Also available as a PWA. Open source under MIT.
 
-Paseo is an app for orchestrating coding agents, with native clients on desktop, mobile, web, and the CLI. Open source (AGPL-3.0).
+Paseo is an app for orchestrating coding agents, with desktop, web/PWA, and CLI clients. Open source (AGPL-3.0).
 
-![Paseo desktop and mobile app](/hero-mockup.png)
+![Paseo desktop and web app](/hero-mockup.png)
 
 ## Why pick Paseo
 
 OpenChamber runs on macOS, around OpenCode, with a phone PWA. Paseo runs OpenCode too, on macOS, and adds:
 
 - Linux and Windows desktop
-- A native iOS and Android app
+- A mobile web/PWA
 - Many more agents than OpenCode (Claude Code, Codex, Pi, plus 30+ more via the in-app ACP catalog)
 - A scriptable CLI to drive agents and connect to remote daemons
 
 ## Mobile
 
-Paseo ships a native iOS and Android app with the same feature set as the desktop. Install from the App Store or Google Play.
+Paseo ships a mobile web/PWA with the same feature set as the desktop. Install it from your browser as a PWA when you want a home-screen shortcut.
 
-OpenChamber does not have a native mobile app.
+OpenChamber also has a PWA, but Paseo pairs phone use with the desktop app, CLI, and multi-provider daemon.
 
 ## Desktop
 
@@ -78,7 +78,7 @@ Paseo's speech-to-text and text-to-speech run locally on your device. OpenChambe
 | ---------------------------- | --------------------------------------------------------------- | ----------------- |
 | License                      | Open source (AGPL-3.0)                                          | Open source (MIT) |
 | Desktop platforms            | macOS, Linux, Windows                                           | macOS             |
-| Mobile                       | Native iOS, Android                                             | PWA               |
+| Mobile                       | Web/PWA                                                         | PWA               |
 | Providers                    | Claude Code, Codex, OpenCode, Pi + 30+ via ACP catalog + custom | OpenCode          |
 | Split panes and tabs         | Yes                                                             | —                 |
 | In-app terminal              | Yes                                                             | —                 |

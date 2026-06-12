@@ -11,9 +11,9 @@ Paseo is a self-hostable platform for running and orchestrating coding agents. I
 
 ## Architecture
 
-- Daemon-client architecture. The daemon manages agents; clients (mobile, desktop, web, CLI) connect locally or over a relay. Remote access isn't an add-on.
+- Daemon-client architecture. The daemon manages agents; clients (desktop, web/PWA, CLI) connect locally or over a relay. Remote access isn't an add-on.
 - macOS, Windows, and Linux are all primary targets. None of them are a port or an afterthought.
-- Mobile, desktop, and web are separate native clients. The mobile app is built in React Native, not a webview.
+- Desktop, web/PWA, and CLI are separate supported clients. Phone use is the web app in a mobile browser/PWA, not a separate native app.
 
 ## Providers
 

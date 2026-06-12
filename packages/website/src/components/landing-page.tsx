@@ -35,7 +35,6 @@ import {
   webAppUrl,
   getDownloadOptions,
   useDetectedPlatform,
-  AndroidIcon,
   TerminalIcon,
   GlobeIcon,
 } from "~/downloads";
@@ -169,7 +168,7 @@ const SOCIAL_PROOF_TWEETS = [
     date: "May 11, 2026",
     avatar: "/social-proof/jasontorres.jpg",
     url: "https://x.com/jasontorres/status/2053875385515790731",
-    text: "Can interchange between Codex, Claude Code, Opencode, Pi. Stable mobile and desktop apps connected through a secure relay from your VMs.",
+    text: "Can interchange between Codex, Claude Code, Opencode, Pi. Stable web and desktop apps connected through a secure relay from your VMs.",
   },
   {
     name: "A9",
@@ -1215,13 +1214,6 @@ function GetStarted() {
           <GlobeIcon className="h-4 w-4" />
           Web App
         </a>
-        <a
-          href="/download"
-          className="inline-flex items-center justify-center rounded-lg border border-white/20 px-3 py-2 text-white hover:bg-white/10 transition-colors"
-          aria-label="Download"
-        >
-          <AndroidIcon className="h-5 w-5" />
-        </a>
         <ServerInstallButton />
       </div>
       <div className="pt-3">
@@ -1681,8 +1673,8 @@ function PhoneShowcase() {
           <br className="md:hidden" /> you can.
         </p>
         <p className="text-sm text-white/50 text-center">
-          The web app (PWA) has full feature parity with desktop. Android APKs are available for
-          download.
+          Open the web app from your phone browser and install it as a PWA when you want a
+          home-screen shortcut.
         </p>
       </motion.div>
 
@@ -1853,8 +1845,8 @@ function FAQ() {
           <code className="font-mono text-muted-foreground">
             npm install -g @bytetrue/cli && paseo
           </code>{" "}
-          and use the CLI, web app, or mobile app to connect. The desktop app just bundles the
-          daemon with a UI.
+          and use the CLI, web app, or phone browser/PWA to connect. The desktop app just bundles
+          the daemon with a UI.
         </FAQItem>
         <FAQItem question="How does voice work?">
           Voice runs locally on your device by default. You talk, the app transcribes and sends it

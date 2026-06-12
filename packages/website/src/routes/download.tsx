@@ -7,7 +7,6 @@ import {
   gitHubReleasesUrl,
   webAppUrl,
   AppleIcon,
-  AndroidIcon,
   WindowsIcon,
   LinuxIcon,
   TerminalIcon,
@@ -19,8 +18,8 @@ import "~/styles.css";
 export const Route = createFileRoute("/download")({
   head: () =>
     pageMeta(
-      "Download Paseo for macOS, Windows, Linux, and Android",
-      "Install Paseo on desktop, Android, and the web. Self-hosted, open source, free to download.",
+      "Download Paseo for macOS, Windows, Linux, and Web",
+      "Install Paseo on desktop or use the web app from any browser. Self-hosted, open source, free to download.",
       "/download",
     ),
   component: Download,
@@ -94,40 +93,6 @@ function Download() {
               <DownloadPill href={urls.linuxAppImage} label="AppImage" />
               <DownloadPill href={urls.linuxDeb} label="DEB" />
               <DownloadPill href={urls.linuxRpm} label="RPM" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Mobile */}
-      <section className="rounded-xl border border-border bg-card/40 p-6 md:p-8 mb-6">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-semibold">Mobile</h2>
-          <PhoneIcon className="h-5 w-5 text-muted-foreground" />
-        </div>
-
-        <div className="divide-y divide-border">
-          {/* Android */}
-          <div className="flex flex-col gap-3 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <AndroidIcon className="h-5 w-5 text-foreground" />
-              <span className="font-medium">Android</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <DownloadPill href={urls.androidApk} label="APK" />
-            </div>
-          </div>
-
-          {/* iOS */}
-          <div className="flex flex-col gap-3 py-5 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <AppleIcon className="h-5 w-5 text-foreground" />
-              <span className="font-medium">iOS</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <span className="inline-flex items-center justify-center rounded-full border border-border px-4 py-1.5 text-sm font-medium text-muted-foreground">
-                Build with personal Apple ID
-              </span>
             </div>
           </div>
         </div>
@@ -258,25 +223,6 @@ function MonitorIcon(props: React.SVGProps<SVGSVGElement>) {
       <rect width="20" height="14" x="2" y="3" rx="2" />
       <line x1="8" x2="16" y1="21" y2="21" />
       <line x1="12" x2="12" y1="17" y2="21" />
-    </svg>
-  );
-}
-
-function PhoneIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
-      <path d="M12 18h.01" />
     </svg>
   );
 }

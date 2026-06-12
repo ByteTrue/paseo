@@ -23,3 +23,4 @@
 - 编码规范：参见 `docs/coding-standards.md`
 - 开发环境：参见 `docs/development.md`
 - 发布流程：参见 `docs/release.md`
+- 原生 Android/iOS client 不是官方发布/维护面；后续工作保留 mobile web/PWA 与 legacy `mobile`/push-token 协议解析，但不要新增 native mobile 构建/发布依赖，除非明确重新引入原生支持。

@@ -48,6 +48,13 @@ test("emits beta release info from tags", () => {
   });
 });
 
+test("rejects Android release retry tags", () => {
+  assert.throws(
+    () => getReleaseInfoFromSourceTag("android-v0.1.60"),
+    /Expected vX\.Y\.Z, vX\.Y\.Z-beta\.N, desktop-v\.\.\./,
+  );
+});
+
 test("rejects non-beta prerelease versions", () => {
   assert.throws(() => parseReleaseVersion("0.1.60-canary.1"), /Expected beta prerelease versions/);
 });
