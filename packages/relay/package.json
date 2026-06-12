@@ -1,6 +1,6 @@
 {
   "name": "@bytetrue/relay",
-  "version": "0.1.93",
+  "version": "0.1.94",
   "description": "Paseo relay for bridging daemon and client connections",
   "repository": {
     "type": "git",
