@@ -20,20 +20,42 @@ function pickImagesWithBrowserInput(): Promise<PickedImageAttachmentInput[] | nu
     input.multiple = true;
     input.style.display = "none";
 
+    let settled = false;
+    let focusFallbackTimer: number | null = null;
+
     const cleanup = () => {
+      if (focusFallbackTimer !== null) {
+        window.clearTimeout(focusFallbackTimer);
+      }
+      window.removeEventListener("focus", handleWindowFocus);
       input.remove();
+    };
+
+    const settle = (value: PickedImageAttachmentInput[] | null) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+
+    const handleWindowFocus = () => {
+      focusFallbackTimer = window.setTimeout(() => {
+        const files = Array.from(input.files ?? []);
+        if (files.length === 0) {
+          settle(null);
+        }
+      }, 250);
     };
 
     input.addEventListener(
       "change",
       () => {
         const files = Array.from(input.files ?? []);
-        cleanup();
         if (files.length === 0) {
-          resolve(null);
+          settle(null);
           return;
         }
-        resolve(
+        settle(
           files.map((file) => ({
             source: { kind: "blob" as const, blob: file },
             mimeType: file.type || null,
@@ -43,6 +65,8 @@ function pickImagesWithBrowserInput(): Promise<PickedImageAttachmentInput[] | nu
       },
       { once: true },
     );
+    input.addEventListener("cancel", () => settle(null), { once: true });
+    window.addEventListener("focus", handleWindowFocus);
 
     document.body.appendChild(input);
     input.click();

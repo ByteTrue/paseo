@@ -33,7 +33,7 @@ Rules that apply to both steps:
 There are two supported ways to ship from `main`:
 
 1. **Direct stable release**: you are ready to ship the current `main` commit to everyone immediately.
-2. **Beta flow**: silent release candidates. Betas don't touch the changelog, don't move the website, and don't publish npm or production mobile builds.
+2. **Beta flow**: silent release candidates. Betas don't touch the changelog, don't move the website, and don't publish npm.
 
 ## Fork release model
 
