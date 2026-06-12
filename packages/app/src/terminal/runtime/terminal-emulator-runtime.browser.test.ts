@@ -165,6 +165,65 @@ function dispatchTerminalKey(input: {
   );
 }
 
+function getTerminalViewport(host: HTMLElement): HTMLElement {
+  const viewport = host.querySelector<HTMLElement>(".xterm-viewport");
+  if (!viewport) {
+    throw new Error("Expected xterm viewport to be mounted");
+  }
+  return viewport;
+}
+
+function getTerminalScreen(host: HTMLElement): HTMLElement {
+  const screen = host.querySelector<HTMLElement>(".xterm-screen");
+  if (!screen) {
+    throw new Error("Expected xterm screen to be mounted");
+  }
+  return screen;
+}
+
+function getTerminalLineHeight(host: HTMLElement): number {
+  const row = host.querySelector<HTMLElement>(".xterm-rows > div");
+  if (!row) {
+    throw new Error("Expected xterm rows to be mounted");
+  }
+  const lineHeight = row.getBoundingClientRect().height;
+  if (lineHeight <= 0) {
+    throw new Error("Expected xterm row height to be measurable");
+  }
+  return lineHeight;
+}
+
+function dispatchTerminalWheel(input: {
+  host: HTMLElement;
+  deltaY: number;
+  deltaMode?: number;
+}): boolean {
+  return getTerminalScreen(input.host).dispatchEvent(
+    new WheelEvent("wheel", {
+      deltaY: input.deltaY,
+      deltaMode: input.deltaMode ?? WheelEvent.DOM_DELTA_PIXEL,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+}
+
+async function enterApplicationCursorModeWithScrollback(mounted: MountedTerminal): Promise<void> {
+  const terminal = window.__paseoTerminal;
+  if (!terminal) {
+    throw new Error("Expected xterm to be exposed for browser test inspection");
+  }
+
+  const scrollbackOutput = Array.from(
+    { length: terminal.rows + 20 },
+    (_, index) => `scrollback ${index}\r\n`,
+  ).join("");
+  mounted.runtime.write({ data: terminalOutput(scrollbackOutput) });
+  await waitFor({ predicate: () => terminal.buffer.active.baseY > 0 });
+  mounted.runtime.write({ data: terminalOutput("\x1b[?1h") });
+  await waitFor({ predicate: () => terminal.modes.applicationCursorKeysMode });
+}
+
 afterEach(() => {
   for (const mounted of mountedTerminals.splice(0)) {
     mounted.runtime.unmount();
@@ -240,7 +299,7 @@ describe("terminal emulator runtime in a real browser", () => {
     await waitFor({ predicate: () => mounted.sizes.length > 0 });
 
     const terminal = getBrowserTerminal();
-    const refreshCalls: Array<[number, number]> = [];
+    const refreshCalls: [number, number][] = [];
     const originalRefresh = terminal.refresh.bind(terminal);
     terminal.refresh = (start, end) => {
       refreshCalls.push([start, end]);
@@ -251,6 +310,48 @@ describe("terminal emulator runtime in a real browser", () => {
 
     await waitFor({ predicate: () => refreshCalls.length > 0 });
     expect(refreshCalls.at(-1)).toEqual([0, terminal.rows - 1]);
+  });
+
+  it("sends wheel input to application-cursor TUIs instead of scrolling terminal history", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 720, height: 360 });
+
+    await waitFor({ predicate: () => mounted.sizes.length > 0 });
+    await enterApplicationCursorModeWithScrollback(mounted);
+
+    const viewport = getTerminalViewport(mounted.host);
+    const scrollTopBeforeWheel = viewport.scrollTop;
+    const lineHeight = getTerminalLineHeight(mounted.host);
+
+    dispatchTerminalWheel({ host: mounted.host, deltaY: -lineHeight });
+    await nextFrame();
+
+    expect(mounted.inputs).toEqual(["\x1bOA"]);
+    expect(viewport.scrollTop).toBe(scrollTopBeforeWheel);
+  });
+
+  it("accumulates high precision wheel input before sending TUI navigation", async () => {
+    await page.viewport(900, 600);
+    const mounted = createTerminalHost({ width: 720, height: 360 });
+
+    await waitFor({ predicate: () => mounted.sizes.length > 0 });
+    await enterApplicationCursorModeWithScrollback(mounted);
+
+    const viewport = getTerminalViewport(mounted.host);
+    const scrollTopBeforeWheel = viewport.scrollTop;
+    const halfLineDelta = -getTerminalLineHeight(mounted.host) / 2;
+
+    dispatchTerminalWheel({ host: mounted.host, deltaY: halfLineDelta });
+    await nextFrame();
+
+    expect(mounted.inputs).toEqual([]);
+    expect(viewport.scrollTop).toBe(scrollTopBeforeWheel);
+
+    dispatchTerminalWheel({ host: mounted.host, deltaY: halfLineDelta });
+    await nextFrame();
+
+    expect(mounted.inputs).toEqual(["\x1bOA"]);
+    expect(viewport.scrollTop).toBe(scrollTopBeforeWheel);
   });
 
   it("intercepts Shift+Enter only after enhanced terminal input mode is active", async () => {

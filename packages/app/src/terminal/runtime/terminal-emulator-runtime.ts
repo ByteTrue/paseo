@@ -73,6 +73,7 @@ interface TerminalEmulatorRuntimeDisposables {
   clearFitTimeouts: () => void;
   removeFontListeners: () => void;
   removeTouchListeners: () => void;
+  removeWheelInputFallbackListeners: () => void;
   restoreDocumentStyles: () => void;
   restoreViewportStyles: () => void;
   disposeFitAddon: () => void;
@@ -108,7 +109,7 @@ const isAppleHandheld =
     maxTouchPoints: navigator.maxTouchPoints,
   });
 
-const DEFAULT_TOUCH_SCROLL_LINE_HEIGHT_PX = 18;
+const DEFAULT_SCROLL_LINE_HEIGHT_PX = 18;
 const DEFAULT_TERMINAL_FONT_SIZE = 13;
 const FIT_TIMEOUT_DELAYS_MS = [0, 16, 48, 120, 250, 500, 1_000, 2_000];
 const OUTPUT_OPERATION_TIMEOUT_MS = 5_000;
@@ -470,6 +471,10 @@ export class TerminalEmulatorRuntime {
       host: input.host,
       terminal,
     });
+    const removeWheelInputFallbackListeners = this.setupWheelInputFallbackHandlers({
+      root: input.root,
+      terminal,
+    });
     const resizeObserver = new ResizeObserver(() => {
       fitAndEmitResize({ shouldClaim: true });
     });
@@ -550,6 +555,7 @@ export class TerminalEmulatorRuntime {
         fontSet?.removeEventListener?.("loadingdone", fontReadyHandler);
       },
       removeTouchListeners,
+      removeWheelInputFallbackListeners,
       restoreDocumentStyles,
       restoreViewportStyles,
       disposeFitAddon: () => {
@@ -579,6 +585,7 @@ export class TerminalEmulatorRuntime {
       disposables.clearFitTimeouts();
       disposables.removeFontListeners();
       disposables.removeTouchListeners();
+      disposables.removeWheelInputFallbackListeners();
       disposables.disposeFitAddon();
       disposables.disposeWebglAddon();
       disposables.disposeTerminal();
@@ -980,6 +987,67 @@ export class TerminalEmulatorRuntime {
     };
   }
 
+  private setupWheelInputFallbackHandlers(input: {
+    root: HTMLDivElement;
+    terminal: Terminal;
+  }): () => void {
+    let wheelScrollRemainderLines = 0;
+    const measuredLineHeight =
+      input.root.querySelector<HTMLElement>(".xterm-rows > div")?.getBoundingClientRect().height ??
+      0;
+    const wheelScrollLineHeightPx =
+      measuredLineHeight > 0 ? measuredLineHeight : DEFAULT_SCROLL_LINE_HEIGHT_PX;
+
+    const wheelHandler = (event: WheelEvent) => {
+      if (event.defaultPrevented || event.deltaY === 0) {
+        return;
+      }
+      if (!this.shouldSendWheelInputToTui(input.terminal)) {
+        wheelScrollRemainderLines = 0;
+        return;
+      }
+
+      let lineDelta: number;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+        wheelScrollRemainderLines += event.deltaY / wheelScrollLineHeightPx;
+        lineDelta = Math.trunc(wheelScrollRemainderLines);
+        wheelScrollRemainderLines -= lineDelta;
+      } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        wheelScrollRemainderLines = 0;
+        lineDelta = Math.trunc(event.deltaY * input.terminal.rows);
+      } else {
+        wheelScrollRemainderLines = 0;
+        lineDelta = Math.trunc(event.deltaY);
+      }
+
+      if (lineDelta !== 0) {
+        const prefix = input.terminal.modes.applicationCursorKeysMode ? "\x1bO" : "\x1b[";
+        const direction = lineDelta < 0 ? "A" : "B";
+        input.terminal.input(`${prefix}${direction}`.repeat(Math.abs(lineDelta)), true);
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    input.root.addEventListener("wheel", wheelHandler, { passive: false });
+
+    return () => {
+      input.root.removeEventListener("wheel", wheelHandler);
+    };
+  }
+
+  private shouldSendWheelInputToTui(terminal: Terminal): boolean {
+    if (terminal.buffer.active.type === "alternate") {
+      return true;
+    }
+
+    return (
+      terminal.modes.applicationCursorKeysMode &&
+      terminal.buffer.active.viewportY >= terminal.buffer.active.baseY
+    );
+  }
+
   private setupTouchScrollHandlers(input: {
     root: HTMLDivElement;
     host: HTMLDivElement;
@@ -990,7 +1058,7 @@ export class TerminalEmulatorRuntime {
       input.host.querySelector<HTMLElement>(".xterm-rows > div")?.getBoundingClientRect().height ??
       0;
     const touchScrollLineHeightPx =
-      measuredLineHeight > 0 ? measuredLineHeight : DEFAULT_TOUCH_SCROLL_LINE_HEIGHT_PX;
+      measuredLineHeight > 0 ? measuredLineHeight : DEFAULT_SCROLL_LINE_HEIGHT_PX;
 
     const activeTouch = {
       identifier: -1,
