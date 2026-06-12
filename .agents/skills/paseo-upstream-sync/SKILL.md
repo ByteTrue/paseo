@@ -35,12 +35,13 @@ Preserve these unless the user explicitly changes strategy:
 
 ## Procedure
 
-1. Start clean on fork `main`:
+1. Start clean on fork `main` and keep upstream tags out of the local release namespace:
    ```bash
    cd /Users/byte/workspace/forks/paseo
    git status --short --branch
+   git config remote.upstream.tagOpt --no-tags
    git fetch origin '+refs/heads/*:refs/remotes/origin/*' --no-tags
-   git fetch upstream main --no-tags
+   git fetch upstream '+refs/heads/main:refs/remotes/upstream/main' --no-tags
    git switch main
    git pull --ff-only origin main
    ```
@@ -125,7 +126,7 @@ gh pr create --repo ByteTrue/paseo --base main --head reuse-upstream-YYYYMMDD \
 ## Pitfalls
 
 - Do not `git merge upstream/main` into fork main. That makes the diff enormous and mixes fork-only changes with upstream review.
-- Avoid fetching upstream tags into local fork release work. Upstream tags like `v0.1.89` can collide with fork release tags.
+- Never fetch or push upstream tags as part of sync. Use explicit branch refspecs plus `--no-tags`, keep `remote.upstream.tagOpt=--no-tags`, and never run `git push --tags origin`; upstream tags like `v0.2.0-rc.1` can pollute the fork release namespace and confuse release prep.
 - Clean CI can expose missing workspace build steps that local dirty `dist/` directories hide.
 - `npm version` / release scripts need a clean worktree; stash unrelated untracked files instead of committing them accidentally.
 - Always run the daemon bootstrap smoke test after touching daemon pairing, service URLs, relay config, or websocket runtime config.
