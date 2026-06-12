@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.1.94 - 2026-06-12
+
+### Added
+
+- Settings can add custom providers like Z.AI, Qwen, or custom Claude-compatible endpoints without editing config files ([#16](https://github.com/ByteTrue/paseo/pull/16))
+
+### Changed
+
+- Paseo now focuses on browser web, mobile web/PWA, desktop, and CLI clients; native app release paths are no longer offered ([#17](https://github.com/ByteTrue/paseo/pull/17))
+- Paseo uses the new BT logo across the app, website, desktop, and PWA icons ([#15](https://github.com/ByteTrue/paseo/pull/15))
+
+### Improved
+
+- Browser web clients can install, update, and remove host skills from Settings ([#13](https://github.com/ByteTrue/paseo/pull/13))
+- Sessions are grouped by workspace for easier browsing ([#14](https://github.com/ByteTrue/paseo/pull/14))
+- Long chats scroll more smoothly on web ([#14](https://github.com/ByteTrue/paseo/pull/14))
+- ACP provider catalog entries were refreshed to current package versions
+
+### Fixed
+
+- Password-protected hosts now let agents use Paseo tools automatically
+- Custom host names no longer change back to the daemon hostname or IP address ([#14](https://github.com/ByteTrue/paseo/pull/14))
+- Workspace file previews refresh reliably after explorer updates and tab reopens ([#14](https://github.com/ByteTrue/paseo/pull/14))
+- Worktree setup commands no longer fail when repo-local tools are outside `PATH` ([#13](https://github.com/ByteTrue/paseo/pull/13))
+- Adding image attachments no longer gets stuck when the browser file picker is cancelled ([#17](https://github.com/ByteTrue/paseo/pull/17))
+
 ## 0.1.93 - 2026-06-10
 
 ### Added
