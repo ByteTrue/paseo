@@ -20,6 +20,7 @@ import {
   type AppReleaseChannel,
   type AppUpdateCheckIntent,
 } from "./app-update-rollout.js";
+import { createMacDmgUpdateInstaller } from "./mac-dmg-update-installer.js";
 
 export {
   bucketFromStagingUserId,
@@ -80,7 +81,7 @@ class ElectronAppUpdateRuntime implements AppUpdateRuntime {
   private configured = false;
 
   configure(input: AppUpdateRuntimeConfiguration): void {
-    autoUpdater.autoDownload = true;
+    autoUpdater.autoDownload = input.autoDownload;
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.autoRunAppAfterInstall = true;
     autoUpdater.allowPrerelease = input.releaseChannel === "beta";
@@ -131,6 +132,7 @@ class ElectronAppUpdateRuntime implements AppUpdateRuntime {
 
 const appUpdateService = createAppUpdateService({
   runtime: new ElectronAppUpdateRuntime(),
+  manualInstaller: process.platform === "darwin" ? createMacDmgUpdateInstaller() : undefined,
   isPackaged: () => app.isPackaged,
   now: () => Date.now(),
   bucket: async () => bucketFromStagingUserId(await getStagingUserId()),

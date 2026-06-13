@@ -127,6 +127,8 @@ Desktop release builds now publish in two phases:
 
 Updater clients only discover a release through those `.yml` manifests, so there is no silent 100% admission window before rollout metadata is present.
 
+macOS desktop clients still use `latest-mac.yml` for discovery and rollout admission, but installation opens the matching `.dmg` from the release instead of using Electron's in-place `quitAndInstall` path. After the DMG opens, Paseo quits so the user can drag the new app over the existing installation.
+
 ### Default behavior
 
 `npm run release:patch` → tag push → 36h ramp. No extra action needed.
@@ -197,7 +199,7 @@ If N+1 is a hotfix for a bug in N, dispatch `desktop-rollout.yml -f tag=v0.1.<N+
 
 ### Limitations
 
-- **No pause / kill switch.** Once a stable user is admitted, they will install the update on next quit (`autoInstallOnAppQuit = true`). To stop new admissions, ship a superseding release. To "recall" already-admitted users, ship a hotfix `+1` patch.
+- **No pause / kill switch.** Once a stable user is admitted, Windows/Linux clients will install the update on next quit (`autoInstallOnAppQuit = true`), while macOS clients can download and open the DMG installer. To stop new admissions, ship a superseding release. To "recall" already-admitted users, ship a hotfix `+1` patch.
 - **No rollback.** `allowDowngrade = false`. Bad release = ship a hotfix.
 - **Bootstrap caveat.** Clients running a build older than the rollout feature ignore `rolloutHours` and admit immediately. Rollout protection only applies to clients running the rollout-aware version or later.
 - **Up to ~30 min automatic admission latency.** Renderer polls every 30 minutes, so a stable user may take up to that long to be evaluated against the rollout window. Clicking **Check** is manual and bypasses rollout admission.

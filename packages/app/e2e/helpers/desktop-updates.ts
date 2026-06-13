@@ -272,11 +272,13 @@ export async function expectUpdateBanner(page: Page, version: string): Promise<v
 }
 
 export async function clickInstallUpdate(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Install & restart" }).click();
+  await page.getByRole("button", { name: /^(Install & restart|Download installer)$/ }).click();
 }
 
 export async function expectInstallInProgress(page: Page): Promise<void> {
-  await expect(page.getByRole("button", { name: "Installing..." })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^(Installing\.\.\.|Downloading\.\.\.)$/ }),
+  ).toBeVisible();
 }
 
 /**
