@@ -60,4 +60,3 @@ A: No. This feature only opens existing editor/file-manager targets and browses 
 - [Architecture](architecture.md)
 - [Development](development.md)
 - [Service proxy](service-proxy.md)
-- [Local web preview](local-web-preview.md)

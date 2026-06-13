@@ -7,7 +7,14 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PairDeviceSection } from "@/desktop/components/pair-device-section";
 
-const { theme, getDaemonPairingOffer, hostRuntimeState, sessionStoreState } = vi.hoisted(() => ({
+const {
+  theme,
+  getDaemonPairingOffer,
+  getDesktopDaemonPairing,
+  hostRuntimeState,
+  sessionStoreState,
+  desktopRuntimeState,
+} = vi.hoisted(() => ({
   theme: {
     spacing: { 2: 8, 3: 12, 4: 16, 6: 24 },
     borderRadius: { md: 6, lg: 8 },
@@ -22,11 +29,16 @@ const { theme, getDaemonPairingOffer, hostRuntimeState, sessionStoreState } = vi
     },
   },
   getDaemonPairingOffer: vi.fn(),
+  getDesktopDaemonPairing: vi.fn(),
   hostRuntimeState: {
     client: null as null | { getDaemonPairingOffer: ReturnType<typeof vi.fn> },
   },
   sessionStoreState: {
     supportsDaemonStatusRpc: true,
+  },
+  desktopRuntimeState: {
+    isDesktop: false,
+    localDaemonServerId: null as string | null,
   },
 }));
 
@@ -84,12 +96,16 @@ vi.mock("@/styles/settings", () => ({
 }));
 
 vi.mock("@/desktop/daemon/desktop-daemon", () => ({
-  getDesktopDaemonPairing: vi.fn(),
-  shouldUseDesktopDaemon: () => false,
+  getDesktopDaemonPairing,
+  shouldUseDesktopDaemon: () => desktopRuntimeState.isDesktop,
 }));
 
 vi.mock("@/runtime/host-runtime", () => ({
   useHostRuntimeClient: () => hostRuntimeState.client,
+}));
+
+vi.mock("@/hooks/use-is-local-daemon", () => ({
+  useLocalDaemonServerId: () => desktopRuntimeState.localDaemonServerId,
 }));
 
 vi.mock("@/stores/session-store", () => ({
@@ -121,8 +137,15 @@ describe("PairDeviceSection", () => {
       relayEnabled: true,
       url: "https://paseo.zijieapi.de5.net/#offer=web-offer",
     });
+    getDesktopDaemonPairing.mockReset();
+    getDesktopDaemonPairing.mockResolvedValue({
+      relayEnabled: true,
+      url: "https://paseo.zijieapi.de5.net/#offer=desktop-offer",
+    });
     hostRuntimeState.client = { getDaemonPairingOffer };
     sessionStoreState.supportsDaemonStatusRpc = true;
+    desktopRuntimeState.isDesktop = false;
+    desktopRuntimeState.localDaemonServerId = null;
   });
 
   afterEach(() => {
@@ -148,6 +171,19 @@ describe("PairDeviceSection", () => {
     );
 
     expect(input).not.toBeNull();
+  });
+
+  it("does not use the desktop daemon pairing offer for a different connected host", async () => {
+    desktopRuntimeState.isDesktop = true;
+    desktopRuntimeState.localDaemonServerId = "local-server";
+
+    renderSection();
+
+    await waitFor(() => expect(getDaemonPairingOffer).toHaveBeenCalledTimes(1));
+    expect(getDesktopDaemonPairing).not.toHaveBeenCalled();
+    expect(
+      await screen.findByDisplayValue("https://paseo.zijieapi.de5.net/#offer=web-offer"),
+    ).not.toBeNull();
   });
 
   it("asks users to update old hosts instead of using the desktop-only path", () => {
