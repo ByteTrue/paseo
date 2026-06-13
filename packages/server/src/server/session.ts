@@ -595,6 +595,7 @@ export interface SessionOptions {
   clientCapabilities?: Record<string, unknown> | null;
   onMessage: (msg: SessionOutboundMessage) => void;
   onBinaryMessage?: (frame: Uint8Array) => void;
+  getTransportBufferedAmount?: () => number | null;
   onLifecycleIntent?: (intent: SessionLifecycleIntent) => void;
   logger: pino.Logger;
   downloadTokenStore: DownloadTokenStore;
@@ -775,6 +776,7 @@ export class Session {
   private readonly sessionId: string;
   private readonly onMessage: (msg: SessionOutboundMessage) => void;
   private readonly onBinaryMessage: ((frame: Uint8Array) => void) | null;
+  private readonly getTransportBufferedAmount: () => number | null;
   private readonly onLifecycleIntent: ((intent: SessionLifecycleIntent) => void) | null;
   private readonly sessionLogger: pino.Logger;
   private readonly paseoHome: string;
@@ -880,6 +882,7 @@ export class Session {
       clientCapabilities,
       onMessage,
       onBinaryMessage,
+      getTransportBufferedAmount,
       onLifecycleIntent,
       logger,
       downloadTokenStore,
@@ -926,6 +929,7 @@ export class Session {
     this.sessionId = uuidv4();
     this.onMessage = onMessage;
     this.onBinaryMessage = onBinaryMessage ?? null;
+    this.getTransportBufferedAmount = getTransportBufferedAmount ?? (() => 0);
     this.onLifecycleIntent = onLifecycleIntent ?? null;
     this.downloadTokenStore = downloadTokenStore;
     this.pushTokenStore = pushTokenStore;
@@ -967,6 +971,7 @@ export class Session {
       },
       clientSupportsWrapReflow: () =>
         this.clientCapabilities.has(CLIENT_CAPS.terminalReflowableSnapshot),
+      getClientBufferedAmount: () => this.getTransportBufferedAmount(),
     });
     this.createAgentLifecycleDispatch = new CreateAgentLifecycleDispatch({
       paseoHome: this.paseoHome,
@@ -8931,13 +8936,18 @@ export class Session {
    * Emit a message to the client
    */
   private emit(msg: SessionOutboundMessage): void {
-    this.sessionLogger.trace(
-      {
-        messageType: msg.type,
-        payloadBytes: JSON.stringify(msg).length,
-      },
-      "agent.session.outbound",
-    );
+    // JSON.stringify(msg) is only computed when trace is enabled — it runs for
+    // every outbound message otherwise, and trace is disabled by default.
+    // Optional-chained because test logger stubs don't implement isLevelEnabled.
+    if (this.sessionLogger.isLevelEnabled?.("trace")) {
+      this.sessionLogger.trace(
+        {
+          messageType: msg.type,
+          payloadBytes: JSON.stringify(msg).length,
+        },
+        "agent.session.outbound",
+      );
+    }
     if (
       msg.type === "audio_output" &&
       (process.env.TTS_DEBUG_AUDIO_DIR || isPaseoDictationDebugEnabled()) &&
