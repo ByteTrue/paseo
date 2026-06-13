@@ -195,7 +195,6 @@ function HostLinkRow({ label, url, scriptName, onOpenInBrowserTab }: HostLinkPro
       accessibilityLabel={`Open ${scriptName} at ${label}`}
       disabled={disabled}
       hitSlop={2}
-      testID={`workspace-scripts-host-link-${scriptName}-${label.replace(/[^a-zA-Z0-9_-]+/g, "-")}`}
       onPress={handlePress}
       style={styles.hostRow}
     >

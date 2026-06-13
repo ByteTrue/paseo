@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { getDesktopDaemonPairing, shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { useSessionStore } from "@/stores/session-store";
+import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 
 type PairingViewState =
   | { tag: "loading" }
@@ -41,7 +42,8 @@ function resolvePairingViewState(args: {
 
 export function PairDeviceSection({ serverId }: { serverId: string }) {
   const { theme } = useUnistyles();
-  const useDesktopBridge = shouldUseDesktopDaemon();
+  const localDaemonServerId = useLocalDaemonServerId();
+  const useDesktopBridge = shouldUseDesktopDaemon() && localDaemonServerId === serverId.trim();
   const client = useHostRuntimeClient(serverId);
   const supportsWebPairingOffer = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.daemonStatusRpc === true,
