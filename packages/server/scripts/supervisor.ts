@@ -30,6 +30,17 @@ interface SupervisorHeartbeatMessage {
   seq: number;
 }
 
+type WorkerControlMessage =
+  | {
+      type: "paseo:supervisor-shutdown";
+    }
+  | {
+      type: "paseo:supervisor-restart";
+      reason?: string;
+    };
+
+const WORKER_GRACEFUL_EXIT_TIMEOUT_MS = 12_000;
+
 interface SupervisorOptions {
   name: string;
   startupMessage: string;
@@ -113,6 +124,7 @@ export function runSupervisor(options: SupervisorOptions): void {
   let restarting = false;
   let shuttingDown = false;
   let exiting = false;
+  let workerStopFallbackTimer: NodeJS.Timeout | null = null;
   const logStream = createSupervisorLogStream(options.logFile);
 
   const writeDurableChunk = (chunk: string | Buffer): void => {
@@ -255,8 +267,17 @@ export function runSupervisor(options: SupervisorOptions): void {
       requestRestart("Restart requested by worker");
     });
 
+    const clearWorkerStopFallback = (): void => {
+      if (!workerStopFallbackTimer) {
+        return;
+      }
+      clearTimeout(workerStopFallbackTimer);
+      workerStopFallbackTimer = null;
+    };
+
     child.on("close", (code, signal) => {
       clearInterval(heartbeat);
+      clearWorkerStopFallback();
       const exitDescriptor = describeExit(code, signal);
       writeLifecycleLog("Worker exited", { code, signal, exit: exitDescriptor });
 
@@ -286,6 +307,48 @@ export function runSupervisor(options: SupervisorOptions): void {
     });
   };
 
+  const requestWorkerStop = (reason: string, message: WorkerControlMessage): void => {
+    const targetChild = child;
+    if (!targetChild) {
+      if (shuttingDown) {
+        exitSupervisor(0);
+      }
+      return;
+    }
+
+    if (!targetChild.connected || typeof targetChild.send !== "function") {
+      writeLifecycleLog("Worker control IPC unavailable; falling back to SIGTERM", { reason });
+      targetChild.kill("SIGTERM");
+      return;
+    }
+
+    targetChild.send(message, (error) => {
+      if (!error) {
+        return;
+      }
+      writeLifecycleLog("Worker control IPC send failed; falling back to SIGTERM", {
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      targetChild.kill("SIGTERM");
+    });
+
+    if (workerStopFallbackTimer) {
+      clearTimeout(workerStopFallbackTimer);
+    }
+    workerStopFallbackTimer = setTimeout(() => {
+      writeLifecycleLog(
+        "Worker did not exit after graceful stop request; falling back to SIGTERM",
+        {
+          reason,
+          timeoutMs: WORKER_GRACEFUL_EXIT_TIMEOUT_MS,
+        },
+      );
+      targetChild.kill("SIGTERM");
+    }, WORKER_GRACEFUL_EXIT_TIMEOUT_MS);
+    workerStopFallbackTimer.unref();
+  };
+
   const requestRestart = (reason: string) => {
     if (!child || restarting || shuttingDown) {
       return;
@@ -293,7 +356,7 @@ export function runSupervisor(options: SupervisorOptions): void {
     restarting = true;
     writeLifecycleLog("Restart requested", { reason });
     log(`${reason}. Stopping worker for restart...`);
-    child.kill("SIGTERM");
+    requestWorkerStop(reason, { type: "paseo:supervisor-restart", reason });
   };
 
   const requestShutdown = (reason: string) => {
@@ -308,7 +371,7 @@ export function runSupervisor(options: SupervisorOptions): void {
       exitSupervisor(0);
       return;
     }
-    child.kill("SIGTERM");
+    requestWorkerStop(reason, { type: "paseo:supervisor-shutdown" });
   };
 
   const forwardSignal = (signal: NodeJS.Signals) => {

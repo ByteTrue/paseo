@@ -27,6 +27,15 @@ interface SupervisorHeartbeatMessage {
   seq: number;
 }
 
+type SupervisorControlMessage =
+  | {
+      type: "paseo:supervisor-shutdown";
+    }
+  | {
+      type: "paseo:supervisor-restart";
+      reason?: string;
+    };
+
 interface BootstrapResult {
   paseoHome: string;
   logger: ReturnType<typeof createRootLogger>;
@@ -234,12 +243,12 @@ async function main() {
     };
 
     process.on("message", (message: unknown) => {
-      if (
-        typeof message === "object" &&
-        message !== null &&
-        "type" in message &&
-        (message as SupervisorHeartbeatMessage).type === "paseo:supervisor-heartbeat"
-      ) {
+      if (typeof message !== "object" || message === null || !("type" in message)) {
+        return;
+      }
+
+      const type = (message as { type?: unknown }).type;
+      if (type === "paseo:supervisor-heartbeat") {
         const seq = (message as SupervisorHeartbeatMessage).seq;
         // Only update the heartbeat timestamp when the sequence advances,
         // avoiding stale buffered messages from a dead supervisor from
@@ -248,6 +257,24 @@ async function main() {
           lastHeartbeatSeq = seq;
           lastSupervisorHeartbeatAt = Date.now();
         }
+        return;
+      }
+
+      if (type === "paseo:supervisor-shutdown") {
+        beginShutdown("supervisor shutdown request");
+        return;
+      }
+
+      if (type === "paseo:supervisor-restart") {
+        const reason = (
+          message as Extract<SupervisorControlMessage, { type: "paseo:supervisor-restart" }>
+        ).reason;
+        beginShutdown(
+          reason ? `supervisor restart request: ${reason}` : "supervisor restart request",
+          {
+            successExitCode: 0,
+          },
+        );
       }
     });
     process.on("disconnect", () => exitAfterSupervisorLoss("ipc_disconnect_event"));
