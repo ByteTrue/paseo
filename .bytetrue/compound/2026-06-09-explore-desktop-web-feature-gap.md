@@ -20,12 +20,12 @@ confidence: high
 
 当前仍然可以明确算作“桌面客户端有、web 端没有”的，主要是四类：
 
-1. 完整内嵌浏览器能力：桌面端是 Electron `webview`，Web 端只是 iframe lite preview。
+1. 完整内嵌浏览器能力：桌面端是 Electron `webview`；Web 端没有 browser tab 创建入口，历史/持久化 browser pane 只显示 desktop-only placeholder。
 2. 内建桌面 daemon 的自管理：桌面端可以管理随 app 打包的 built-in daemon，包括启停策略、退出后是否继续运行、直接看日志和 `paseo daemon status` 输出。
 3. 桌面集成安装器：桌面端可以在设置页里安装 CLI 和 orchestration skills；Web 端没有这组安装/更新/卸载入口。
 4. 桌面权限面板：桌面端有专门的 Permissions 设置页，用来刷新/申请通知与麦克风权限并发送测试通知；Web 端没有这块设置入口。
 
-可以作为补充但不建议放进主清单的是一项“开发态桌面专属”能力：Electron 浏览器面板里有 devtools 和 DOM element selector，并能把选中的页面元素附加成 `browser_element` 附件；Web 端 lite preview 没有对应入口。
+可以作为补充但不建议放进主清单的是一项“开发态桌面专属”能力：Electron 浏览器面板里有 devtools 和 DOM element selector，并能把选中的页面元素附加成 `browser_element` 附件；Web 端没有对应 browser surface。
 
 最近已经补到 Web、不要再算桌面独占的有两组：
 
@@ -40,7 +40,8 @@ flowchart TD
   A --> E[Permissions 设置页]
   A --> F[开发态 DOM 选取与 devtools]
 
-  G[Web 浏览器] --> H[iframe lite preview]
+  G[Web 浏览器] --> H[无 Browser tab 创建入口]
+  G --> L[历史 BrowserPane 只显示 desktop-only placeholder]
   G --> I[无 built-in daemon 管理]
   G --> J[无 CLI / Skills 安装器]
   G --> K[无 Permissions 设置页]
@@ -48,13 +49,12 @@ flowchart TD
 
 ## 关键证据
 
-1. Web 浏览器预览明确是 lite preview，Electron 保留完整内建 webview。
-   - `docs/local-web-preview.md:15-16`
-   - `docs/local-web-preview.md:40-43`
+1. Workspace browser tab entry points are gated to Electron.
+   - `packages/app/src/screens/workspace/workspace-screen.tsx:2337-2357`
+   - `packages/app/src/screens/workspace/workspace-screen.tsx:3317`
 
-2. Web 端 `BrowserPane` 只渲染 `iframe`，并在被 CSP/X-Frame-Options 阻止时退化为 “Open in new tab”。
-   - `packages/app/src/components/browser-pane.web.tsx:95-115`
-   - `packages/app/src/components/browser-pane.web.tsx:126-131`
+2. Web `BrowserPane` renders a desktop-only placeholder rather than an iframe preview.
+   - `packages/app/src/components/browser-pane.web.tsx:25-31`
 
 3. Electron 端 `BrowserPane` 直接创建 `<webview>`，支持导航状态同步、真实加载事件和完整浏览器容器行为。
    - `packages/app/src/components/browser-pane.electron.tsx:375-403`
@@ -91,12 +91,12 @@ flowchart TD
 
 #### 完整 BrowserPane
 
-这项差异不是“有没有浏览器 tab”，而是“tab 里能做多少事”。
+这项差异现在就是“Web 端没有 browser tab surface，桌面端有完整 browser tab”。
 
-- Web：只能打开 `http/https`，通过 iframe 做 lite preview；遇到不可嵌入页面就退回外部新标签页。
+- Web：不显示 New browser tab 入口；从脚本打开 service URL 时走外部浏览器；历史/持久化 browser pane 渲染 desktop-only placeholder。
 - Electron：是真实 `webview` 容器，能拿到导航事件、标题、favicon，并拥有完整嵌入式浏览器行为。
 
-对用户的直接体感差异是：Web 更像“内嵌预览器”，桌面更像“工作区里的浏览器页签”。
+对用户的直接体感差异是：Web 没有工作区内浏览器页签，桌面保留“工作区里的浏览器”。
 
 #### Built-in daemon 自管理
 
@@ -169,11 +169,10 @@ Electron BrowserPane 在 `isDev` 下额外暴露两项能力：
 
 ## 后续建议
 
-如果你要决定下一步补齐 web 能力，最值得继续拆的是“完整 BrowserPane 与 built-in daemon 管理”这两块，因为它们是当前最明显、也最成体系的桌面剩余差异。
+如果未来要补齐 Web 端服务预览能力，应该单独设计 daemon-backed service/port preview，而不是恢复泛用 iframe browser tab。第一版应围绕已注册、正在运行的 workspace service 建模，并明确 proxy、relay 和安全边界。
 
 ## 相关文档
 
-- `docs/local-web-preview.md`
 - `docs/local-daemon-actions.md`
 - `packages/app/src/screens/settings-screen.tsx`
 - `packages/app/src/components/browser-pane.electron.tsx`
