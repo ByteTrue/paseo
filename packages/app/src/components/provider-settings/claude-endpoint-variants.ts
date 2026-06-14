@@ -40,6 +40,10 @@ export interface ValidateClaudeEndpointVariantFormInput {
   originalId: string | null;
 }
 
+export interface BuildClaudeEndpointVariantPatchOptions {
+  replaceEnv?: boolean;
+}
+
 const PROVIDER_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 const INTERNAL_ID_FORMAT_ERROR =
   "Internal ID must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens";
@@ -162,6 +166,7 @@ function buildEnvPatch(
 
 export function buildClaudeEndpointVariantPatch(
   values: ClaudeEndpointVariantFormValues,
+  options: BuildClaudeEndpointVariantPatchOptions = {},
 ): MutableDaemonConfigPatch {
   const providerPatch: MutableDaemonProviderPatch = {
     extends: CLAUDE_ENDPOINT_VARIANT_BASE_PROVIDER_ID,
@@ -171,8 +176,8 @@ export function buildClaudeEndpointVariantPatch(
     params: { paseoManagedKind: CLAUDE_ENDPOINT_VARIANT_MANAGED_KIND },
   };
   const env = buildEnvPatch(values.env);
-  if (env) {
-    providerPatch.env = env;
+  if (env || options.replaceEnv === true) {
+    providerPatch.env = env ?? {};
   }
 
   return {

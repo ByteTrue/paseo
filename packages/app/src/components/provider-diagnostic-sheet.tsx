@@ -790,7 +790,9 @@ export function ProviderDiagnosticSheet({
       const providerId = values.internalId.trim();
       setSavingEndpoint(true);
       setEndpointSaveError(null);
-      void patchConfig(buildClaudeEndpointVariantPatch(values))
+      void patchConfig(
+        buildClaudeEndpointVariantPatch(values, { replaceEnv: editingEndpointId !== null }),
+      )
         .then(() => refresh([providerId]))
         .then(() => {
           setEndpointSheetOpen(false);
@@ -802,7 +804,7 @@ export function ProviderDiagnosticSheet({
         })
         .finally(() => setSavingEndpoint(false));
     },
-    [patchConfig, refresh],
+    [editingEndpointId, patchConfig, refresh],
   );
 
   const handleDeleteCustom = useCallback(

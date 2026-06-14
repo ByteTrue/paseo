@@ -205,6 +205,48 @@ describe("DaemonConfigStore", () => {
     });
   });
 
+  test("patch replaces provider env objects so cleared keys do not survive", () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+    tempDirs.push(paseoHome);
+
+    const store = new DaemonConfigStore(
+      paseoHome,
+      {
+        mcp: { injectIntoAgents: false },
+        providers: {
+          "claude-deepseek": {
+            extends: "claude",
+            label: "Claude via DeepSeek",
+            env: {
+              ANTHROPIC_BASE_URL: "https://old.example.com",
+              ANTHROPIC_AUTH_TOKEN: "old-token",
+            },
+            params: { paseoManagedKind: "claudeEndpointVariant" },
+          },
+        },
+        metadataGeneration: { providers: [] },
+        autoArchiveAfterMerge: false,
+        appendSystemPrompt: "",
+      },
+      undefined,
+    );
+
+    store.patch({
+      providers: {
+        "claude-deepseek": {
+          env: { ANTHROPIC_DEFAULT_SONNET_MODEL: "deepseek-sonnet" },
+        },
+      },
+    });
+
+    expect(store.get().providers["claude-deepseek"]?.env).toEqual({
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "deepseek-sonnet",
+    });
+    expect(loadPersistedConfig(paseoHome).agents?.providers?.["claude-deepseek"]?.env).toEqual({
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "deepseek-sonnet",
+    });
+  });
+
   test("patch persists daemon append system prompt into config.json", () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);

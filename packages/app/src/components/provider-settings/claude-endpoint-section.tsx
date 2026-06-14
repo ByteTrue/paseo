@@ -392,7 +392,7 @@ export function ClaudeEndpointFormSubSheet({
           <FormField
             label="Internal ID"
             initialValue={internalId}
-            resetKey={`${formResetKey}:internal-id:${internalId}`}
+            resetKey={`${formResetKey}:internal-id`}
             placeholder="claude-deepseek"
             onChangeText={handleInternalIdChange}
             error={errors.internalId}

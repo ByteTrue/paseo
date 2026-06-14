@@ -102,6 +102,7 @@ interface ResolvedProvider {
   profileModels: ProviderProfileModel[];
   additionalModels: ProviderProfileModel[];
   profileModelsAreAdditive: boolean;
+  profileModelsReplaceRuntime: boolean;
   enabled: boolean;
   derivedFromProviderId: string | null;
   canRemove: boolean;
@@ -111,6 +112,12 @@ interface ResolvedProvider {
 }
 
 const MANAGED_KIND_PARAM_KEY = "paseoManagedKind";
+const CLAUDE_ENDPOINT_VARIANT_MANAGED_KIND = "claudeEndpointVariant";
+const CLAUDE_ENDPOINT_MODEL_ENV_KEYS: Array<{ key: string; isDefault?: boolean }> = [
+  { key: "ANTHROPIC_DEFAULT_SONNET_MODEL", isDefault: true },
+  { key: "ANTHROPIC_DEFAULT_OPUS_MODEL" },
+  { key: "ANTHROPIC_DEFAULT_HAIKU_MODEL" },
+];
 
 function readManagedKind(providerParams: unknown): string | undefined {
   if (!providerParams || typeof providerParams !== "object" || Array.isArray(providerParams)) {
@@ -118,6 +125,25 @@ function readManagedKind(providerParams: unknown): string | undefined {
   }
   const value = (providerParams as Record<string, unknown>)[MANAGED_KIND_PARAM_KEY];
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function readClaudeEndpointVariantModels(override: ProviderOverride): ProviderProfileModel[] {
+  const models: ProviderProfileModel[] = [];
+  const seen = new Set<string>();
+  for (const entry of CLAUDE_ENDPOINT_MODEL_ENV_KEYS) {
+    const id = override.env?.[entry.key]?.trim();
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    models.push({
+      id,
+      label: id,
+      description: `From ${entry.key}`,
+      ...(entry.isDefault ? { isDefault: true } : {}),
+    });
+  }
+  return models;
 }
 const PROVIDER_CLIENT_FACTORIES: Record<string, ProviderClientFactory> = {
   claude: (logger, runtimeSettings) =>
@@ -316,10 +342,13 @@ function mergeModels(
   profileModels: ProviderProfileModel[],
   additionalModels: ProviderProfileModel[],
   runtimeModels: AgentModelDefinition[],
-  options?: { profileModelsAreAdditive?: boolean },
+  options?: { profileModelsAreAdditive?: boolean; profileModelsReplaceRuntime?: boolean },
 ): AgentModelDefinition[] {
   const baseModels = runtimeModels.map((model) => mapModel(provider, model));
-  if (profileModels.length > 0 && options?.profileModelsAreAdditive !== true) {
+  const shouldReplaceRuntime =
+    options?.profileModelsAreAdditive !== true &&
+    (options?.profileModelsReplaceRuntime === true || profileModels.length > 0);
+  if (shouldReplaceRuntime) {
     return mergeModelAdditions(
       provider,
       profileModels.map((model) => mapModel(provider, model)),
@@ -413,9 +442,9 @@ function wrapClientProvider(
   profileModels: ProviderProfileModel[],
   additionalModels: ProviderProfileModel[],
   profileModelsAreAdditive: boolean,
+  profileModelsReplaceRuntime: boolean,
 ): AgentClient {
   const listPersistedAgents = inner.listPersistedAgents?.bind(inner);
-
   return {
     provider,
     capabilities: inner.capabilities,
@@ -450,6 +479,7 @@ function wrapClientProvider(
     listModels: async (options) =>
       mergeModels(provider, profileModels, additionalModels, await inner.listModels(options), {
         profileModelsAreAdditive,
+        profileModelsReplaceRuntime,
       }),
     listModes: inner.listModes?.bind(inner),
     resolveCreateConfig: inner.resolveCreateConfig?.bind(inner),
@@ -491,6 +521,7 @@ function createRegistryEntry(
         await modelClient.listModels(options),
         {
           profileModelsAreAdditive: resolved.profileModelsAreAdditive,
+          profileModelsReplaceRuntime: resolved.profileModelsReplaceRuntime,
         },
       ),
     fetchModes: async (options: ListModesOptions) => {
@@ -517,7 +548,9 @@ function createResolvedProviderClient(
 ): AgentClient {
   const inner = resolved.createBaseClient(logger);
   const hasModelOverrides =
-    resolved.profileModels.length > 0 || resolved.additionalModels.length > 0;
+    resolved.profileModelsReplaceRuntime ||
+    resolved.profileModels.length > 0 ||
+    resolved.additionalModels.length > 0;
   if (inner.provider === provider && !hasModelOverrides) {
     return inner;
   }
@@ -527,6 +560,7 @@ function createResolvedProviderClient(
     resolved.profileModels,
     resolved.additionalModels,
     resolved.profileModelsAreAdditive,
+    resolved.profileModelsReplaceRuntime,
   );
 }
 
@@ -556,6 +590,7 @@ function buildResolvedBuiltinProviders(
       profileModels: override?.models ?? [],
       additionalModels: override?.additionalModels ?? [],
       profileModelsAreAdditive: false,
+      profileModelsReplaceRuntime: override?.models !== undefined,
       enabled: override?.enabled ?? definition.enabledByDefault ?? true,
       derivedFromProviderId: null,
       canRemove: false,
@@ -608,6 +643,7 @@ function addDerivedProviders(
         profileModels: override.models ?? [],
         additionalModels: override.additionalModels ?? [],
         profileModelsAreAdditive: false,
+        profileModelsReplaceRuntime: override.models !== undefined,
         enabled: override.enabled !== false,
         derivedFromProviderId: null,
         canRemove: true,
@@ -648,17 +684,25 @@ function addDerivedProviders(
     const baseDefinition = baseProvider.definition;
     const baseFactory = getProviderClientFactory(baseProviderId);
     const providerParams = override.params ?? baseProvider.providerParams;
+    const managedKind = readManagedKind(override.params);
+    const isManagedClaudeEndpoint =
+      baseProviderId === "claude" && managedKind === CLAUDE_ENDPOINT_VARIANT_MANAGED_KIND;
+    const profileModels = isManagedClaudeEndpoint
+      ? readClaudeEndpointVariantModels(override)
+      : (override.models ?? []);
+    const profileModelsReplaceRuntime = isManagedClaudeEndpoint || override.models !== undefined;
 
     resolvedProviders.set(providerId, {
       definition: createDerivedDefinition(providerId, baseDefinition, override),
       runtimeSettings: mergedRuntimeSettings,
-      profileModels: override.models ?? [],
+      profileModels,
       additionalModels: override.additionalModels ?? [],
       profileModelsAreAdditive: false,
+      profileModelsReplaceRuntime,
       enabled: override.enabled !== false,
       derivedFromProviderId: baseProviderId,
       canRemove: true,
-      managedKind: readManagedKind(override.params),
+      managedKind,
       providerParams,
       createBaseClient: (logger) =>
         baseFactory(logger, mergedRuntimeSettings, {

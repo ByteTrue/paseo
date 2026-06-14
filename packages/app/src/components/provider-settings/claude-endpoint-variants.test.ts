@@ -40,6 +40,33 @@ describe("Claude endpoint variant config", () => {
     });
   });
 
+  test("emits an empty env object when replacing existing endpoint env", () => {
+    expect(
+      buildClaudeEndpointVariantPatch(
+        {
+          internalId: "claude-deepseek",
+          label: "Claude via DeepSeek",
+          env: {
+            ANTHROPIC_BASE_URL: "",
+            ANTHROPIC_AUTH_TOKEN: "   ",
+          },
+        },
+        { replaceEnv: true },
+      ),
+    ).toEqual({
+      providers: {
+        "claude-deepseek": {
+          extends: "claude",
+          label: "Claude via DeepSeek",
+          description: "Claude endpoint",
+          env: {},
+          disallowedTools: ["WebSearch"],
+          params: { paseoManagedKind: "claudeEndpointVariant" },
+        },
+      },
+    });
+  });
+
   test("lists only marked Claude endpoint variants", () => {
     expect(
       listClaudeEndpointVariants({
