@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable, Writable } from "node:stream";
+
+import { terminateWithTreeKill } from "../../../utils/tree-kill.js";
 import type {
   ReadableStream as NodeReadableStream,
   WritableStream as NodeWritableStream,
@@ -1652,14 +1654,17 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       }
     }
 
-    for (const terminal of this.terminalEntries.values()) {
-      terminal.child.kill("SIGTERM");
-    }
+    const terminalTerminations = Array.from(this.terminalEntries.values(), (terminal) =>
+      terminateWithTreeKill(terminal.child, {
+        gracefulTimeoutMs: 2_000,
+        forceTimeoutMs: 2_000,
+      }),
+    );
+    await Promise.all(terminalTerminations);
     this.terminalEntries.clear();
 
     if (this.child) {
-      this.child.kill("SIGTERM");
-      await waitForChildExit(this.child, 2_000);
+      await terminateWithTreeKill(this.child, { gracefulTimeoutMs: 2_000, forceTimeoutMs: 2_000 });
     }
 
     this.subscribers.clear();
@@ -1841,7 +1846,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   async releaseTerminal(params: { sessionId: string; terminalId: string }): Promise<void> {
     const entry = this.getTerminalEntry(params.terminalId);
     if (!entry.exit) {
-      entry.child.kill("SIGTERM");
+      await terminateWithTreeKill(entry.child, { gracefulTimeoutMs: 2_000, forceTimeoutMs: 2_000 });
     }
     this.terminalEntries.delete(params.terminalId);
   }
@@ -1849,7 +1854,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   async killTerminal(params: KillTerminalRequest): Promise<Record<string, never>> {
     const entry = this.getTerminalEntry(params.terminalId);
     if (!entry.exit) {
-      entry.child.kill("SIGTERM");
+      await terminateWithTreeKill(entry.child, { gracefulTimeoutMs: 2_000, forceTimeoutMs: 2_000 });
     }
     return {};
   }
@@ -2872,29 +2877,15 @@ function coerceSessionConfigMetadata(
   return metadata as Partial<AgentSessionConfig>;
 }
 
-async function waitForChildExit(
-  child: ChildProcessWithoutNullStreams,
-  timeoutMs: number,
-): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-  await Promise.race([
-    new Promise<void>((resolve) => child.once("exit", () => resolve())),
-    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
-  ]);
-  if (child.exitCode === null && child.signalCode === null) {
-    child.kill("SIGKILL");
-  }
-}
-
 async function terminateChildProcess(
   child: ChildProcessWithoutNullStreams,
   timeoutMs: number,
 ): Promise<void> {
-  child.kill("SIGTERM");
-  child.stdin.destroy();
-  child.stdout.destroy();
-  child.stderr.destroy();
-  await waitForChildExit(child, timeoutMs);
+  try {
+    await terminateWithTreeKill(child, { gracefulTimeoutMs: timeoutMs, forceTimeoutMs: timeoutMs });
+  } finally {
+    child.stdin.destroy();
+    child.stdout.destroy();
+    child.stderr.destroy();
+  }
 }
