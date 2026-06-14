@@ -1170,10 +1170,11 @@ export class PiRpcAgentSession implements AgentSession {
 
   private async runPiTreeExtensionCommand(targetId: string): Promise<unknown> {
     const requestId = randomUUID();
-    const resultPromise = this.waitForExtensionResult(requestId);
     const payload = Buffer.from(JSON.stringify({ targetId, requestId })).toString("base64url");
-    await this.runtimeSession.prompt(`/${PASEO_PI_TREE_EXTENSION_COMMAND} ${payload}`);
-    return await resultPromise;
+    return await this.runExtensionCommand(
+      `/${PASEO_PI_TREE_EXTENSION_COMMAND} ${payload}`,
+      requestId,
+    );
   }
 
   async close(): Promise<void> {
@@ -1396,10 +1397,24 @@ export class PiRpcAgentSession implements AgentSession {
 
   private async requestEntryCapture(reason: string): Promise<void> {
     const requestId = randomUUID();
-    const resultPromise = this.waitForExtensionResult(requestId);
     const payload = Buffer.from(JSON.stringify({ requestId, reason })).toString("base64url");
-    await this.runtimeSession.prompt(`/${PASEO_PI_CAPTURE_EXTENSION_COMMAND} ${payload}`);
-    await resultPromise;
+    await this.runExtensionCommand(`/${PASEO_PI_CAPTURE_EXTENSION_COMMAND} ${payload}`, requestId);
+  }
+
+  private async runExtensionCommand(command: string, requestId: string): Promise<unknown> {
+    const resultPromise = this.waitForExtensionResult(requestId);
+    const promptPromise = Promise.resolve().then(() => this.runtimeSession.prompt(command));
+
+    try {
+      const [, result] = await Promise.all([promptPromise, resultPromise]);
+      return result;
+    } catch (error) {
+      this.rejectExtensionResult(
+        requestId,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      throw error;
+    }
   }
 
   private waitForExtensionResult(requestId: string): Promise<unknown> {
