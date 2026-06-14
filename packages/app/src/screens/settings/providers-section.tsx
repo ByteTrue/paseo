@@ -396,6 +396,7 @@ function MetadataTargetRow({
           topOptions={topOptions}
           selectedTopOptionId={selectedTopOptionId}
           onSelectTopOption={handleSelectTopOption}
+          desktopPlacement="bottom-start"
         />
       </View>
     </View>

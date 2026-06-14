@@ -103,6 +103,7 @@ interface CombinedModelSelectorProps {
   isRetryingProvider?: boolean;
   disabled?: boolean;
   serverId?: string | null;
+  desktopPlacement?: "top-start" | "bottom-start";
 }
 
 interface SelectorContentProps {
@@ -643,6 +644,7 @@ export function CombinedModelSelector({
   isRetryingProvider = false,
   disabled = false,
   serverId = null,
+  desktopPlacement = "top-start",
 }: CombinedModelSelectorProps) {
   const { theme } = useUnistyles();
   const anchorRef = useRef<View>(null);
@@ -897,7 +899,7 @@ export function CombinedModelSelector({
         open={isOpen}
         onOpenChange={handleOpenChange}
         anchorRef={anchorRef}
-        desktopPlacement="top-start"
+        desktopPlacement={desktopPlacement}
         desktopMinWidth={360}
         desktopFixedHeight={desktopFixedHeight}
         header={sheetHeader}
