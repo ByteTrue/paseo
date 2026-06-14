@@ -108,6 +108,8 @@ export interface ProviderSnapshotEntry {
   description?: string;
   defaultModeId?: string | null;
   canRemove?: boolean;
+  derivedFromProviderId?: AgentProvider | null;
+  managedKind?: string;
 }
 
 export interface AgentCreateConfigParent {

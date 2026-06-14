@@ -103,6 +103,7 @@ interface CombinedModelSelectorProps {
   isRetryingProvider?: boolean;
   disabled?: boolean;
   serverId?: string | null;
+  desktopPlacement?: "top-start" | "bottom-start";
 }
 
 interface SelectorContentProps {
@@ -158,7 +159,7 @@ function ModelRow({
   onToggleFavorite?: (provider: string, modelId: string) => void;
 }) {
   const { theme } = useUnistyles();
-  const ProviderIcon = getProviderIcon(row.provider);
+  const ProviderIcon = getProviderIcon(row.iconProviderId ?? row.provider);
 
   const handleToggleFavorite = useCallback(
     (event: GestureResponderEvent) => {
@@ -359,7 +360,7 @@ function iconButtonStyle({ hovered, pressed }: PressableStateCallbackType & { ho
 
 function GroupProviderButton({ provider, onDrillDown }: GroupProviderButtonProps) {
   const { theme } = useUnistyles();
-  const ProvIcon = getProviderIcon(provider.id);
+  const ProvIcon = getProviderIcon(provider.iconProviderId ?? provider.id);
   const selection = provider.modelSelection;
 
   const handlePress = useCallback(() => {
@@ -643,6 +644,7 @@ export function CombinedModelSelector({
   isRetryingProvider = false,
   disabled = false,
   serverId = null,
+  desktopPlacement = "top-start",
 }: CombinedModelSelectorProps) {
   const { theme } = useUnistyles();
   const anchorRef = useRef<View>(null);
@@ -711,7 +713,13 @@ export function CombinedModelSelector({
   );
 
   const hasSelectedProvider = selectedProvider.trim().length > 0;
-  const ProviderIcon = hasSelectedProvider ? getProviderIcon(selectedProvider) : null;
+  const selectedProviderEntry = useMemo(
+    () => providers.find((entry) => entry.id === selectedProvider),
+    [providers, selectedProvider],
+  );
+  const ProviderIcon = hasSelectedProvider
+    ? getProviderIcon(selectedProviderEntry?.iconProviderId ?? selectedProvider)
+    : null;
 
   const selectedTopOption = useMemo(
     () => topOptions.find((option) => option.id === selectedTopOptionId),
@@ -812,7 +820,8 @@ export function CombinedModelSelector({
     if (view.kind === "all") {
       return { title: "Select provider" };
     }
-    const ProviderIconForView = getProviderIcon(view.providerId);
+    const providerForView = providers.find((entry) => entry.id === view.providerId);
+    const ProviderIconForView = getProviderIcon(providerForView?.iconProviderId ?? view.providerId);
     const headerActions = (
       <Pressable
         onPress={openProviderSettings}
@@ -846,6 +855,7 @@ export function CombinedModelSelector({
     };
   }, [
     view,
+    providers,
     singleProviderView,
     serverId,
     openProviderSettings,
@@ -897,7 +907,7 @@ export function CombinedModelSelector({
         open={isOpen}
         onOpenChange={handleOpenChange}
         anchorRef={anchorRef}
-        desktopPlacement="top-start"
+        desktopPlacement={desktopPlacement}
         desktopMinWidth={360}
         desktopFixedHeight={desktopFixedHeight}
         header={sheetHeader}

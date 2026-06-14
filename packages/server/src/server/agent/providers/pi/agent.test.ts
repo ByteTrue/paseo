@@ -11,11 +11,12 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import pino from "pino";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import type { AgentSession, AgentSessionConfig, AgentStreamEvent } from "../../agent-sdk-types.js";
 import { PiRpcAgentClient, PiRpcAgentSession, transformPiModels } from "./agent.js";
-import { FakePi } from "./test-utils/fake-pi.js";
+import { FakePi, FakePiSession } from "./test-utils/fake-pi.js";
+import type { PiRuntime, PiRuntimeSession, PiStartSessionInput } from "./runtime.js";
 
 function createClient(pi = new FakePi()): PiRpcAgentClient {
   return new PiRpcAgentClient({
@@ -38,6 +39,63 @@ function createConfig(overrides: Partial<AgentSessionConfig> = {}): AgentSession
     cwd: "/tmp/paseo-pi-rpc-test",
     ...overrides,
   };
+}
+
+class DeferredPromptPiRuntime implements PiRuntime {
+  readonly session = new DeferredPromptPiSession();
+
+  async startSession(_input: PiStartSessionInput): Promise<PiRuntimeSession> {
+    return this.session;
+  }
+}
+
+class DeferredPromptPiSession extends FakePiSession {
+  private promptResolver: (() => void) | null = null;
+
+  constructor() {
+    super({ cwd: "/tmp/paseo-pi-rpc-test", argv: ["pi", "--mode", "rpc"] });
+  }
+
+  override async prompt(
+    message: string,
+    images?: Array<{ type: "image"; data: string; mimeType: string }>,
+  ): Promise<void> {
+    this.prompts.push({ message, imageCount: images?.length ?? 0 });
+    await new Promise<void>((resolve) => {
+      this.promptResolver = resolve;
+    });
+  }
+
+  resolvePrompt(): void {
+    if (!this.promptResolver) {
+      throw new Error("No pending Pi prompt");
+    }
+    const resolve = this.promptResolver;
+    this.promptResolver = null;
+    resolve();
+  }
+}
+
+class RejectingPromptPiRuntime implements PiRuntime {
+  readonly session = new RejectingPromptPiSession();
+
+  async startSession(_input: PiStartSessionInput): Promise<PiRuntimeSession> {
+    return this.session;
+  }
+}
+
+class RejectingPromptPiSession extends FakePiSession {
+  constructor() {
+    super({ cwd: "/tmp/paseo-pi-rpc-test", argv: ["pi", "--mode", "rpc"] });
+  }
+
+  override async prompt(
+    message: string,
+    images?: Array<{ type: "image"; data: string; mimeType: string }>,
+  ): Promise<void> {
+    this.prompts.push({ message, imageCount: images?.length ?? 0 });
+    throw new Error("Pi prompt failed");
+  }
 }
 
 function readUtf8File(pathname: string): string {
@@ -1026,6 +1084,51 @@ describe("PiRpcAgentClient", () => {
         },
       },
     ]);
+  });
+
+  test("handles entry-capture timeout while the Pi prompt is still pending", async () => {
+    vi.useFakeTimers();
+    try {
+      const pi = new DeferredPromptPiRuntime();
+      const client = createClient(pi);
+      const session = (await client.createSession(createConfig())) as PiRpcAgentSession;
+
+      const nextHistoryEvent = session.streamHistory().next();
+      const nextHistoryError = nextHistoryEvent.catch((error: unknown) => error);
+      await Promise.resolve();
+
+      expect(pi.session.prompts).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(10_001);
+      pi.session.resolvePrompt();
+
+      const error = await nextHistoryError;
+      if (!(error instanceof Error)) {
+        throw new Error("Expected Pi history stream to reject with an Error");
+      }
+      expect(error.message).toContain("Pi extension result timed out");
+      await session.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("clears pending entry-capture waits when the Pi prompt fails", async () => {
+    vi.useFakeTimers();
+    try {
+      const pi = new RejectingPromptPiRuntime();
+      const client = createClient(pi);
+      const session = (await client.createSession(createConfig())) as PiRpcAgentSession;
+
+      const nextHistoryEvent = session.streamHistory().next();
+
+      await expect(nextHistoryEvent).rejects.toThrow("Pi prompt failed");
+      expect(pi.session.prompts).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(10_001);
+      await session.close();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("rewinds conversation through the Pi tree navigation bridge", async () => {

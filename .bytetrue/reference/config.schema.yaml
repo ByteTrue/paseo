@@ -1,0 +1,117 @@
+version: 1
+schema_for: .bytetrue/config.yaml
+
+required:
+  - version
+  - workflow.mode
+  - workflow.ask_before
+  - tracker.provider
+  - tracker.provider_status
+  - tracker.sync_policy
+  - tracker.sync_direction
+  - tracker.external_import
+  - tracker.update_policy
+  - tracker.repository.remote_url
+  - tracker.repository.tracker_url
+  - tracker.cli.gh.installed
+  - tracker.cli.gh.auth
+  - tracker.cli.glab.installed
+  - tracker.cli.glab.auth
+  - dispatch.preferred
+  - dispatch.allow_non_interactive_child
+  - dispatch.allow_background_agents
+
+fields:
+  version:
+    type: integer
+    allowed: [1]
+    default: 1
+
+  workflow.mode:
+    type: enum
+    allowed: [manual, auto]
+    default: manual
+
+  workflow.ask_before:
+    type: list
+    item_type: string
+    default_seed:
+      - git_commit
+      - git_push
+      - external_tracker_write
+      - destructive_command
+      - scope_change
+    note: Project-owned operation-key list; skills must read the current config value, not this seed, after onboarding.
+
+  tracker.provider:
+    type: enum
+    allowed: [local, github, gitlab]
+    default: local
+
+  tracker.provider_status:
+    type: enum
+    allowed: [unknown, configured, unavailable]
+    default: unknown
+
+  tracker.sync_policy:
+    type: enum
+    allowed: [ask, never, auto_preview]
+    default: ask
+
+  tracker.sync_direction:
+    type: enum
+    allowed: [outbound_only]
+    default: outbound_only
+
+  tracker.external_import:
+    type: enum
+    allowed: [manual_only]
+    default: manual_only
+
+  tracker.update_policy:
+    type: enum
+    allowed: [update_managed_block]
+    default: update_managed_block
+
+  tracker.repository.remote_url:
+    type: string_or_null
+    default: null
+
+  tracker.repository.tracker_url:
+    type: string_or_null
+    default: null
+
+  tracker.cli.gh.installed:
+    type: boolean_or_null
+    default: null
+    cache: advisory
+
+  tracker.cli.gh.auth:
+    type: enum
+    allowed: [ok, missing, unknown]
+    default: unknown
+    cache: advisory
+
+  tracker.cli.glab.installed:
+    type: boolean_or_null
+    default: null
+    cache: advisory
+
+  tracker.cli.glab.auth:
+    type: enum
+    allowed: [ok, missing, unknown]
+    default: unknown
+    cache: advisory
+
+  dispatch.preferred:
+    type: enum
+    allowed: [auto, native_subagent, non_interactive_child, inline]
+    default: auto
+
+  dispatch.allow_non_interactive_child:
+    type: boolean
+    default: true
+
+  dispatch.allow_background_agents:
+    type: boolean
+    default: false

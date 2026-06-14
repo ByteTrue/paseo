@@ -77,12 +77,15 @@ function deepMerge<T extends Record<string, unknown>>(
       "metadataGeneration.commitMessage",
       "metadataGeneration.pullRequest",
     ]).has(nextPath.join("."));
+    const shouldReplaceProviderEnv =
+      nextPath.length === 3 && nextPath[0] === "providers" && nextPath[2] === "env";
     const shouldReplaceRemovedProvider =
       nextPath.length === 2 && nextPath[0] === "providers" && isRemovedProviderConfig(currentValue);
     if (
       isRecord(currentValue) &&
       isRecord(patchValue) &&
       !shouldReplaceObject &&
+      !shouldReplaceProviderEnv &&
       !shouldReplaceRemovedProvider
     ) {
       next[key] = deepMerge(currentValue, patchValue, nextPath);

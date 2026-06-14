@@ -49,6 +49,19 @@ describe("provider snapshot message schemas", () => {
     expect(parsed.canRemove).toBe(true);
   });
 
+  test("preserves derived provider metadata in snapshot entries", () => {
+    const parsed = ProviderSnapshotEntrySchema.parse({
+      provider: "claude-deepseek",
+      status: "ready",
+      label: "Claude via DeepSeek",
+      derivedFromProviderId: "claude",
+      managedKind: "claudeEndpointVariant",
+    });
+
+    expect(parsed.derivedFromProviderId).toBe("claude");
+    expect(parsed.managedKind).toBe("claudeEndpointVariant");
+  });
+
   test("normalizes thinking option defaults on provider snapshot models", () => {
     const parsed = ProviderSnapshotEntrySchema.parse({
       provider: "claude",

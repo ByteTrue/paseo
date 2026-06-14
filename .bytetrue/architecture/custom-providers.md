@@ -1,8 +1,8 @@
 # Custom Provider Configuration
 
-Paseo supports configuring custom agent providers through `config.json` (located at `$PASEO_HOME/config.json`, typically `~/.paseo/config.json`). You can extend built-in providers with different API backends, add ACP-compatible agents, set custom binaries, disable providers, and create multiple profiles for the same underlying provider.
+Paseo supports two layers of provider customization: a constrained app-managed Claude endpoint variant flow for common Anthropic-compatible Claude Code endpoints, and advanced raw `config.json` provider overrides for custom binaries, ACP providers, Codex endpoint overrides, and other inheritance use cases. Both persist under `agents.providers`; the app-managed Claude flow is distinguished by an internal marker so it does not edit hand-written advanced overrides.
 
-All provider configuration lives under `agents.providers` in config.json:
+Raw provider configuration lives under `agents.providers` in config.json:
 
 ```json
 {
@@ -21,6 +21,7 @@ Provider IDs must be lowercase alphanumeric with hyphens (`/^[a-z][a-z0-9-]*$/`)
 
 ## Table of Contents
 
+- [UI-managed Claude endpoint variants](#ui-managed-claude-endpoint-variants)
 - [Extending a built-in provider](#extending-a-built-in-provider)
 - [Z.AI (Zhipu) coding plan](#zai-zhipu-coding-plan)
 - [Alibaba Cloud (Qwen) coding plan](#alibaba-cloud-qwen-coding-plan)
@@ -30,6 +31,46 @@ Provider IDs must be lowercase alphanumeric with hyphens (`/^[a-z][a-z0-9-]*$/`)
 - [Disabling a provider](#disabling-a-provider)
 - [ACP providers](#acp-providers)
 - [Provider override reference](#provider-override-reference)
+
+---
+
+## UI-managed Claude endpoint variants
+
+The ordinary UI path for Anthropic-compatible Claude Code endpoints is **Settings → Providers → Claude → Claude endpoints**. Each saved endpoint appears as a named Claude-like provider option when creating an agent, but it is still backed by the built-in Claude adapter.
+
+A UI-managed variant is persisted as a provider override with this constrained shape:
+
+```json
+{
+  "agents": {
+    "providers": {
+      "claude-deepseek": {
+        "extends": "claude",
+        "label": "Claude via DeepSeek",
+        "description": "Claude endpoint",
+        "env": {
+          "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+          "ANTHROPIC_AUTH_TOKEN": "...",
+          "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+          "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+          "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+          "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash"
+        },
+        "disallowedTools": ["WebSearch"],
+        "params": { "paseoManagedKind": "claudeEndpointVariant" }
+      }
+    }
+  }
+}
+```
+
+Stable constraints:
+
+- The first-version UI is Claude-only. It does not expose Codex, OpenCode, Pi, ACP, commands, params, API type, context window, vision flags, or a raw environment-variable table.
+- The form exposes exactly six optional env fields: `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_HAIKU_MODEL`, and `CLAUDE_CODE_SUBAGENT_MODEL`. Blank fields are omitted; `ANTHROPIC_MODEL` is not generated.
+- The UI lists and edits only overrides where `extends: "claude"` and `params.paseoManagedKind === "claudeEndpointVariant"`. Hand-written derived Claude providers without the marker remain advanced config and are not edited by this UI.
+- Saving is a local daemon config write plus targeted provider refresh. There is no endpoint test/probe button and no save-time network validation.
+- Deleting a UI-managed endpoint removes the provider override; old agents or preferences referring to that provider id may require another provider selection before reuse or resume.
 
 ---
 

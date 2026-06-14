@@ -9,7 +9,10 @@ import type { DraftCommandConfig } from "@/hooks/use-agent-commands-query";
 import { buildFavoriteModelKey, type FavoriteModelRow } from "@/hooks/use-form-preferences";
 import { compareMatchScores, scoreTextFields } from "@/utils/score-match";
 
-export type ProviderSelectionModelRow = FavoriteModelRow & { isDefault?: boolean };
+export type ProviderSelectionModelRow = FavoriteModelRow & {
+  isDefault?: boolean;
+  iconProviderId?: string;
+};
 
 export type ProviderModelSelection =
   | { kind: "models"; rows: ProviderSelectionModelRow[] }
@@ -19,6 +22,7 @@ export type ProviderModelSelection =
 export interface ProviderSelectorProvider {
   id: string;
   label: string;
+  iconProviderId?: string;
   modelSelection: ProviderModelSelection;
 }
 
@@ -40,6 +44,7 @@ function buildModelRows(
   provider: string,
   providerLabel: string,
   models: AgentModelDefinition[],
+  iconProviderId?: string,
 ): ProviderSelectionModelRow[] {
   return models.map((model) => ({
     favoriteKey: buildFavoriteModelKey({ provider, modelId: model.id }),
@@ -48,6 +53,7 @@ function buildModelRows(
     modelId: model.id,
     modelLabel: model.label,
     description: model.description ?? model.id,
+    ...(iconProviderId ? { iconProviderId } : {}),
     isDefault: model.isDefault,
   }));
 }
@@ -55,6 +61,7 @@ function buildModelRows(
 function buildSyntheticDefaultRow(
   provider: string,
   providerLabel: string,
+  iconProviderId?: string,
 ): ProviderSelectionModelRow {
   return {
     favoriteKey: buildFavoriteModelKey({ provider, modelId: "" }),
@@ -63,6 +70,7 @@ function buildSyntheticDefaultRow(
     modelId: "",
     modelLabel: "Default",
     description: undefined,
+    ...(iconProviderId ? { iconProviderId } : {}),
     isDefault: true,
   };
 }
@@ -71,14 +79,18 @@ function buildModelSelection(
   provider: string,
   providerLabel: string,
   models: AgentModelDefinition[] | null,
+  iconProviderId?: string,
 ): ProviderModelSelection {
   if (models === null) {
     return { kind: "loading" };
   }
   if (models.length === 0) {
-    return { kind: "models", rows: [buildSyntheticDefaultRow(provider, providerLabel)] };
+    return {
+      kind: "models",
+      rows: [buildSyntheticDefaultRow(provider, providerLabel, iconProviderId)],
+    };
   }
-  return { kind: "models", rows: buildModelRows(provider, providerLabel, models) };
+  return { kind: "models", rows: buildModelRows(provider, providerLabel, models, iconProviderId) };
 }
 
 function buildEntryModelSelection(
@@ -86,10 +98,20 @@ function buildEntryModelSelection(
   label: string,
 ): ProviderModelSelection {
   if ((entry.models?.length ?? 0) > 0) {
-    return buildModelSelection(entry.provider, label, entry.models ?? null);
+    return buildModelSelection(
+      entry.provider,
+      label,
+      entry.models ?? null,
+      entry.derivedFromProviderId ?? undefined,
+    );
   }
   if (entry.status === "ready") {
-    return buildModelSelection(entry.provider, label, entry.models ?? null);
+    return buildModelSelection(
+      entry.provider,
+      label,
+      entry.models ?? null,
+      entry.derivedFromProviderId ?? undefined,
+    );
   }
   if (entry.status === "loading") {
     return { kind: "loading" };
@@ -124,11 +146,15 @@ export function buildSelectableProviderSelectorProviders(
     .filter((entry) => entry.enabled)
     .map((entry) => {
       const label = entry.label ?? entry.provider;
-      return {
+      const provider: ProviderSelectorProvider = {
         id: entry.provider,
         label,
         modelSelection: buildEntryModelSelection(entry, label),
       };
+      if (entry.derivedFromProviderId) {
+        provider.iconProviderId = entry.derivedFromProviderId;
+      }
+      return provider;
     });
 }
 

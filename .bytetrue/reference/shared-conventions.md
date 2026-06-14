@@ -1,257 +1,301 @@
-# ByteTrue 共享口径
+# ByteTrue Shared Conventions
 
-由 `bt-onboard` 复制到项目的 `.bytetrue/reference/shared-conventions.md`。所有 ByteTrue 子技能用项目相对路径 `.bytetrue/reference/shared-conventions.md` 引用本文件——跨子技能共享但不适合堆在单个技能里的规范的唯一权威版本。
+This file is copied by `bt-onboard` into the project as `.bytetrue/reference/shared-conventions.md`. Every ByteTrue sub-skill references it through the project-relative path `.bytetrue/reference/shared-conventions.md`. It is the single authoritative place for conventions shared across sub-skills but not suitable to pile into any one individual skill.
 
-skill 本身不共享文件系统（每个 skill 是独立安装单元），共享口径不能放在某个 skill 内部被别的 skill 引用。放在"工作项目"里对所有 skill 都可达。
+Skills themselves do not share a filesystem, each skill is an independent installation unit, so shared conventions cannot live inside one skill and be referenced from another. Putting them inside the working project makes them reachable by all skills.
 
 ---
 
-## 0. 目录结构与路径命名
+## 0. Directory structure and path naming
 
-onboard 完成后骨架（`bt-onboard` 负责搭建）：
+The skeleton after onboarding, built by `bt-onboard`:
 
-```
+```text
 .bytetrue/
-├── attention.md           ByteTrue 技能启动必读的项目注意事项
-├── requirements/          能力愿景层（"用户需要什么、系统提供什么能力来满足"，过去/现在/未来）
-│   ├── VISION.md           中心索引（按 status 分组，每条带 pitch 一句话）
-│   └── {slug}.md           一个能力一份，扁平（bt-req 产出）
-├── architecture/          架构中心目录（"用什么结构实现"，只记现状）
-│   ├── ARCHITECTURE.md    总入口（索引 + 关键架构决定）
-│   └── {type}-{slug}.md   子系统 / 模块 doc（bt-arch 产出）
-├── roadmap/               规划层（"接下来怎么做这块大需求 + 模块怎么切 + 接口怎么定"）
-│   └── {slug}/            一个大需求一个子目录（bt-roadmap 产出）
-│       ├── {slug}-roadmap.md   主文档：背景 / 范围 / 模块拆分 / 接口契约 / 子 feature 清单 / 排期
-│       ├── {slug}-items.yaml   机器可读子 feature 清单，acceptance 回写状态
-│       └── drafts/             可选
-├── features/              feature spec 聚合根
-│   └── YYYY-MM-DD-{slug}/  每个 feature 一个目录
-│       ├── {slug}-brainstorm.md  （可选，case 2 时产出）
-│       ├── {slug}-design.md      （标准流程）
-│       ├── {slug}-checklist.yaml （标准流程）
-│       ├── {slug}-acceptance.md  （标准流程）
-│       └── {slug}-ff-note.md     （fastforward 通道唯一产物，与上面四份互斥）
-├── issues/                issue spec 聚合根
+├── attention.md           project notes that every ByteTrue skill must read at startup
+├── config.yaml            machine-readable project config (workflow / tracker / dispatch)
+├── requirements/          capability vision layer, "what users need and what capability the system provides to satisfy it", across past / present / future
+│   ├── VISION.md          central index, grouped by status, with one-line pitch per item
+│   └── {slug}.md          one file per capability, flat, produced by `bt-req`
+├── architecture/          architecture center directory, "what structure implements it", current state only
+│   ├── ARCHITECTURE.md    root entry, index + key architecture decisions
+│   └── {type}-{slug}.md   subsystem or module docs, produced by `bt-arch`
+├── roadmap/               planning layer, "how to execute this larger demand next, how to split modules, and how to define interfaces"
+│   └── {slug}/            one subdirectory per larger demand, produced by `bt-roadmap`
+│       ├── {slug}-roadmap.md   main document, background / scope / module split / interface contracts / sub-feature list / scheduling
+│       ├── {slug}-items.yaml   machine-readable sub-feature list, with status written back by acceptance
+│       └── drafts/             optional
+├── features/              feature-spec aggregate root
+│   └── YYYY-MM-DD-{slug}/ one directory per feature
+│       ├── {slug}-brainstorm.md        optional, produced only in case 2
+│       ├── {slug}-design.md            standard flow
+│       ├── {slug}-checklist.yaml       standard flow
+│       ├── {slug}-impl-context.jsonl   standard flow, implementation read-set
+│       ├── {slug}-check-context.jsonl  standard flow, acceptance/check read-set
+│       ├── {slug}-implementation-report.md  standard flow, written by `bt-feat-impl`
+│       ├── {slug}-acceptance.md        standard flow
+│       └── {slug}-ff-note.md           the only artifact in the fastforward path, mutually exclusive with the standard-flow files above
+├── issues/                issue-spec aggregate root
 │   └── YYYY-MM-DD-{slug}/
 │       ├── {slug}-report.md
-│       ├── {slug}-analysis.md   （根因不显然才有）
+│       ├── {slug}-analysis.md   only when the root cause is not obvious
 │       └── {slug}-fix-note.md
-├── refactors/             refactor spec 聚合根
+├── refactors/             refactor-spec aggregate root
 │   └── YYYY-MM-DD-{slug}/
 │       ├── {slug}-scan.md
 │       ├── {slug}-refactor-design.md
 │       ├── {slug}-checklist.yaml
 │       └── {slug}-apply-notes.md
-├── compound/              沉淀类文档统一目录
+├── audits/                audit aggregate root
+│   └── YYYY-MM-DD-{slug}/
+│       ├── index.md
+│       └── finding-01.md
+├── compound/              unified directory for archival document types
 │   └── YYYY-MM-DD-{doc_type}-{slug}.md
-│                          doc_type ∈ {learning, trick, decision, explore}
-├── brainstorm/            brainstorm 阶段 spike 实验代码区（bt-brainstorm 临时产出）
-│   └── {slug}/            一次 spike 一个子目录，文件名随意
-│                          验完不强制清理，结论回写到对应 brainstorm note
-├── tools/                 跨工作流共享脚本（onboard 从技能包释放）
-└── reference/             共享参考文档（onboard 从技能包释放）
-    ├── shared-conventions.md   目录结构 / frontmatter / 阶段衔接口径
-    ├── system-overview.md      ByteTrue 体系总览
-    ├── domain-context.md       canonical terms / domain glossary / 术语边界
+│                          where doc_type ∈ {learning, trick, decision, explore}
+├── brainstorms/           open large discussions / grill outputs not ready for roadmap, plus spike sandbox
+│   └── {slug}/            one subdirectory per open discussion; `brainstorm.md` records conclusions, spike files may sit next to it
+│                          feature-local brainstorm notes still live under `features/{feature}/{slug}-brainstorm.md`
+├── worklog/               lightweight report-feed / handoff / recovery records
+│   └── YYYY-MM.md         split as YYYY-MM-02.md when the monthly file becomes too long
+├── tools/                 shared scripts across workflows, released from the skill package by onboard
+└── reference/             shared reference docs, released from the skill package by onboard
+    ├── shared-conventions.md   directory structure / frontmatter / stage handoff rules
+    ├── system-overview.md      overview of the ByteTrue system
+    ├── domain-context.md       canonical terms / domain glossary / terminology boundaries
     ├── project-management.md   external tracker / labels / sync policy
-    └── tools.md                共享脚本用法
+    ├── tools.md                shared script usage
+    ├── config.md              `.bytetrue/config.yaml` field semantics
+    ├── config.schema.yaml       machine-readable schema / onboard defaults for `.bytetrue/config.yaml`
+    ├── code-dimensions.md      implementation complexity dimensions
+    ├── execution-modes.md      workflow heaviness / evidence discipline
+    ├── implementation-review.md implementation review gate / readiness discipline
+    ├── context-manifest.md     feature-local implement/check read-set contract
+    ├── subagent-handoff.md     implement/check/research handoff role contract
+    ├── research-first.md       evidence-before-decision trigger and citation rule
+    ├── worklog-report-feed.md lightweight worklog / report-feed contract
+    ├── maintainer-notes.md     maintainer-only workflow family notes
+    └── requirement-example.md  requirement writing example
 ```
 
-### 命名规则
+### Naming rules
 
-- 需求文档：`requirements/{slug}.md`（能力愿景，不带日期前缀，扁平不分组）；中心索引 `requirements/VISION.md`
-- roadmap：`roadmap/{slug}/`（不带日期前缀，平铺不嵌套）
-- feature / issue / refactor 目录：带日期前缀 `YYYY-MM-DD-{slug}`
-- 沉淀类：`compound/YYYY-MM-DD-{doc_type}-{slug}.md`，日期用**归档当天**
-- 架构 doc：`architecture/{type}-{slug}.md`（长效，不带日期前缀）；总入口固定 `ARCHITECTURE.md`
-- 项目注意事项入口固定为 `.bytetrue/attention.md`，所有 ByteTrue 子技能启动前必须读取；不再兼容 `AGENTS.md` / `CLAUDE.md` 等外部入口
+- requirement docs: `requirements/{slug}.md`, capability vision, no date prefix, flat with no grouping; central index is `requirements/VISION.md`
+- roadmap: `roadmap/{slug}/`, no date prefix, flat, no nested epics
+- feature / issue / refactor / audit directories: all carry a date prefix, `YYYY-MM-DD-{slug}`
+- archival docs: `compound/YYYY-MM-DD-{doc_type}-{slug}.md`, with the date being the **archival day**
+- architecture docs: `architecture/{type}-{slug}.md`, long-lived and without date prefix; the root entry is always `ARCHITECTURE.md`
+- the project-notes entry is fixed at `.bytetrue/attention.md`; every ByteTrue sub-skill must read it before startup
 
-### 架构 doc 分组规则（同类聚合）
+### Grouping rule for architecture docs, same-type aggregation
 
-`architecture/` 下用文件名第一段作 type 标记：`ui-chat.md` 和 `ui-events.md` 同 `ui` 类。**所有架构 doc 必须 `{type}-{slug}.md`**——只有一份的也要带合理 type 段（如 `cli-entry.md`），否则未来同类出现时聚合不了。
+Inside `architecture/`, the first segment of the filename is the type marker. For example, `ui-chat.md` and `ui-events.md` are both in the `ui` type. **Every architecture doc must follow `{type}-{slug}.md`**. Even when there is only one file, it still needs a reasonable type segment, such as `cli-entry.md`, otherwise future same-type grouping becomes impossible.
 
-**触发**：某 type 在 `architecture/` 根目录达到 ≥6 份时（即新加第 6 份那次），把这一类全部收进同名子目录。
+**Trigger**: when one type reaches 6 or more files in the root directory of `architecture/`, meaning the moment the sixth file of that type is added, all docs of that type must be moved into a same-name subdirectory.
 
-**收入后**：去掉 type 前缀。`ui-chat.md` → `ui/chat.md`。
+**After the move**: remove the type prefix. `ui-chat.md` becomes `ui/chat.md`.
 
-**只升不降**：删到 ≤5 份也不折回平铺。
+**Only promote, never demote**: even if the count later drops back to 5 or less, it does not flatten back out.
 
-**触发时谁负责**：`bt-arch` 的 `backfill` / `update` 模式在 Phase 6 落盘前主动检查并搬迁；命中阈值时这次操作要把"本次新加 / 改的 + 已有同类全部"一起搬，并同步改 `ARCHITECTURE.md` 链接（搬迁本身要在 Phase 5 给用户 review，不偷偷做）。`check` 模式不主动搬迁，但发现 ≥6 仍平铺时在报告末尾列为观察项。
+**Who is responsible when the trigger is hit**: in `backfill` or `update` mode, `bt-arch` must check this proactively before Phase 6 write-to-disk, and if the threshold is hit, that run must move both the newly added or changed file and all existing files of that type together, while also updating the links in `ARCHITECTURE.md`. The migration itself must be shown to the user during Phase 5 review rather than done silently. In `check` mode, it is not moved proactively, but if the type is still flat at 6 or more, it should be listed as an observation at the end of the report.
 
-### 改目录结构
+### Changing the directory structure
 
-改 `bt-onboard/reference/shared-conventions.md` 模板，新项目 onboard 时带上新版本；已有项目手动同步 `.bytetrue/reference/shared-conventions.md`。
-
----
-
-## 1. 共享元数据口径
-
-**feature spec**：brainstorm / design / acceptance 共用 `doc_type` / `feature` / `status` / `summary` / `tags`。子技能只补特有字段。`status`：brainstorm = `confirmed`（落盘即确认无 draft）；design = `draft` / `approved`；acceptance 见对应技能。
-
-**issue spec**：report / analysis / fix-note 共用 `doc_type` / `issue` / `status` / `tags`。`severity` / `root_cause_type` / `path` 由对应阶段按需补。
-
-**归档类（compound）**：
-
-- learning / trick / decision / explore 四类**统一写入 `.bytetrue/compound/`**
-- 每个文档 frontmatter 顶部带 `doc_type`（learning / trick / decision / explore）作跨子技能归属判定
-- 文件名 `YYYY-MM-DD-{doc_type}-{slug}.md`——日期打头便于 `ls` 排序，type 段在中间便于 grep
-- 各子技能在 `doc_type` 之外保留专属 frontmatter（learning 的 `track` / trick 的 `type` / decision 的 `category` / explore 的 `type`）
-- 各子技能只认自己的 `doc_type` 不读写别家
-- `status` 等通用字段语义和本文件保持一致
-
-**外部读者文档**（guidedoc / libdoc）：frontmatter 由各自子技能定义。无特殊说明：`draft` = 待 review，`current` = 当前有效，`outdated` = 代码已变更待同步。
-
-**写作约束**：子技能提字段时优先写"额外字段"或"阶段状态变化"，不重复展开整套通用字段。
+Change the template at `bt-onboard/reference/shared-conventions.md` so that new onboarded projects receive the new version; for existing projects, manually sync `.bytetrue/reference/shared-conventions.md`.
 
 ---
 
-## 2. {slug}-checklist.yaml 生命周期
+## 1. Shared metadata conventions
 
-- 是 feature 工作流的唯一执行清单
-- 由 `bt-feat-design` 在 design 确认通过后一次生成 `steps` + `checks`
-- `bt-feat-ff` **不生成** checklist（也不写 design / acceptance），是跳过 spec 流程直接写代码的超轻量通道；唯一留下的痕迹是动手后回写的 `{slug}-ff-note.md`（轻量回顾，参与 scoped-commit、可被 bt-arch / bt-req backfill 检索到）
+**Canonical status vocabulary**: every ByteTrue workflow artifact uses only `pending`, `active`, `done`, `dropped`, or `archived` in `status`. Do not invent extra status words; use explicit fields such as `review_result: approved`, `current: true`, `validity: outdated`, or `superseded_by` for extra semantics.
+**Scope of `status`**: this canonical vocabulary applies to top-level artifact frontmatter and machine-readable artifact rows such as roadmap items, libdoc manifest rows, and audit findings. Do not encode review outcomes, freshness, or replacement semantics as new `status` values; use fields such as `review_result`, `current`, `validity`, or `superseded_by` instead. Stage-local checklist fields are the only narrow exception: `steps[].status` uses `pending | done`, and `checks[].status` uses `pending | passed | failed` because they track verification results rather than artifact lifecycle.
+**Requirement status semantics**: for `doc_type: requirement`, `pending` means a future vision has been reviewed but not started, `active` means implementation or adoption is underway, `done` plus `current: true` means the capability is currently satisfied, and `archived` plus `validity: outdated` means the capability is no longer maintained. Do not use `active` for a merely drafted future vision.
+**Feature implementation report**: `bt-feat-impl` writes `{slug}-implementation-report.md` after user review passes, with frontmatter `doc_type: feature-implementation-report`, `feature`, `status: done`, and `summary`. It is the durable Implementation Review Gate evidence read by `bt-feat-accept`; a chat-only completion report does not replace it.
 
-`steps` 的粒度是 **编排-计算分离维度的切片策略**——按"先编排骨架、后计算节点、最后持久化与测试"写（最简 Workflow 先行 → 逐个节点填充），**不下沉到 file:line / 函数级**。具体改哪个文件由 implement 阶段决定。
+**issue spec**: report, analysis, and fix-note share `doc_type`, `issue`, `status`, and `tags`. Use `status: active` while a stage is not fully reviewed or verified, `status: done` when complete, and `status: dropped` when abandoned. Fields such as `severity`, `root_cause_type`, and `path` are added by the corresponding stage as needed.
 
-**design 的职责**：
+**Archival documents, `compound`**:
 
-- 提取 `steps`（4-8 步，每步独立可验证退出信号）：后端节奏 = 编排骨架 → 计算节点逐个填 → 接通持久化 → 测试覆盖；前端 = 静态结构 → 交互逻辑 → 状态接入 → 联调收尾
-- 提取 `checks`：第 1 节"明确不做"→ 范围守护；第 2.1 接口 → 名词契约；第 2.2 主流程 + 流程级约束 → 编排骨架；第 2.3 挂载点 → 挂载点；第 3 节场景清单 → 验收场景
+- learning, trick, decision, and explore all **write into `.bytetrue/compound/`**
+- the top of each document's frontmatter carries `doc_type`, learning, trick, decision, or explore, to determine cross-sub-skill ownership
+- filenames are `YYYY-MM-DD-{doc_type}-{slug}.md`, date first for `ls` sorting, type segment in the middle for grep
+- each sub-skill keeps its own extra frontmatter beyond `doc_type`, such as learning's `track`, trick's `type`, decision's `category`, or explore's `type`
+- each sub-skill recognizes only its own `doc_type` and never reads or writes another
+- common fields such as `status` follow the semantics in this file; for standing captured knowledge, `status: active` means currently valid and discoverable, while `status: archived` means superseded or outdated
 
-**implement 的职责**：
+**External-reader docs**, guidedoc and libdoc, have frontmatter defined by their own skills. Unless otherwise specified, `active` means pending review, `done` + `current: true` means currently valid, and `archived` + `validity: outdated` means code has changed and the doc now needs synchronization.
 
-- 按 `steps` 顺序执行，每步完成把 status `pending` → `done`
-- 实现到具体文件级时需要拆分某步、或发现微重构是其前置（参考第 7 节反射检查）→ 跟用户对齐后追加 / 拆分 steps，**不偷偷做**
-- 不改写 `checks`
-
-**acceptance 的职责**：只更新 `checks[].status`（`pending` → `passed` / `failed`），不重写 `steps`。
-
-**写作约束**：子技能描述 checklist 时只补本阶段读 / 写哪一部分，不重新定义生命周期。
+**Writing constraint**: when a sub-skill mentions fields, it should prefer to mention only the extra fields or the stage-specific status changes, and should not restate the full shared-field system again.
 
 ---
 
-## 2.5 roadmap ↔ feature 衔接协议
+## 2. `{slug}-checklist.yaml` lifecycle
 
-`.bytetrue/roadmap/{slug}/{slug}-items.yaml` 是规划层和 feature 执行层的唯一接口。三个技能共同读写它——是 skill 都读写项目共享产物，不算耦合。
+- it is the only execution checklist for the feature workflow
+- it is generated once by `bt-feat-design` after design review passes, producing both `steps` and `checks`
+- `bt-feat-ff` **does not generate** a checklist, and also does not produce design or acceptance; it is the ultra-light path that skips the spec flow and writes code directly. The only trace it leaves is the post-implementation `{slug}-ff-note.md`, which participates in scoped commit and can later be found by `bt-arch` or `bt-req` backfill
 
-**items.yaml 状态机**：
+The granularity of `steps` is the **slice strategy along the orchestration-vs-computation dimension** — "orchestration skeleton first, then computation nodes, then persistence and testing", meaning minimal workflow first and then nodes one by one. It **must not** descend to `file:line` or function level. The actual file choices are decided by implement.
 
+**Design is responsible for**:
+
+- extracting `steps`, 4-8 steps, each with an independently verifiable exit signal; backend rhythm = orchestration skeleton → computation nodes one by one → connect persistence → test coverage; frontend = static structure → interaction logic → state integration → integration finish
+- extracting `checks`: explicit non-goals in section 1 become scope guards; interfaces in section 2.1 become term contracts; main flow plus flow-level constraints in section 2.2 become orchestration-skeleton checks; mount points in section 2.3 become mount-point checks; scenario list in section 3 becomes acceptance-scenario checks; section 3.2 Behavior Delta becomes `behavior-delta` checks
+
+**Implement is responsible for**:
+
+- executing `steps` in order, changing status from `pending` → `done` one step at a time
+- writing `{slug}-implementation-report.md` after the user approves the completion report, preserving Implementation Review Gate evidence for acceptance
+- when concrete file-level implementation requires splitting a step, or when a micro-refactor is discovered to be its prerequisite, see section 7 reflection checks, align with the user and then append or split the steps, **never silently**
+- never rewriting `checks`
+
+**Acceptance is responsible for**: only updating `checks[].status`, `pending` → `passed` / `failed`, and never rewriting `steps`.
+
+**Writing constraint**: when sub-skills describe the checklist, they should explain only what this stage reads or writes, not redefine the whole lifecycle.
+
+---
+
+## 2.5 Roadmap ↔ feature handoff protocol
+
+`.bytetrue/roadmap/{slug}/{slug}-items.yaml` is the only interface between the planning layer and the feature execution layer. The three skills all read and write it. Since they are all writing a project-shared artifact, this does not count as cross-skill coupling.
+
+**State machine of `items.yaml`**:
+
+```text
+pending → active   (`bt-feat-design` changes it when the feature starts)
+active  → done     (`bt-feat-accept` changes it when acceptance completes)
+pending → dropped  (`bt-roadmap update` changes it when the user decides not to do it)
 ```
-planned  → in-progress  （bt-feat-design 启动 feature 时改）
-in-progress → done      （bt-feat-accept 验收完成时改）
-planned  → dropped      （bt-roadmap update 模式，用户决定不做时改）
-```
 
-`done` / `dropped` 是终态。需要回退重做的新加一条 slug 略改的条目，不改终态。
+`done`, `dropped`, and `archived` are terminal states. When an item must be revisited later, add a new slug variant rather than changing a terminal state back.
 
-**bt-roadmap 的职责**：生成和维护 roadmap 主文档 + items.yaml；把 `planned` 改 `dropped`（用户放弃时）；不改 `in-progress` / `done`（feature 技能负责）。
+**`bt-roadmap` is responsible for**: generating and maintaining the roadmap main doc plus `items.yaml`; changing `pending` → `dropped` when the user abandons it; and never writing `active` or `done`, because feature skills own those transitions.
 
-**bt-feat-design 的职责**（从 roadmap 起头时）：
+**`bt-feat-design` is responsible for**, when starting from roadmap:
 
-1. design.md frontmatter 加 `roadmap: {roadmap-slug}` + `roadmap_item: {子 feature slug}`
-2. items.yaml 对应条目 `status: in-progress` + `feature: YYYY-MM-DD-{slug}`
-3. 校验 yaml
+1. adding `roadmap: {roadmap-slug}` and `roadmap_item: {sub-feature slug}` into design.md frontmatter
+2. changing the corresponding item in `items.yaml` to `status: active` and setting `feature: YYYY-MM-DD-{slug}`
+3. validating yaml
 
-直接起 feature（非 roadmap 来）两字段留空，不触发 roadmap 写。
+When a feature starts directly and does not come from roadmap, both fields remain empty, and no roadmap write is triggered.
 
-**bt-feat-accept 的职责**：
+**`bt-feat-accept` is responsible for**:
 
-1. 读 design frontmatter `roadmap` / `roadmap_item`
-2. 空 → 跳过
-3. 有值 → items.yaml 对应条目 `status: done`；同步主文档子 feature 清单显示状态；校验 yaml
+1. reading `roadmap` and `roadmap_item` from design frontmatter
+2. if empty, skipping roadmap write-back
+3. if present, changing the corresponding item in `items.yaml` to `status: done`, synchronizing the display state of the sub-feature list in the main doc, and validating yaml
 
-回写是**实际写文件的动作**，验收报告要明确记录回写结果。
+This write-back is an **actual file-writing action**, and the acceptance report must explicitly record its result.
 
-**最小闭环标记**：items.yaml 每份只有一条 `minimal_loop: true`，标记"做完后系统能端到端跑通最窄路径"。design 启动 `minimal_loop` 条目时优先级最高。
+**Minimal loop marker**: each `items.yaml` has exactly one `minimal_loop: true`, marking the narrowest end-to-end path that would actually run through once completed. When design starts a `minimal_loop` item, it gets the highest priority.
 
 ---
 
-## 3. 阶段收尾推荐
+## 3. Stage close-out recommendations
 
-**feature-acceptance** 收尾按顺序判断：
+Every stage close-out first reads `workflow.mode`, `workflow.ask_before`, `tracker.provider`, and `tracker.sync_policy` from `.bytetrue/config.yaml`. If `.bytetrue/config.yaml` is missing, stop and tell the user to rerun `bt-onboard` or repair the skeleton; do not infer current workflow or tracker values from prose references. In `manual`, only prompt the next step and wait; in `auto`, continue directly into the next stage startup checks only when the next step is determined by current artifacts, stays inside confirmed scope, and does not trigger any operation key currently listed in `workflow.ask_before`. Stop and name the boundary for any configured ask-before operation, semantic approval, repair-option choice, or HUMAN verification. Skip tracker prompts when `tracker.provider: local` or `tracker.sync_policy: never`; with `sync_policy: ask`, only ask whether to enter `bt-tracker`; with `sync_policy: auto_preview`, prepare the tracker preview automatically, but whether to perform external writes is governed by current `workflow.ask_before` plus `bt-tracker` confirmation rules.
 
-1. `bt-learn`：沉淀经验
-2. `bt-decide`：长期约束 / 选型
-3. `bt-guide`：开发者 / 用户指南
-4. `bt-libdoc`：公开 API 参考
-5. `scoped-commit`
+**roadmap** close-out should ask in this order:
 
-**issue-fix** 收尾按顺序判断：
+1. `bt-tracker`: sync or bind the roadmap PRD and all syncable roadmap items touched this time, pending, active, or done; dropped items only update already bound external issues
+2. `worklog`: optional concise report-feed entry for the roadmap session
 
-1. `bt-learn`：坑点
-2. `bt-decide`：暴露的长期约束
+**feature-design** close-out should ask in this order:
+
+1. `bt-tracker`: sync or bind feature designs with `status: done` and `review_result: approved`; if the feature started from roadmap, also update or bind the corresponding roadmap item
+
+**feature-acceptance** close-out should ask in this order:
+
+1. `bt-learn`: capture the lessons
+2. `bt-decide`: archive long-term constraints or choices
+3. `bt-tracker`: update or bind the external task using feature design plus acceptance report or checklist; if the feature started from roadmap, also sync the done roadmap item state
+4. `bt-guide`: developer or user guide
+5. `bt-libdoc`: public API reference
+6. `bt-note`: attention.md candidates
+7. `worklog`: optional concise report-feed entry for the feature acceptance session
+8. `scoped-commit`
+
+**issue-report** close-out should ask in this order:
+
+1. `bt-tracker`: sync or bind bug issues with `status: done`
+
+**issue-fix** close-out should ask in this order:
+
+1. `bt-learn`: capture the pitfall
+2. `bt-decide`: archive exposed long-term constraints
+3. `bt-tracker`: update, bind, or request closure of the external bug issue; if it was never bound before, sync can still be added, with fast-path issues using the fix-note as source
+4. `bt-note`: attention.md candidate
+5. `worklog`: optional concise report-feed entry for the issue fix session
+6. `scoped-commit`
+
+**feature-ff** close-out should ask in this order, and by default it does not trigger tracker because it has no syncable source:
+
+1. `bt-learn`: pitfalls exposed while doing the work
+2. `bt-decide`: long-term constraints finalized during the work
 3. `scoped-commit`
 
-**feature-ff** 收尾按顺序判断（比标准 acceptance 短，没有 architecture / req 回写动作）：
-
-1. `bt-learn`：动手过程暴露的坑
-2. `bt-decide`：动手过程拍板的长期约束
-3. `scoped-commit`
-
-**统一规则**：一律一句话提示；用户说"不用"立即跳过；不强制；上游主动提示，下游承接执行。
+**Universal rule**: each prompt is one sentence; if the user says "no need", skip it immediately; it is never mandatory; upstream skills proactively suggest it and downstream skills execute it.
 
 ---
 
-## 4. 收尾提交（scoped-commit）
+## 4. Close-out commit, `scoped-commit`
 
-acceptance / issue-fix 走完后把本次产物提交为一个 commit：
+After acceptance or issue-fix completes, commit the artifacts of this run as one commit:
 
-- **范围**：本次工作改到的代码 + 相关 spec 文档 + 本次实际更新过的架构 doc + 本次实际更新过的 roadmap items.yaml / 主文档
-- **不该进**：和本次工作无关的顺手修改；属于"下次另起 feature / issue"的扩大范围
-- **提交前确认**：用户没明确同意不要 `git commit`
-- **commit message**：一句话说清"做了什么"，不贴 spec 目录路径
+- **scope**: the code touched in this run + the related spec docs + the architecture docs actually updated this run + the roadmap `items.yaml` or main doc actually updated this run + any optional worklog entry written for this close-out
+- **must not include**: incidental changes unrelated to this run; expansions that belong in a later, separate feature or issue
+- **confirm before commit**: if the user has not explicitly agreed, do not run `git commit`
+- **commit message**: one sentence saying what was done, without pasting spec directory paths
 
-子技能只描述本阶段特有提交范围，通用规则看这里。
-
----
-
-## 5. 归档检索规则
-
-feature-design / issue-analyze / issue-fix 动手前到 `.bytetrue/compound/` 搜已有沉淀：
-
-- 总是先搜 `architecture/` 和 `compound/`
-- 在 `compound/` 用 `doc_type` 过滤（learning / trick / decision / explore）
-- 搜到的结果只作参考输入，不盲目套用——可能已 `outdated` 或不适合当前上下文
-- 搜到和当前方向冲突的 decision → **必须**正面回应"为什么仍然这么做"或调整方向
-
-子技能只补本阶段查询命令。完整搜索语法看 `.bytetrue/reference/tools.md`。
+Sub-skills describe only their stage-specific commit scope. The general rules live here.
 
 ---
 
-## 6. 归档类子技能共享守护规则
+## 5. Archive lookup rules
 
-`bt-learn` / `bt-trick` / `bt-decide` / `bt-explore` 共享下面这组规则。子技能正文只写特有反模式，通用看这里：
+Before `feature-design`, `issue-analyze`, or `issue-fix` starts doing work, search `.bytetrue/compound/` for relevant prior capture:
 
-1. **只增不删**——已归档除非被明确取代（`status=superseded`）否则不删；理由丢失成本极高
-2. **宁缺毋滥**——用户说不出理由的节直接省略，不要 AI 编造
-3. **不替用户写实质内容**——AI 负责起草结构和串联语言，实质结论必须来自用户或可追溯的代码证据
-4. **attention.md 检查**——写完后若沉淀暴露出"每次启动都该知道"的一两行硬约束，提示用户用 `bt-note` 追加到 `.bytetrue/attention.md`；不要直接改外部 AI 入口
-5. **起草前先查重叠**——动手写前用 `search-yaml.py --query` 查语义相近的旧文档。命中就把候选列给用户在三条路径里选：
-   - **更新已有**（默认优先）：沿用原文件名和原创建日期，**不新建**；frontmatter 补 `updated: YYYY-MM-DD`；超出小修在文末加"YYYY-MM-DD 更新"简述
-   - **supersede**：旧文档保留原文，`status: superseded` + `superseded-by: {新文件名}`，正文顶部加 `**[已取代]** 见 {新 slug}`；新文档 frontmatter 带 `supersedes: {旧文件名}`
-   - **确实是不同主题**：新建，文末"相关文档"列出已有那条说明区别
-6. **识别用户意图是"改已有"还是"记新的"**——用户说"改 / 更新 / 修订 / 补充 {某条}"、明确指向某条旧文档、或话题高度重合时默认走"更新已有"，不要闷头新建。分不清就问。
+- always search `architecture/` and `compound/` first
+- inside `compound/`, filter by `doc_type`, learning / trick / decision / explore
+- search hits are input hints only, not automatic instructions to apply blindly, because they may already be `outdated` or unsuitable for the current context
+- if a search hit returns a decision that conflicts with the current direction, you **must** explicitly explain why the direction still stands, or adjust the direction
 
-各子技能只认自己的 `doc_type`，不读写别家产物。
+Each sub-skill only adds its stage-specific query commands. Full search syntax lives in `.bytetrue/reference/tools.md`.
 
 ---
 
-## 7. 写代码时的反射检查
+## 6. Shared guard rules across archival sub-skills
 
-`bt-feat-impl` 和 `bt-issue-fix` 共用。AI 默认会往"大函数 / 大文件 / god class / 处处特殊分支"漂，这一节把漂移截在发生那一刻。
+The following rules are shared by `bt-learn`, `bt-trick`, `bt-decide`, and `bt-explore`. Their own skill bodies should mention only stage-specific anti-patterns; the shared rules are here:
 
-**不是阈值，是触发器**——硬数字会诱发为拆而拆把自然聚合的代码切碎。每条都是"遇到 X 情况就停下来问自己"。
+1. **Append, do not delete** — once archived, a document is never deleted unless it is explicitly superseded with `status: archived` and `superseded_by`; losing rationale is extremely expensive
+2. **Better absent than low-quality** — if the user cannot explain a section, omit it rather than having the AI fabricate it
+3. **Do not write substantive content on the user's behalf** — the AI is responsible for structure and connective wording; the substantive conclusion must come from the user or from traceable code evidence
+4. **Check attention.md** — after writing, if the archive reveals one or two hard constraints that every startup should know, prompt the user to append them into `.bytetrue/attention.md` through `bt-note`
+5. **Check for overlap before drafting** — before writing, use `search-yaml.py --query` to search for semantically similar older docs. If there is a hit, list the candidates and let the user choose one of three paths:
+   - **update existing**, the default priority — reuse the original filename and original creation date, **do not create a new file**; add `updated: YYYY-MM-DD` to frontmatter; for anything beyond a minor revision, add a one-line update note at the end
+   - **supersede** — keep the old doc, set `status: archived` plus `superseded_by: {new filename}`, add `**[Superseded]** see {new slug}` at the top of the old body, and put `supersedes: {old filename}` into the new frontmatter
+   - **truly a different topic** — create a new file and list the old one under "related documents" at the end to explain the difference
+6. **Recognize whether the user wants to update an existing thing or record a new one** — if the user says "change / update / revise / supplement {some item}", explicitly points to an existing file, or the topic is highly overlapping, default to updating the existing one. If you cannot tell, ask.
 
-| 触发场景                                 | 停下来问自己                                                                 |
-| ---------------------------------------- | ---------------------------------------------------------------------------- |
-| 要往一个已经很长的文件追加代码时         | 文件承担几件事？新加的是已有职责延伸还是第 N+1 件事？是第 N+1 就默认新建文件 |
-| 要给已经很多方法的类加方法时             | 新方法是核心职责的自然扩展，还是把类推向"什么都能干"？                       |
-| 写的函数已超过一屏时                     | 函数在做几件事？几件事就拆                                                   |
-| 要加 `if (特殊情况) { 特殊处理 }` 分支时 | 抽象维度选错了？正确做法可能是把特殊路径和通用路径分成不同函数 / 策略 / 类   |
-| 要 copy-paste 一段代码时                 | 能抽成共用还是只字面相似？能抽就抽                                           |
-| 要给函数加第 4+ 个参数时                 | 函数做的事是不是太多了？参数列表是 API 恶化的早期信号                        |
-| 要新写"万能工具类 / helper"时            | 真没归属还是只是想不起来放哪儿就先堆 util？                                  |
+Each sub-skill recognizes only its own `doc_type` and never reads or writes another sub-skill's outputs.
 
-**停下来之后**：反射检查只把问题提出来，结论用户定。停下来想清楚的动作（拆 / 新建 / 重命名 / 抽共用）会让改动超出现有 steps 范围 → 跟用户对齐再决定（纳入当前推进 / 记顺手发现留后续）。
+---
 
-不许偷偷拆完继续写，也不许忽略信号硬冲。默认动作是停、问、再继续。
+## 7. Reflection checks while writing code
+
+Shared by `bt-feat-impl` and `bt-issue-fix`. The AI naturally drifts toward large functions, large files, god classes, and special-case branches everywhere. This section cuts that drift off at the moment it starts.
+
+**These are triggers, not thresholds** — hard numbers encourage splitting for its own sake and can shatter naturally cohesive code. Every line here means "when you encounter X, stop and ask yourself".
+
+| Trigger scenario                                                       | Stop and ask yourself                                                                                                                                                                                |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| about to append code into an already very long file                    | how many responsibilities does this file already carry? Is the new code a natural extension of the existing responsibility, or the N+1-th thing? If it is the latter, default to creating a new file |
+| about to add another method into a class that already has many methods | is the new method a natural extension of the class's core duty, or is it pushing the class toward "can do everything"?                                                                               |
+| the function being written already exceeds one screen                  | how many different things is the function doing? Split by that count                                                                                                                                 |
+| about to add `if (special case) { special handling }`                  | is the abstraction dimension wrong? The correct solution may be to separate the special path and the generic path into different functions, strategies, or classes                                   |
+| about to copy-paste a block                                            | can it be extracted into a shared thing, or is it only superficially similar? If it can be extracted, do it                                                                                          |
+| about to add a fourth or later parameter to a function                 | is the function doing too many things? Parameter-list growth is an early signal of API decay                                                                                                         |
+| about to write a "universal tool class / helper"                       | does it really have no home, or are you only piling it into util because you cannot think of the right location?                                                                                     |
+
+**After stopping**: the reflection check only surfaces the problem; the user decides the conclusion. Once the needed split, new file, rename, or shared extraction would exceed the current step scope, align with the user and decide whether to include it now or record it as a while-here observation. Do not silently split or brute-force through; default to stop, ask, then continue.

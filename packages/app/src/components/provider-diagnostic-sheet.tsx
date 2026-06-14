@@ -16,6 +16,16 @@ import {
 } from "@/components/adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import {
+  ClaudeEndpointFormSubSheet,
+  ClaudeEndpointsSection,
+} from "@/components/provider-settings/claude-endpoint-section";
+import {
+  buildClaudeEndpointVariantPatch,
+  listClaudeEndpointVariants,
+  type ClaudeEndpointVariant,
+  type ClaudeEndpointVariantFormValues,
+} from "@/components/provider-settings/claude-endpoint-variants";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isWeb } from "@/constants/platform";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";
@@ -26,6 +36,7 @@ import { settingsStyles } from "@/styles/settings";
 import { resolveProviderLabel } from "@/utils/provider-definitions";
 import { formatTimeAgo } from "@/utils/time";
 import { compareMatchScores, scoreTextFields } from "@/utils/score-match";
+import { confirmDialog } from "@/utils/confirm-dialog";
 import type { AgentModelDefinition, AgentProvider } from "@bytetrue/protocol/agent-types";
 import type { ProviderProfileModel } from "@bytetrue/protocol/provider-config";
 
@@ -356,9 +367,15 @@ interface ProviderModalBodyProps {
   searchActive: boolean;
   filteredDiscovered: AgentModelDefinition[];
   filteredCustom: ProviderProfileModel[];
+  showClaudeEndpointsSection: boolean;
+  filteredClaudeEndpoints: ClaudeEndpointVariant[];
+  deletingEndpointId: string | null;
   deletingModelId: string | null;
   onRefresh: () => void;
   onDeleteCustom: (modelId: string) => void;
+  onOpenEndpointSheet: () => void;
+  onEditEndpoint: (variantId: string) => void;
+  onDeleteEndpoint: (variantId: string) => void;
   theme: { iconSize: { md: number }; colors: { foregroundMuted: string } };
 }
 
@@ -425,6 +442,124 @@ function renderProviderSheetFooter({
   );
 }
 
+function LoadingModelsState({ theme }: { theme: { colors: { foregroundMuted: string } } }) {
+  return (
+    <View style={sheetStyles.emptyState}>
+      <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
+      <Text style={sheetStyles.mutedText}>Loading models…</Text>
+    </View>
+  );
+}
+
+function ProviderErrorState({
+  message,
+  modelsRefreshing,
+  onRefresh,
+  theme,
+}: {
+  message: string;
+  modelsRefreshing: boolean;
+  onRefresh: () => void;
+  theme: { iconSize: { md: number }; colors: { foregroundMuted: string } };
+}) {
+  return (
+    <View style={sheetStyles.emptyState}>
+      <AlertTriangle size={theme.iconSize.md} color={theme.colors.foregroundMuted} />
+      <Text style={sheetStyles.mutedText}>{message}</Text>
+      <Button variant="default" size="sm" onPress={onRefresh} disabled={modelsRefreshing}>
+        {modelsRefreshing ? "Retrying…" : "Retry"}
+      </Button>
+    </View>
+  );
+}
+
+function EmptyTextState({ message }: { message: string }) {
+  return (
+    <View style={sheetStyles.emptyState}>
+      <Text style={sheetStyles.mutedText}>{message}</Text>
+    </View>
+  );
+}
+
+function DiscoveredModelsSection({ models }: { models: AgentModelDefinition[] }) {
+  if (models.length === 0) {
+    return null;
+  }
+  return (
+    <View style={sheetStyles.section}>
+      <SectionHeader title="Discovered" count={models.length} />
+      <View style={settingsStyles.card}>
+        {models.map((model) => (
+          <DiscoveredModelRow key={model.id} model={model} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CustomModelsSection({
+  models,
+  deletingModelId,
+  onDeleteCustom,
+}: {
+  models: ProviderProfileModel[];
+  deletingModelId: string | null;
+  onDeleteCustom: (modelId: string) => void;
+}) {
+  if (models.length === 0) {
+    return null;
+  }
+  return (
+    <View style={sheetStyles.section}>
+      <SectionHeader title="Custom models" count={models.length} />
+      <View style={settingsStyles.card}>
+        {models.map((model) => (
+          <CustomModelRow
+            key={model.id}
+            model={model}
+            deleting={deletingModelId === model.id}
+            onDelete={onDeleteCustom}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function ClaudeModelFallbackState({
+  hasModels,
+  providerSnapshotRefreshing,
+  providerErrorMessage,
+  modelsRefreshing,
+  onRefresh,
+  theme,
+}: {
+  hasModels: boolean;
+  providerSnapshotRefreshing: boolean;
+  providerErrorMessage: string | null;
+  modelsRefreshing: boolean;
+  onRefresh: () => void;
+  theme: { iconSize: { md: number }; colors: { foregroundMuted: string } };
+}) {
+  if (hasModels) {
+    return null;
+  }
+  if (providerSnapshotRefreshing) {
+    return <LoadingModelsState theme={theme} />;
+  }
+  if (providerErrorMessage) {
+    return (
+      <ProviderErrorState
+        message={providerErrorMessage}
+        modelsRefreshing={modelsRefreshing}
+        onRefresh={onRefresh}
+        theme={theme}
+      />
+    );
+  }
+  return <EmptyTextState message="No models detected" />;
+}
+
 function ProviderModalBody(props: ProviderModalBodyProps) {
   const {
     discoveredCount,
@@ -435,72 +570,74 @@ function ProviderModalBody(props: ProviderModalBodyProps) {
     searchActive,
     filteredDiscovered,
     filteredCustom,
+    showClaudeEndpointsSection,
+    filteredClaudeEndpoints,
+    deletingEndpointId,
     deletingModelId,
     onRefresh,
     onDeleteCustom,
+    onOpenEndpointSheet,
+    onEditEndpoint,
+    onDeleteEndpoint,
     theme,
   } = props;
+  const hasModels = discoveredCount > 0 || additionalCount > 0;
+  const hasSearchResults =
+    filteredDiscovered.length > 0 ||
+    filteredCustom.length > 0 ||
+    filteredClaudeEndpoints.length > 0;
 
-  if (discoveredCount === 0 && additionalCount === 0 && providerSnapshotRefreshing) {
-    return (
-      <View style={sheetStyles.emptyState}>
-        <ActivityIndicator size="small" color={theme.colors.foregroundMuted} />
-        <Text style={sheetStyles.mutedText}>Loading models…</Text>
-      </View>
-    );
+  if (!showClaudeEndpointsSection) {
+    if (!hasModels && providerSnapshotRefreshing) {
+      return <LoadingModelsState theme={theme} />;
+    }
+    if (!hasModels && providerErrorMessage) {
+      return (
+        <ProviderErrorState
+          message={providerErrorMessage}
+          modelsRefreshing={modelsRefreshing}
+          onRefresh={onRefresh}
+          theme={theme}
+        />
+      );
+    }
+    if (!hasSearchResults && searchActive) {
+      return <EmptyTextState message="No models match your search" />;
+    }
+    if (!hasModels) {
+      return <EmptyTextState message="No models detected" />;
+    }
   }
-  if (discoveredCount === 0 && additionalCount === 0 && providerErrorMessage) {
-    return (
-      <View style={sheetStyles.emptyState}>
-        <AlertTriangle size={theme.iconSize.md} color={theme.colors.foregroundMuted} />
-        <Text style={sheetStyles.mutedText}>{providerErrorMessage}</Text>
-        <Button variant="default" size="sm" onPress={onRefresh} disabled={modelsRefreshing}>
-          {modelsRefreshing ? "Retrying…" : "Retry"}
-        </Button>
-      </View>
-    );
-  }
-  if (filteredDiscovered.length === 0 && filteredCustom.length === 0 && searchActive) {
-    return (
-      <View style={sheetStyles.emptyState}>
-        <Text style={sheetStyles.mutedText}>No models match your search</Text>
-      </View>
-    );
-  }
-  if (discoveredCount === 0 && additionalCount === 0) {
-    return (
-      <View style={sheetStyles.emptyState}>
-        <Text style={sheetStyles.mutedText}>No models detected</Text>
-      </View>
-    );
+  if (!hasSearchResults && searchActive) {
+    return <EmptyTextState message="No models or endpoints match your search" />;
   }
   return (
     <>
-      {filteredDiscovered.length > 0 ? (
-        <View style={sheetStyles.section}>
-          <SectionHeader title="Discovered" count={filteredDiscovered.length} />
-          <View style={settingsStyles.card}>
-            {filteredDiscovered.map((model) => (
-              <DiscoveredModelRow key={model.id} model={model} />
-            ))}
-          </View>
-        </View>
+      {showClaudeEndpointsSection ? (
+        <ClaudeEndpointsSection
+          variants={filteredClaudeEndpoints}
+          deletingEndpointId={deletingEndpointId}
+          onAddEndpoint={onOpenEndpointSheet}
+          onEditEndpoint={onEditEndpoint}
+          onDeleteEndpoint={onDeleteEndpoint}
+        />
       ) : null}
-      {filteredCustom.length > 0 ? (
-        <View style={sheetStyles.section}>
-          <SectionHeader title="Custom models" count={filteredCustom.length} />
-          <View style={settingsStyles.card}>
-            {filteredCustom.map((model) => (
-              <CustomModelRow
-                key={model.id}
-                model={model}
-                deleting={deletingModelId === model.id}
-                onDelete={onDeleteCustom}
-              />
-            ))}
-          </View>
-        </View>
+      {showClaudeEndpointsSection ? (
+        <ClaudeModelFallbackState
+          hasModels={hasModels}
+          providerSnapshotRefreshing={providerSnapshotRefreshing}
+          providerErrorMessage={providerErrorMessage}
+          modelsRefreshing={modelsRefreshing}
+          onRefresh={onRefresh}
+          theme={theme}
+        />
       ) : null}
+      <DiscoveredModelsSection models={filteredDiscovered} />
+      <CustomModelsSection
+        models={filteredCustom}
+        deletingModelId={deletingModelId}
+        onDeleteCustom={onDeleteCustom}
+      />
     </>
   );
 }
@@ -518,6 +655,11 @@ export function ProviderDiagnosticSheet({
   const [query, setQuery] = useState("");
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [diagSheetOpen, setDiagSheetOpen] = useState(false);
+  const [endpointSheetOpen, setEndpointSheetOpen] = useState(false);
+  const [savingEndpoint, setSavingEndpoint] = useState(false);
+  const [deletingEndpointId, setDeletingEndpointId] = useState<string | null>(null);
+  const [endpointSaveError, setEndpointSaveError] = useState<string | null>(null);
+  const [editingEndpointId, setEditingEndpointId] = useState<string | null>(null);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
 
   const providerLabel = resolveProviderLabel(provider, snapshotEntries);
@@ -533,6 +675,7 @@ export function ProviderDiagnosticSheet({
   const providerErrorMessage =
     providerEntry?.status === "error" ? (providerEntry.error ?? "Unknown error") : null;
   const modelsRefreshing = isRefreshing || providerSnapshotRefreshing;
+  const isClaudeProvider = provider === "claude";
 
   const stableDiscoveredRef = useRef<AgentModelDefinition[]>([]);
   if (providerEntry?.models && providerEntry.models.length > 0) {
@@ -560,6 +703,11 @@ export function ProviderDiagnosticSheet({
       setQuery("");
       setAddSheetOpen(false);
       setDiagSheetOpen(false);
+      setEndpointSheetOpen(false);
+      setEditingEndpointId(null);
+      setSavingEndpoint(false);
+      setDeletingEndpointId(null);
+      setEndpointSaveError(null);
     }
   }, [visible]);
 
@@ -572,6 +720,26 @@ export function ProviderDiagnosticSheet({
     () => rankModels(additionalModels, q, (m) => [m.label, m.id]),
     [additionalModels, q],
   );
+  const claudeEndpointVariants = useMemo(
+    () => (isClaudeProvider ? listClaudeEndpointVariants(config?.providers) : []),
+    [config?.providers, isClaudeProvider],
+  );
+  const filteredClaudeEndpoints = useMemo(
+    () => (isClaudeProvider ? listClaudeEndpointVariants(config?.providers, q) : []),
+    [config?.providers, isClaudeProvider, q],
+  );
+  const selectedEndpointVariant = useMemo(
+    () => claudeEndpointVariants.find((variant) => variant.id === editingEndpointId) ?? null,
+    [claudeEndpointVariants, editingEndpointId],
+  );
+  const existingProviderIds = useMemo(
+    () =>
+      new Set([
+        ...Object.keys(config?.providers ?? {}),
+        ...(snapshotEntries?.map((entry) => entry.provider) ?? []),
+      ]),
+    [config?.providers, snapshotEntries],
+  );
 
   const handleRefreshModels = useCallback(() => {
     void refresh([provider]);
@@ -581,6 +749,63 @@ export function ProviderDiagnosticSheet({
   const handleCloseAddSheet = useCallback(() => setAddSheetOpen(false), []);
   const handleOpenDiagSheet = useCallback(() => setDiagSheetOpen(true), []);
   const handleCloseDiagSheet = useCallback(() => setDiagSheetOpen(false), []);
+  const handleOpenEndpointSheet = useCallback(() => {
+    setEditingEndpointId(null);
+    setEndpointSaveError(null);
+    setEndpointSheetOpen(true);
+  }, []);
+  const handleCloseEndpointSheet = useCallback(() => {
+    setEndpointSheetOpen(false);
+    setEditingEndpointId(null);
+    setEndpointSaveError(null);
+  }, []);
+  const handleEditEndpoint = useCallback((variantId: string) => {
+    setEditingEndpointId(variantId);
+    setEndpointSaveError(null);
+    setEndpointSheetOpen(true);
+  }, []);
+  const handleDeleteEndpoint = useCallback(
+    async (variantId: string) => {
+      const confirmed = await confirmDialog({
+        title: "Remove Claude endpoint",
+        message:
+          "Agents or preferences using this Claude endpoint may need another provider selected before reuse or resume.",
+        confirmLabel: "Remove",
+        destructive: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+      setDeletingEndpointId(variantId);
+      void patchConfig({ removeProviders: [variantId] })
+        .then(() => refresh([variantId]))
+        .finally(() => {
+          setDeletingEndpointId((current) => (current === variantId ? null : current));
+        });
+    },
+    [patchConfig, refresh],
+  );
+  const handleSaveEndpoint = useCallback(
+    (values: ClaudeEndpointVariantFormValues) => {
+      const providerId = values.internalId.trim();
+      setSavingEndpoint(true);
+      setEndpointSaveError(null);
+      void patchConfig(
+        buildClaudeEndpointVariantPatch(values, { replaceEnv: editingEndpointId !== null }),
+      )
+        .then(() => refresh([providerId]))
+        .then(() => {
+          setEndpointSheetOpen(false);
+          setEditingEndpointId(null);
+          return undefined;
+        })
+        .catch((err) => {
+          setEndpointSaveError(err instanceof Error ? err.message : "Failed to save endpoint");
+        })
+        .finally(() => setSavingEndpoint(false));
+    },
+    [editingEndpointId, patchConfig, refresh],
+  );
 
   const handleDeleteCustom = useCallback(
     (modelId: string) => {
@@ -605,11 +830,11 @@ export function ProviderDiagnosticSheet({
       title: providerLabel,
       search: {
         onChange: setQuery,
-        placeholder: "Search models",
+        placeholder: isClaudeProvider ? "Search models and endpoints" : "Search models",
         testID: "provider-settings-search",
       },
     }),
-    [providerLabel],
+    [providerLabel, isClaudeProvider],
   );
 
   return (
@@ -638,9 +863,15 @@ export function ProviderDiagnosticSheet({
           searchActive={Boolean(q)}
           filteredDiscovered={filteredDiscovered}
           filteredCustom={filteredCustom}
+          showClaudeEndpointsSection={isClaudeProvider}
+          filteredClaudeEndpoints={filteredClaudeEndpoints}
+          deletingEndpointId={deletingEndpointId}
           deletingModelId={deletingModelId}
           onRefresh={handleRefreshModels}
           onDeleteCustom={handleDeleteCustom}
+          onOpenEndpointSheet={handleOpenEndpointSheet}
+          onEditEndpoint={handleEditEndpoint}
+          onDeleteEndpoint={handleDeleteEndpoint}
           theme={theme}
         />
       </AdaptiveModalSheet>
@@ -650,6 +881,16 @@ export function ProviderDiagnosticSheet({
         visible={addSheetOpen}
         onClose={handleCloseAddSheet}
         refresh={refresh}
+      />
+      <ClaudeEndpointFormSubSheet
+        visible={endpointSheetOpen}
+        mode={editingEndpointId ? "edit" : "add"}
+        initialVariant={selectedEndpointVariant}
+        existingIds={existingProviderIds}
+        saving={savingEndpoint}
+        saveError={endpointSaveError}
+        onClose={handleCloseEndpointSheet}
+        onSave={handleSaveEndpoint}
       />
       <DiagnosticSubSheet
         provider={provider}

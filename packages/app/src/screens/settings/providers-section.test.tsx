@@ -37,7 +37,7 @@ const {
       statusSuccess: "#00ff00",
       statusWarning: "#ff9500",
       statusDanger: "#ff0000",
-      palette: { red: { 300: "#ff6b6b" }, blue: { 400: "#60a5fa", 900: "#1e3a8a" }, white: "#fff" },
+      palette: { red: { 300: "#ff6b6b" }, white: "#fff" },
     },
   },
   snapshotState: {
@@ -107,7 +107,6 @@ vi.mock("react-native-unistyles", () => ({
       typeof factory === "function" ? (factory as (t: typeof theme) => unknown)(theme) : factory,
   },
   useUnistyles: () => ({ theme }),
-  withUnistyles: (Component: React.ComponentType<unknown>) => Component,
 }));
 
 vi.mock("lucide-react-native", () => {
@@ -117,10 +116,8 @@ vi.mock("lucide-react-native", () => {
     return Icon;
   };
   return {
-    ChevronDown: icon("ChevronDown"),
     ChevronRight: icon("ChevronRight"),
     MoreVertical: icon("MoreVertical"),
-    Plus: icon("Plus"),
     Trash2: icon("Trash2"),
   };
 });

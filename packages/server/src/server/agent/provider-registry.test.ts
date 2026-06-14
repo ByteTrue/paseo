@@ -950,6 +950,80 @@ describe("model merging", () => {
     ]);
   });
 
+  test("managed Claude endpoint variants replace inherited Claude models with endpoint env models", async () => {
+    mockState.runtimeModels.set("claude", [
+      {
+        provider: "claude",
+        id: "claude-runtime",
+        label: "Claude Runtime",
+      },
+    ]);
+
+    const registry = buildProviderRegistry(logger, {
+      providerOverrides: {
+        "claude-deepseek": {
+          extends: "claude",
+          label: "Claude via DeepSeek",
+          env: {
+            ANTHROPIC_DEFAULT_OPUS_MODEL: "deepseek-opus",
+            ANTHROPIC_DEFAULT_SONNET_MODEL: "deepseek-sonnet",
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: "deepseek-haiku",
+          },
+          params: { paseoManagedKind: "claudeEndpointVariant" },
+        },
+      },
+    });
+
+    await expect(
+      registry["claude-deepseek"].fetchModels({ cwd: "/tmp/registry-models", force: false }),
+    ).resolves.toEqual([
+      {
+        provider: "claude-deepseek",
+        id: "deepseek-sonnet",
+        label: "deepseek-sonnet",
+        description: "From ANTHROPIC_DEFAULT_SONNET_MODEL",
+        isDefault: true,
+      },
+      {
+        provider: "claude-deepseek",
+        id: "deepseek-opus",
+        label: "deepseek-opus",
+        description: "From ANTHROPIC_DEFAULT_OPUS_MODEL",
+      },
+      {
+        provider: "claude-deepseek",
+        id: "deepseek-haiku",
+        label: "deepseek-haiku",
+        description: "From ANTHROPIC_DEFAULT_HAIKU_MODEL",
+      },
+    ]);
+  });
+
+  test("managed Claude endpoint variants without model env expose no inherited models", async () => {
+    mockState.runtimeModels.set("claude", [
+      {
+        provider: "claude",
+        id: "claude-runtime",
+        label: "Claude Runtime",
+      },
+    ]);
+
+    const registry = buildProviderRegistry(logger, {
+      providerOverrides: {
+        "claude-proxy": {
+          extends: "claude",
+          label: "Claude via Proxy",
+          env: { ANTHROPIC_BASE_URL: "https://proxy.example.com" },
+          params: { paseoManagedKind: "claudeEndpointVariant" },
+        },
+      },
+    });
+
+    await expect(
+      registry["claude-proxy"].fetchModels({ cwd: "/tmp/registry-models", force: false }),
+    ).resolves.toEqual([]);
+  });
+
   test("additional models merge onto profile replacement models", async () => {
     mockState.runtimeModels.set("codex", [
       {

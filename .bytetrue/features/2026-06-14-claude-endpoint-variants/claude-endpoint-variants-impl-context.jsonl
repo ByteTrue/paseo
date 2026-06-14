@@ -1,0 +1,12 @@
+{"file":".bytetrue/features/2026-06-14-claude-endpoint-variants/claude-endpoint-variants-design.md","reason":"Approved feature design and source of truth for Claude endpoint variant terms, boundaries, orchestration, and acceptance scenarios","required":true,"role":"implement"}
+{"file":".bytetrue/features/2026-06-14-claude-endpoint-variants/claude-endpoint-variants-checklist.yaml","reason":"Implementation step order and checks extracted from the approved design","required":true,"role":"implement"}
+{"file":".bytetrue/requirements/daemon-synced-settings.md","reason":"Linked requirement for daemon-owned provider settings and cross-device persistence expectations","required":true,"role":"implement"}
+{"file":".bytetrue/reference/domain-context.md","reason":"Project terminology includes the approved Claude endpoint variant definition and anti-conflict boundary","required":true,"role":"implement"}
+{"file":".bytetrue/architecture/providers.md","reason":"Provider snapshot and provider registry architecture constraints that the feature extends","required":true,"role":"implement"}
+{"file":".bytetrue/architecture/custom-providers.md","reason":"Existing provider override architecture that this feature constrains into a Claude-only UI-managed variant path","required":true,"role":"implement"}
+{"file":".bytetrue/reference/execution-modes.md","reason":"Design records standard execution mode with required evidence; implementation should follow this evidence discipline","required":true,"role":"implement"}
+{"file":".bytetrue/reference/implementation-review.md","reason":"Implementation must produce review-gate evidence and an implementation report before acceptance","required":true,"role":"implement"}
+{"file":".bytetrue/reference/context-manifest.md","reason":"Manifest contract for downstream implement/check read-sets","required":true,"role":"implement"}
+{"file":"docs/design.md","reason":"UI must match Paseo settings/modal/card/button/list-row style and avoid bespoke patterns","required":true,"role":"implement"}
+{"file":"docs/unistyles.md","reason":"New app UI must avoid banned Unistyles patterns and use existing styling conventions","required":true,"role":"implement"}
+{"file":"docs/custom-providers.md","reason":"User/developer docs should be updated so Claude endpoint variant is the ordinary path and raw provider overrides remain advanced","required":false,"role":"implement"}

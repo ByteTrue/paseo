@@ -484,6 +484,8 @@ export class ProviderSnapshotManager {
         description: definition?.description,
         defaultModeId: definition?.defaultModeId ?? null,
         canRemove: definition?.canRemove ?? false,
+        derivedFromProviderId: definition?.derivedFromProviderId ?? null,
+        managedKind: definition?.managedKind,
       });
     }
     return entries;
@@ -511,6 +513,8 @@ export class ProviderSnapshotManager {
         description: metadata.description,
         defaultModeId: metadata.defaultModeId,
         canRemove: metadata.canRemove,
+        derivedFromProviderId: metadata.derivedFromProviderId,
+        managedKind: metadata.managedKind,
       });
     }
     this.snapshots.set(cwd, entries);
@@ -531,6 +535,8 @@ export class ProviderSnapshotManager {
         description: definition?.description,
         defaultModeId: definition?.defaultModeId ?? null,
         canRemove: definition?.canRemove ?? false,
+        derivedFromProviderId: definition?.derivedFromProviderId ?? null,
+        managedKind: definition?.managedKind,
       };
 
       if (!definition?.enabled || !current || current.status === "loading") {
@@ -664,6 +670,8 @@ export class ProviderSnapshotManager {
       description: definition.description,
       defaultModeId: definition.defaultModeId,
       canRemove: definition.canRemove,
+      derivedFromProviderId: definition.derivedFromProviderId,
+      managedKind: definition.managedKind,
     };
     const setEntry = (entry: ProviderSnapshotEntry) => {
       if (!this.isCurrentProviderLoad(cwd, provider, load)) {
@@ -750,6 +758,8 @@ export class ProviderSnapshotManager {
       enabled: next.enabled,
       defaultModeId: next.defaultModeId,
       canRemove: next.canRemove,
+      derivedFromProviderId: next.derivedFromProviderId,
+      managedKind: next.managedKind,
       lastRefreshError: next.status === "error" ? next.error : "Provider unavailable",
     } as ProviderSnapshotEntry & { lastRefreshError?: string };
   }

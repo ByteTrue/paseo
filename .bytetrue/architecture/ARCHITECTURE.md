@@ -263,6 +263,10 @@ All providers:
 - Map tool calls to a normalized `ToolCallDetail` type
 - Expose provider-specific modes (plan, default, full-access)
 
+**Provider architecture decisions:**
+
+- [Claude endpoint variants](../compound/2026-06-14-decision-claude-endpoint-variants.md): app-managed endpoint customization is Claude-only in v1, persisted as marked `extends: "claude"` overrides, and must not reintroduce the generic custom-provider UI.
+
 ## Data flow: running an agent
 
 1. Client sends `CreateAgentRequestMessage` with config (prompt, cwd, provider, model, mode)

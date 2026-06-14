@@ -1,0 +1,12 @@
+{"file":".bytetrue/features/2026-06-14-claude-endpoint-variants/claude-endpoint-variants-design.md","reason":"Approved design acceptance contract and behavior delta source for final verification","required":true,"role":"check"}
+{"file":".bytetrue/features/2026-06-14-claude-endpoint-variants/claude-endpoint-variants-checklist.yaml","reason":"Checklist items acceptance must verify are completed or explicitly accounted for","required":true,"role":"check"}
+{"file":".bytetrue/features/2026-06-14-claude-endpoint-variants/claude-endpoint-variants-implementation-report.md","reason":"Implementation report to be written by bt-feat-impl as durable review-gate evidence before acceptance","required":true,"role":"check"}
+{"file":".bytetrue/requirements/daemon-synced-settings.md","reason":"Linked requirement for daemon-synced settings behavior and credential boundary context","required":true,"role":"check"}
+{"file":".bytetrue/reference/domain-context.md","reason":"Acceptance must confirm implementation matches the approved Claude endpoint variant terminology and boundary","required":true,"role":"check"}
+{"file":".bytetrue/architecture/providers.md","reason":"Architecture merge target for provider snapshot metadata and provider selection/rendering flow-level constraints","required":true,"role":"check"}
+{"file":".bytetrue/architecture/custom-providers.md","reason":"Architecture merge target for the constrained UI-managed Claude endpoint variant convention over provider overrides","required":true,"role":"check"}
+{"file":".bytetrue/reference/implementation-review.md","reason":"Acceptance must inspect implementation report evidence against the implementation review contract","required":true,"role":"check"}
+{"file":".bytetrue/reference/context-manifest.md","reason":"Acceptance should validate manifest semantics and required implementation report row","required":true,"role":"check"}
+{"file":"docs/design.md","reason":"Manual UI review should verify the new section, rows, buttons, and form follow Paseo style rules","required":true,"role":"check"}
+{"file":"docs/unistyles.md","reason":"Check should reject newly introduced banned Unistyles usage or styling anti-patterns","required":true,"role":"check"}
+{"file":"docs/custom-providers.md","reason":"Check whether user/developer docs were updated to describe Claude endpoint variants and keep raw provider overrides as advanced usage","required":false,"role":"check"}
