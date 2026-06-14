@@ -25,6 +25,8 @@ export interface RuntimeUpdateInfo {
   releaseNotes?: unknown;
   releaseDate?: unknown;
   rolloutHours?: unknown;
+  files?: unknown;
+  path?: unknown;
 }
 
 export interface RuntimeUpdateCheckResult {
@@ -34,6 +36,7 @@ export interface RuntimeUpdateCheckResult {
 
 export interface AppUpdateRuntimeConfiguration {
   releaseChannel: AppReleaseChannel;
+  autoDownload: boolean;
   shouldAdmitUpdate(info: RuntimeUpdateInfo): boolean | Promise<boolean>;
   onUpdateAvailable(info: RuntimeUpdateInfo): void;
   onUpdateDownloaded(info: RuntimeUpdateInfo): void;
@@ -46,6 +49,10 @@ export interface AppUpdateRuntime {
   checkForUpdates(): Promise<RuntimeUpdateCheckResult | null>;
   downloadUpdate(): Promise<unknown>;
   quitAndInstall(isSilent: boolean, isForceRunAfter: boolean): void;
+}
+
+export interface AppUpdateManualInstaller {
+  install(info: RuntimeUpdateInfo, onBeforeQuit?: () => Promise<void>): Promise<void>;
 }
 
 export interface AppUpdateService {
@@ -65,6 +72,7 @@ export interface AppUpdateService {
 
 export interface AppUpdateServiceDeps {
   runtime: AppUpdateRuntime;
+  manualInstaller?: AppUpdateManualInstaller;
   isPackaged(): boolean;
   now(): number;
   bucket(): Promise<number>;
@@ -115,14 +123,20 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
     downloading = false;
   }
 
+  function getManualInstaller(): AppUpdateManualInstaller | null {
+    return deps.manualInstaller ?? null;
+  }
+
   function configureRuntime(releaseChannel: AppReleaseChannel, intent: AppUpdateCheckIntent): void {
     if (configuredReleaseChannel !== releaseChannel) {
       clearUpdateState();
       configuredReleaseChannel = releaseChannel;
     }
 
+    const autoDownload = getManualInstaller() == null;
     deps.runtime.configure({
       releaseChannel,
+      autoDownload,
       shouldAdmitUpdate: async (info) => {
         const parsed = rolloutManifestSchema.parse(info);
         return shouldAdmitAppUpdate({
@@ -137,7 +151,7 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
       onUpdateAvailable(info) {
         cachedUpdateInfo = info;
         downloadedUpdateVersion = null;
-        downloading = true;
+        downloading = autoDownload;
       },
       onUpdateDownloaded(info) {
         cachedUpdateInfo = info;
@@ -178,7 +192,7 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
       return buildCheckResult({
         currentVersion,
         hasUpdate: true,
-        readyToInstall: isReadyToInstallVersion(cachedVersion),
+        readyToInstall: getManualInstaller() != null || isReadyToInstallVersion(cachedVersion),
         info: cachedUpdateInfo,
       });
     }
@@ -199,12 +213,14 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
       const hasUpdate = latestVersion !== currentVersion;
 
       if (hasUpdate) {
+        const manualInstaller = getManualInstaller();
+        const readyToInstall = manualInstaller != null || isReadyToInstallVersion(latestVersion);
         cachedUpdateInfo = info;
-        downloading = !isReadyToInstallVersion(latestVersion);
+        downloading = manualInstaller == null && !isReadyToInstallVersion(latestVersion);
         return buildCheckResult({
           currentVersion,
           hasUpdate: true,
-          readyToInstall: isReadyToInstallVersion(latestVersion),
+          readyToInstall,
           info,
         });
       }
@@ -254,6 +270,31 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
     configureRuntime(releaseChannel, "manual");
 
     const readyVersion = cachedUpdateInfo.version;
+    const manualInstaller = getManualInstaller();
+    if (manualInstaller) {
+      downloading = true;
+      try {
+        await manualInstaller.install(cachedUpdateInfo, onBeforeQuit);
+        downloadedUpdateVersion = readyVersion;
+        downloading = false;
+
+        return {
+          installed: true,
+          version: readyVersion,
+          message: "Installer opened. Drag Paseo into Applications to finish updating.",
+        };
+      } catch (error) {
+        downloading = false;
+        const message = error instanceof Error ? error.message : String(error);
+        deps.reportInstallError?.(message);
+        return {
+          installed: false,
+          version: currentVersion,
+          message: `Update failed: ${message}`,
+        };
+      }
+    }
+
     if (isReadyToInstallVersion(readyVersion)) {
       await performQuitAndInstall(deps.runtime, onBeforeQuit);
       return {

@@ -12,6 +12,7 @@ import {
   type UpdateCalloutBody,
 } from "@/desktop/updates/resolve-update-callout";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
+import { shouldUseManualMacUpdateInstaller } from "@/desktop/updates/desktop-updates";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { openExternalUrl } from "@/utils/open-external-url";
 
@@ -19,7 +20,9 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const CHANGELOG_URL = "https://paseo.sh/changelog";
 
 function renderBody(body: UpdateCalloutBody): ReactNode {
-  if (body.kind === "installing") return "Installing and restarting...";
+  if (body.kind === "installing") {
+    return body.usesManualInstaller ? "Downloading installer..." : "Installing and restarting...";
+  }
   if (body.kind === "error") return body.message;
   return <UpdateAvailableDescription versionLabel={body.versionLabel ?? undefined} />;
 }
@@ -49,6 +52,7 @@ export function UpdateCalloutSource() {
     isInstalling,
   } = useDesktopAppUpdater();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const usesManualInstaller = shouldUseManualMacUpdateInstaller();
 
   const openChangelog = useStableEvent(() => {
     void openExternalUrl(CHANGELOG_URL);
@@ -82,6 +86,7 @@ export function UpdateCalloutSource() {
       isInstalling,
       availableUpdate,
       errorMessage,
+      usesManualInstaller,
     });
     if (!descriptor) return;
 
@@ -109,6 +114,7 @@ export function UpdateCalloutSource() {
     install,
     isDesktopApp,
     isInstalling,
+    usesManualInstaller,
     openChangelog,
     retry,
     status,

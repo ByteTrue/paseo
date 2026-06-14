@@ -44,6 +44,15 @@ describe("resolveUpdateCalloutDescriptor", () => {
     expect(descriptor?.dismissalKey).toBe("desktop-update:available:1.2.3");
   });
 
+  it("uses manual installer labels when macOS opens a DMG installer", () => {
+    const descriptor = resolveUpdateCalloutDescriptor(input({ usesManualInstaller: true }));
+
+    expect(descriptor?.actions).toEqual([
+      { role: "changelog", label: "What's new" },
+      { role: "install", label: "Download installer", variant: "primary", disabled: false },
+    ]);
+  });
+
   it("normalizes a leading v in the latest version", () => {
     const descriptor = resolveUpdateCalloutDescriptor(
       input({ availableUpdate: { latestVersion: "v2.0.0" } }),
@@ -65,7 +74,7 @@ describe("resolveUpdateCalloutDescriptor", () => {
     );
 
     expect(descriptor?.title).toBe("Installing update");
-    expect(descriptor?.body).toEqual({ kind: "installing" });
+    expect(descriptor?.body).toEqual({ kind: "installing", usesManualInstaller: false });
     expect(descriptor?.showGiftIcon).toBe(false);
     expect(descriptor?.variant).toBe("default");
     expect(descriptor?.actions).toEqual([
@@ -73,6 +82,19 @@ describe("resolveUpdateCalloutDescriptor", () => {
       { role: "install", label: "Installing...", variant: "primary", disabled: true },
     ]);
     expect(descriptor?.dismissalKey).toBe("desktop-update:installing:1.2.3");
+  });
+
+  it("uses a downloading label for manual installer progress", () => {
+    const descriptor = resolveUpdateCalloutDescriptor(
+      input({ status: "installing", isInstalling: true, usesManualInstaller: true }),
+    );
+
+    expect(descriptor?.title).toBe("Downloading installer");
+    expect(descriptor?.body).toEqual({ kind: "installing", usesManualInstaller: true });
+    expect(descriptor?.actions).toEqual([
+      { role: "changelog", label: "What's new" },
+      { role: "install", label: "Downloading...", variant: "primary", disabled: true },
+    ]);
   });
 
   it("shows a retry action and surfaces the error message on error", () => {

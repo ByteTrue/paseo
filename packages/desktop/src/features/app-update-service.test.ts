@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createAppUpdateService,
+  type AppUpdateManualInstaller,
   type AppUpdateRuntime,
   type AppUpdateRuntimeConfiguration,
   type RuntimeUpdateInfo,
@@ -10,9 +11,11 @@ import {
 class FakeAppUpdateRuntime implements AppUpdateRuntime {
   private checks: Array<{ isUpdateAvailable: boolean; updateInfo: RuntimeUpdateInfo } | null> = [];
   private gate: ((info: RuntimeUpdateInfo) => boolean | Promise<boolean>) | null = null;
+  readonly configurations: AppUpdateRuntimeConfiguration[] = [];
 
   configure(input: AppUpdateRuntimeConfiguration): void {
     this.gate = input.shouldAdmitUpdate;
+    this.configurations.push(input);
   }
 
   nextCheck(result: { isUpdateAvailable: boolean; updateInfo: RuntimeUpdateInfo } | null): void {
@@ -34,10 +37,28 @@ class FakeAppUpdateRuntime implements AppUpdateRuntime {
   quitAndInstall(): void {}
 }
 
-function createService(input?: { now?: () => number; bucket?: () => Promise<number> }) {
+class FakeManualInstaller implements AppUpdateManualInstaller {
+  readonly installed: RuntimeUpdateInfo[] = [];
+  beforeQuitCalls = 0;
+
+  async install(info: RuntimeUpdateInfo, onBeforeQuit?: () => Promise<void>): Promise<void> {
+    this.installed.push(info);
+    if (onBeforeQuit) {
+      await onBeforeQuit();
+      this.beforeQuitCalls += 1;
+    }
+  }
+}
+
+function createService(input?: {
+  now?: () => number;
+  bucket?: () => Promise<number>;
+  manualInstaller?: AppUpdateManualInstaller;
+}) {
   const runtime = new FakeAppUpdateRuntime();
   const service = createAppUpdateService({
     runtime,
+    manualInstaller: input?.manualInstaller,
     isPackaged: () => true,
     now: input?.now ?? (() => Date.parse("2026-04-28T12:00:00.000Z")),
     bucket: input?.bucket ?? (async () => 0.99),
@@ -110,5 +131,56 @@ describe("app update service", () => {
       body: null,
       date: null,
     });
+  });
+
+  it("makes checked manual installer updates immediately installable without auto-download", async () => {
+    const manualInstaller = new FakeManualInstaller();
+    const { runtime, service } = createService({ manualInstaller });
+    runtime.nextCheck({ isUpdateAvailable: true, updateInfo: rolledOutUpdate });
+
+    const result = await service.checkForAppUpdate({
+      currentVersion: "1.2.3",
+      releaseChannel: "stable",
+      intent: "manual",
+    });
+
+    expect(result).toEqual({
+      hasUpdate: true,
+      readyToInstall: true,
+      currentVersion: "1.2.3",
+      latestVersion: "1.2.4",
+      body: null,
+      date: "2026-04-28T00:00:00.000Z",
+    });
+    expect(runtime.configurations.at(-1)?.autoDownload).toBe(false);
+  });
+
+  it("opens the manual installer and runs quit preparation", async () => {
+    const manualInstaller = new FakeManualInstaller();
+    const { runtime, service } = createService({ manualInstaller });
+    runtime.nextCheck({ isUpdateAvailable: true, updateInfo: rolledOutUpdate });
+    await service.checkForAppUpdate({
+      currentVersion: "1.2.3",
+      releaseChannel: "stable",
+      intent: "manual",
+    });
+
+    let beforeQuitCalls = 0;
+    const result = await service.downloadAndInstallUpdate(
+      { currentVersion: "1.2.3", releaseChannel: "stable" },
+      async () => {
+        beforeQuitCalls += 1;
+      },
+    );
+
+    expect(result).toEqual({
+      installed: true,
+      version: "1.2.4",
+      message: "Installer opened. Drag Paseo into Applications to finish updating.",
+    });
+    expect(manualInstaller.installed).toEqual([rolledOutUpdate]);
+    expect(manualInstaller.beforeQuitCalls).toBe(1);
+    expect(beforeQuitCalls).toBe(1);
+    expect(runtime.configurations.at(-1)?.autoDownload).toBe(false);
   });
 });

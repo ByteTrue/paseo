@@ -2,7 +2,7 @@ import type { DesktopAppUpdateStatus } from "@/desktop/updates/use-desktop-app-u
 
 export type UpdateCalloutBody =
   | { kind: "available"; versionLabel: string | null }
-  | { kind: "installing" }
+  | { kind: "installing"; usesManualInstaller: boolean }
   | { kind: "error"; message: string };
 
 export type UpdateCalloutActionRole = "changelog" | "install" | "retry";
@@ -32,11 +32,22 @@ export interface ResolveUpdateCalloutInput {
   isInstalling: boolean;
   availableUpdate: { latestVersion?: string | null } | null;
   errorMessage: string | null;
+  usesManualInstaller?: boolean;
 }
 
 function formatVersionLabel(latestVersion: string | null | undefined): string | null {
   if (!latestVersion) return null;
   return `v${latestVersion.replace(/^v/i, "")}`;
+}
+
+function getInstallActionLabel(input: {
+  isInstalling: boolean;
+  usesManualInstaller: boolean;
+}): string {
+  if (input.isInstalling) {
+    return input.usesManualInstaller ? "Downloading..." : "Installing...";
+  }
+  return input.usesManualInstaller ? "Download installer" : "Install & restart";
 }
 
 export function resolveUpdateCalloutDescriptor(
@@ -53,12 +64,13 @@ export function resolveUpdateCalloutDescriptor(
 
   const latestVersion = input.availableUpdate?.latestVersion ?? null;
   const dismissalKey = `desktop-update:${input.status}:${latestVersion ?? "unknown"}`;
+  const usesManualInstaller = input.usesManualInstaller === true;
 
   let title: string;
   let body: UpdateCalloutBody;
   if (isInstalling) {
-    title = "Installing update";
-    body = { kind: "installing" };
+    title = usesManualInstaller ? "Downloading installer" : "Installing update";
+    body = { kind: "installing", usesManualInstaller };
   } else if (isError) {
     title = "Update failed";
     body = { kind: "error", message: input.errorMessage ?? "Something went wrong." };
@@ -73,7 +85,7 @@ export function resolveUpdateCalloutDescriptor(
   } else {
     actions.push({
       role: "install",
-      label: isInstalling ? "Installing..." : "Install & restart",
+      label: getInstallActionLabel({ isInstalling, usesManualInstaller }),
       variant: "primary",
       disabled: isInstalling,
     });

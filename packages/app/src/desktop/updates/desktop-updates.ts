@@ -1,4 +1,4 @@
-import { isElectronRuntime } from "@/desktop/host";
+import { isElectronRuntime, isElectronRuntimeMac } from "@/desktop/host";
 import { invokeDesktopCommand } from "@/desktop/electron/invoke";
 import { isWeb } from "@/constants/platform";
 
@@ -61,6 +61,10 @@ function toNumberOr(defaultValue: number, value: unknown): number {
 
 export function shouldShowDesktopUpdateSection(): boolean {
   return isWeb && isElectronRuntime();
+}
+
+export function shouldUseManualMacUpdateInstaller(): boolean {
+  return isWeb && isElectronRuntimeMac();
 }
 
 export function parseLocalDaemonVersionResult(raw: unknown): LocalDaemonVersionResult {

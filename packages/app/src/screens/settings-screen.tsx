@@ -87,7 +87,10 @@ import { IntegrationsSection } from "@/desktop/components/integrations-section";
 import { LocalDaemonSection } from "@/desktop/components/desktop-updates-section";
 import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
-import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
+import {
+  formatVersionWithPrefix,
+  shouldUseManualMacUpdateInstaller,
+} from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
 import { settingsStyles } from "@/styles/settings";
 import { THINKING_TONE_NATIVE_PCM_BASE64 } from "@/utils/thinking-tone.native-pcm";
@@ -503,10 +506,14 @@ function HostVersionRow({
 function getUpdateButtonLabel(
   isInstalling: boolean,
   latestVersion: string | null | undefined,
+  usesManualInstaller: boolean,
 ): string {
-  if (isInstalling) return "Installing...";
-  if (latestVersion) return `Update to ${formatVersionWithPrefix(latestVersion)}`;
-  return "Update";
+  if (isInstalling) return usesManualInstaller ? "Downloading..." : "Installing...";
+  if (latestVersion) {
+    const version = formatVersionWithPrefix(latestVersion);
+    return usesManualInstaller ? `Download ${version}` : `Update to ${version}`;
+  }
+  return usesManualInstaller ? "Download" : "Update";
 }
 
 function DesktopAppUpdateRow() {
@@ -521,6 +528,7 @@ function DesktopAppUpdateRow() {
     checkForUpdates,
     installUpdate,
   } = useDesktopAppUpdater();
+  const usesManualInstaller = shouldUseManualMacUpdateInstaller();
 
   useFocusEffect(
     useCallback(() => {
@@ -552,9 +560,11 @@ function DesktopAppUpdateRow() {
     }
 
     void confirmDialog({
-      title: "Install desktop update",
-      message: "This updates Paseo on this computer",
-      confirmLabel: "Install update",
+      title: usesManualInstaller ? "Download desktop update" : "Install desktop update",
+      message: usesManualInstaller
+        ? "This downloads the macOS installer, opens it, and quits Paseo so you can drag the new app into Applications."
+        : "This updates Paseo on this computer",
+      confirmLabel: usesManualInstaller ? "Download installer" : "Install update",
       cancelLabel: "Cancel",
     })
       .then((confirmed) => {
@@ -568,7 +578,7 @@ function DesktopAppUpdateRow() {
         console.error("[Settings] Failed to open app update confirmation", error);
         Alert.alert("Error", "Unable to open the update confirmation dialog.");
       });
-  }, [installUpdate, isDesktopApp]);
+  }, [installUpdate, isDesktopApp, usesManualInstaller]);
 
   if (!isDesktopApp) {
     return null;
@@ -596,7 +606,8 @@ function DesktopAppUpdateRow() {
           <Text style={settingsStyles.rowHint}>{statusText}</Text>
           {availableUpdate?.latestVersion ? (
             <Text style={settingsStyles.rowHint}>
-              Ready to install: {formatVersionWithPrefix(availableUpdate.latestVersion)}
+              {usesManualInstaller ? "Installer available" : "Ready to install"}:{" "}
+              {formatVersionWithPrefix(availableUpdate.latestVersion)}
             </Text>
           ) : null}
           {errorMessage ? <Text style={styles.aboutErrorText}>{errorMessage}</Text> : null}
@@ -616,7 +627,11 @@ function DesktopAppUpdateRow() {
             onPress={handleInstallUpdate}
             disabled={isChecking || isInstalling || !availableUpdate}
           >
-            {getUpdateButtonLabel(isInstalling, availableUpdate?.latestVersion)}
+            {getUpdateButtonLabel(
+              isInstalling,
+              availableUpdate?.latestVersion,
+              usesManualInstaller,
+            )}
           </Button>
         </View>
       </View>
