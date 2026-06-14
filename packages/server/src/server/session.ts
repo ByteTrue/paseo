@@ -653,6 +653,7 @@ export interface SessionOptions {
   daemonVersion?: string;
   daemonRuntimeConfig?: {
     listen: string | null;
+    appBaseUrl?: string;
     relay: {
       enabled: boolean;
       endpoint: string;
@@ -660,7 +661,6 @@ export interface SessionOptions {
       useTls: boolean;
       publicUseTls: boolean;
     } | null;
-    appBaseUrl?: string;
   };
 }
 

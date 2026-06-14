@@ -371,6 +371,7 @@ export class VoiceAssistantWebSocketServer {
   private readonly daemonRuntimeConfig:
     | {
         listen: string | null;
+        appBaseUrl?: string;
         relay: {
           enabled: boolean;
           endpoint: string;
@@ -471,6 +472,7 @@ export class VoiceAssistantWebSocketServer {
     daemonRuntimeConfig?: {
       listen: string | null;
       worktreesRoot?: string;
+      appBaseUrl?: string;
       relay: {
         enabled: boolean;
         endpoint: string;
@@ -478,7 +480,6 @@ export class VoiceAssistantWebSocketServer {
         useTls: boolean;
         publicUseTls: boolean;
       };
-      appBaseUrl?: string;
     },
     serviceProxyPublicBaseUrl?: string | null,
   ) {
