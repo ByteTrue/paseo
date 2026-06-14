@@ -1,8 +1,8 @@
 # Custom Provider Configuration
 
-Paseo supports configuring custom agent providers through `config.json` (located at `$PASEO_HOME/config.json`, typically `~/.paseo/config.json`). You can extend built-in providers with different API backends, add ACP-compatible agents, set custom binaries, disable providers, and create multiple profiles for the same underlying provider.
+Paseo supports Claude endpoint variants in the app UI for common Anthropic-compatible Claude Code endpoints, and also supports advanced custom agent providers through `config.json` (located at `$PASEO_HOME/config.json`, typically `~/.paseo/config.json`). Use the Claude UI path when you only need a named Claude entry with endpoint environment variables; use raw config for ACP agents, custom binaries, Codex endpoint overrides, or advanced provider inheritance.
 
-All provider configuration lives under `agents.providers` in config.json:
+Raw provider configuration lives under `agents.providers` in config.json:
 
 ```json
 {
@@ -21,6 +21,7 @@ Provider IDs must be lowercase alphanumeric with hyphens (`/^[a-z][a-z0-9-]*$/`)
 
 ## Table of Contents
 
+- [Claude endpoint variants](#claude-endpoint-variants)
 - [Extending a built-in provider](#extending-a-built-in-provider)
 - [Z.AI (Zhipu) coding plan](#zai-zhipu-coding-plan)
 - [Alibaba Cloud (Qwen) coding plan](#alibaba-cloud-qwen-coding-plan)
@@ -30,6 +31,25 @@ Provider IDs must be lowercase alphanumeric with hyphens (`/^[a-z][a-z0-9-]*$/`)
 - [Disabling a provider](#disabling-a-provider)
 - [ACP providers](#acp-providers)
 - [Provider override reference](#provider-override-reference)
+
+---
+
+## Claude endpoint variants
+
+For Anthropic-compatible Claude Code endpoints such as DeepSeek, Z.AI, Qwen, or a proxy, use the app UI instead of hand-editing provider inheritance:
+
+1. Open **Settings → Providers → Claude**.
+2. In **Claude endpoints**, choose **Add endpoint**.
+3. Fill a display name and any of these optional environment fields:
+   - `ANTHROPIC_BASE_URL`
+   - `ANTHROPIC_AUTH_TOKEN`
+   - `ANTHROPIC_DEFAULT_OPUS_MODEL`
+   - `ANTHROPIC_DEFAULT_SONNET_MODEL`
+   - `ANTHROPIC_DEFAULT_HAIKU_MODEL`
+   - `CLAUDE_CODE_SUBAGENT_MODEL`
+4. Save the endpoint. It appears as a Claude-like provider option, for example `Claude via DeepSeek`, when creating an agent.
+
+Blank fields are not written. Paseo does not add `ANTHROPIC_MODEL`, does not test the endpoint on save, and does not switch endpoints for an already-running agent. UI-managed entries are persisted as constrained `extends: "claude"` provider overrides with `params.paseoManagedKind: "claudeEndpointVariant"`, so the advanced raw config path below remains available without being edited by the UI.
 
 ---
 

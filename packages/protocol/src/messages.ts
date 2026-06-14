@@ -280,6 +280,8 @@ export const ProviderSnapshotEntrySchema = z.object({
   description: z.string().optional(),
   defaultModeId: z.string().nullable().optional(),
   canRemove: z.boolean().optional(),
+  derivedFromProviderId: AgentProviderSchema.nullable().optional(),
+  managedKind: z.string().optional(),
   cacheState: z.enum(["live", "cached"]).optional(),
   cacheGeneratedAt: z.string().optional(),
   lastRefreshError: z.string().optional(),

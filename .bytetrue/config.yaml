@@ -1,0 +1,30 @@
+version: 1
+workflow:
+  mode: manual
+  ask_before:
+    - git_commit
+    - git_push
+    - external_tracker_write
+    - destructive_command
+    - scope_change
+tracker:
+  provider: local
+  provider_status: configured
+  sync_policy: never
+  sync_direction: outbound_only
+  external_import: manual_only
+  update_policy: update_managed_block
+  repository:
+    remote_url: https://github.com/ByteTrue/paseo.git
+    tracker_url: null
+  cli:
+    gh:
+      installed: true
+      auth: ok
+    glab:
+      installed: false
+      auth: unknown
+dispatch:
+  preferred: auto
+  allow_non_interactive_child: true
+  allow_background_agents: false

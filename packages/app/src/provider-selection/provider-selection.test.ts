@@ -65,6 +65,41 @@ describe("combined model selector data", () => {
     ]);
   });
 
+  it("carries base-provider icon metadata for Claude endpoint variants", () => {
+    expect(
+      buildSelectableProviderSelectorProviders([
+        snapshotEntry({
+          provider: "claude-deepseek",
+          label: "Claude via DeepSeek",
+          models: [],
+          derivedFromProviderId: "claude",
+          managedKind: "claudeEndpointVariant",
+        }),
+      ]),
+    ).toEqual([
+      {
+        id: "claude-deepseek",
+        label: "Claude via DeepSeek",
+        iconProviderId: "claude",
+        modelSelection: {
+          kind: "models",
+          rows: [
+            {
+              favoriteKey: "claude-deepseek:",
+              provider: "claude-deepseek",
+              providerLabel: "Claude via DeepSeek",
+              iconProviderId: "claude",
+              modelId: "",
+              modelLabel: "Default",
+              description: undefined,
+              isDefault: true,
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
   it("synthesizes a default model row for ready enabled providers without explicit models", () => {
     expect(
       buildSelectableProviderSelectorProviders([

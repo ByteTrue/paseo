@@ -1,112 +1,123 @@
-# ByteTrue 体系总览
+# ByteTrue System Overview
 
-本文档介绍 ByteTrue 工作流家族整体——有哪些子技能、各管什么场景、产物怎么组织。无论是 AI 在运行时读到这个文件，还是人打开来看，都能对整个体系有个完整印象。
+This document introduces the ByteTrue workflow family as a whole — which sub-skills exist, which scenarios each one owns, and how their artifacts are organized. Whether read by AI at runtime or opened by a human, it should give a complete impression of the system.
 
-AI 辅助开发里，有几类场景会反复出现——加新功能、修 bug、遇到值得沉淀的经验、做技术选型、摸新模块的代码、接入新仓库。每种场景如果每次从零处理，都会出各自的典型问题：AI 给功能起的术语跟老代码冲突、bug 改完没人记得当时怎么诊断的、上周刚踩过的坑下周又踩一遍。
+In AI-assisted development, several classes of scenarios keep recurring: adding a new feature, fixing a bug, preserving lessons worth reusing, making a technical choice, exploring a new module's code, or onboarding a new repository. If each scenario is handled from scratch every time, it repeatedly produces typical problems: the AI coins terms for a new feature that conflict with the existing code, nobody remembers how a bug was diagnosed after it is fixed, or a pitfall discovered last week is stepped on again next week.
 
-ByteTrue 把这几类场景各配一套子技能，产物放进统一的目录结构、带统一的 YAML frontmatter,互相之间可以检索引用。
+ByteTrue assigns one set of sub-skills to each of these recurring scenarios. Their artifacts are placed into one unified directory structure, with unified YAML frontmatter, and can search and reference each other.
 
-## 技能分成四部分
+## The skills split into four parts
 
-**根入口**——开放式诉求 / 不知道走哪个时的统一入口:
+**Root entry** — the unified entry for open-ended requests or when the user does not know which skill to use:
 
-- `bt` — 介绍体系全貌 + 把诉求路由到正确的 bt-\* 子技能。本技能不做事,只做分诊和提示
+- `bt` — introduces the overall system and routes the request to the correct `bt-*` sub-skill. This skill does not do the work itself; it only triages and suggests
 
-**做事**——从一段模糊想法走到上线的功能、或者从一份错误报告走到修好的 bug:
+**Doing the work** — from a fuzzy idea to a shipped capability, or from an error report to a fixed bug:
 
-- `bt-feat` — 新功能,design → implement → acceptance（想法还模糊时先走讨论层 `bt-brainstorm` 做分诊，不属于 feature 流程内部）
-- `bt-issue` — 修 bug,report → analyze → fix
-- `bt-refactor` — 代码优化(行为不变、结构/性能/可读性变),scan → design → apply
+- `bt-feat` — new feature, design → implement → acceptance; if the idea is still fuzzy, go through the discussion layer `bt-brainstorm` first, which is not part of the internal feature flow
+- `bt-issue` — bug fix, report → analyze → fix
+- `bt-refactor` — code optimization, behavior unchanged but structure, performance, or readability changes, scan → design → apply
 
-两类都不直接让 AI 写代码,而是先产出 spec(功能方案 / 问题分析),用户 review 后再动手,代码和 doc 一起交付。针对的是术语冲突、范围失控、改完不留存档这三种 AI 默认会出的问题。
+Both categories avoid letting the AI write code directly. They first produce spec artifacts, feature plan or problem analysis, then the user reviews those, and only then does code work happen. Code and docs are delivered together. This arrangement targets the three default AI failure modes: terminology collisions, uncontrolled scope, and no archive after the change is done.
 
-**沉淀**——把做事过程产生的知识存下来,下次遇到同类问题直接复用:
+**Capture** — preserve the knowledge created in the process so that next time similar work can reuse it directly:
 
-- `bt-learn` — 回顾"做 X 时踩了 Y 这个坑"
-- `bt-trick` — 处方"以后做 X 就这样做"
-- `bt-decide` — 规定"全项目今后都按 X 来"
-- `bt-explore` — 存档"调查了 X 问题，看到代码里是这样的"；`module-overview` 承接 zoom-out / 上升一层看模块和调用方地图
-- `bt-note` — 把一两行启动必读的项目注意事项追加到 `.bytetrue/attention.md`
+- `bt-learn` — review "while doing X, we stepped on pitfall Y"
+- `bt-trick` — prescription, "in the future, when doing X, do it this way"
+- `bt-decide` — rule, "from now on, the whole project follows X"
+- `bt-explore` — archive "we investigated question X, and the code looks like this"; `module-overview` carries zoom-out, stepping up one level to look at module and caller maps
+- `bt-note` — append one or two lines of must-read startup notes into `.bytetrue/attention.md`
 
-**讨论层**——想法还模糊或方案需要拷问时进入,不直接产出设计或代码:
+**Discussion layer** — enter here when the idea is still fuzzy or the proposal needs to be grilled; it does not directly produce design or code:
 
-- `bt-brainstorm` — 和用户对话做分诊:case 1(已经够清楚,直接 feature-design)、case 2(小需求,在 feature 里继续讨论并落 `{slug}-brainstorm.md`)、case 3(大需求 ready,移交给 roadmap)、case 4(需要问透,移交 `bt-grill`)
-- `bt-grill` — 方案拷问 / stress-test,默认读取 `.bytetrue/` 文档和代码上下文;显式 `--lite` / `--no-docs` 时退化为纯对话 grill-me
-  **辅助**——围着前几类转的周边工具:
+- `bt-brainstorm` — talk with the user and triage: case 1, already clear enough, go directly to feature-design; case 2, small demand, continue discussing inside the feature and write `{slug}-brainstorm.md`; case 3, larger demand ready for decomposition, hand off to roadmap; case 4, needs to be questioned through, hand off to `bt-grill`
+- `bt-grill` — plan interrogation / stress-test, by default reading `.bytetrue/` docs and code context; when explicitly invoked with `--lite` or `--no-docs`, it degrades into pure conversation grill-me
 
-- `bt-onboard` — 把新仓库接入 ByteTrue 目录结构
-- `bt-req` — 起草或刷新 `.bytetrue/requirements/` 下的需求文档——系统的能力愿景层，覆盖过去/现在/未来
-- `bt-arch` — 架构相关一站式:起草新架构文档 / 刷新已有文档 / 做架构体检(含 design 自洽 / design↔代码一致 / architecture 目录多份文档间一致)。architecture 只记现状
-- `bt-roadmap` — 把一块装不进单个 feature 的大需求拆成带依赖和状态的子 feature 清单,作为后续多次 feature 流程的种子和排期依据;独立于需求 / 架构档案
-- `bt-guide` — 写给外部读者的开发者指南 / 用户指南
-- `bt-libdoc` — 为库的公开 API 逐条目生成参考文档
-- `bt-tracker` — external tracker bridge：把 confirmed ByteTrue 产物 publish/link/update 到 GitHub/GitLab/local tracker，或 triage 外部 incoming issues；不替代 `bt-roadmap` / `bt-feat` / `bt-issue`
+**Support** — surrounding tools that revolve around the categories above:
 
-## 场景路由
+- `bt-onboard` — bring a new repository into the ByteTrue directory structure
+- `bt-req` — draft or refresh demand docs under `.bytetrue/requirements/`, the system's capability-vision layer, covering past, present, and future
+- `bt-arch` — architecture-related one-stop entry: draft a new architecture doc, refresh an existing one, or do an architecture health check, including design internal consistency, design↔code consistency, and cross-doc consistency inside the architecture folder. Architecture records only the current state
+- `bt-audit` — proactively scan a user-bounded code scope for bug risks, security problems, performance issues, maintainability debt, and architecture drift; it produces findings and does not implement fixes
+- `bt-roadmap` — break a larger demand that does not fit into one feature into a dependency- and status-aware sub-feature list, as the seed and scheduling basis for multiple later feature runs; separate from the demand and architecture archives
+- `bt-guide` — write outward-facing developer guides and user guides
+- `bt-libdoc` — generate reference docs entry by entry for a library's public API
+- `bt-tracker` — external tracker bridge: publish, link, or update ByteTrue artifacts that satisfy the syncable-source and syncable-status mapping into GitHub, GitLab, or a local tracker, or triage external incoming issues. It does not replace `bt-roadmap`, `bt-feat`, or `bt-issue`
 
-仓库里还没有 `.bytetrue/` 目录,先用 `bt-onboard` 搭骨架。
+## Scenario routing
 
-| 场景                                                                                          | 子技能                                                                              |
-| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 想拷问方案 / "grill me" / "stress-test" / "设计靠谱吗" / "把计划问透"                         | `bt-grill`(默认读 `.bytetrue/` 和代码上下文;显式 `--lite` / `--no-docs` 才纯对话)   |
-| 想法还模糊 / "有个想法没想清楚" / "先聊聊"                                                    | `bt-brainstorm`(分诊后路由到 design / feature-brainstorm 落盘 / roadmap / bt-grill) |
-| 新功能 / 新能力                                                                               | `bt-feat`                                                                           |
-| BUG / 异常 / 文档错误                                                                         | `bt-issue`                                                                          |
-| 代码优化 / 重构 / 重写(行为不变)                                                              | `bt-refactor`                                                                       |
-| 摸代码、提问调研、zoom out / 上升一层看整体、模块和调用方地图                                 | `bt-explore`（`module-overview`；需要长期架构地图再接 `bt-arch`）                   |
-| 补 / 更新需求文档                                                                             | `bt-req`                                                                            |
-| 补 / 更新 / 检查架构文档                                                                      | `bt-arch`                                                                           |
-| 大需求拆解 / 排期规划                                                                         | `bt-roadmap`                                                                        |
-| 技术选型 / 约束 / 规约                                                                        | `bt-decide`                                                                         |
-| 踩坑回顾、经验总结                                                                            | `bt-learn`                                                                          |
-| 可复用的编程模式、库用法                                                                      | `bt-trick`                                                                          |
-| 开发者指南 / 用户指南                                                                         | `bt-guide`                                                                          |
-| 库 API 参考                                                                                   | `bt-libdoc`                                                                         |
-| 外部 tracker / GitHub Issues / GitLab Issues / PRD 同步 / issue 同步 / triage incoming issues | `bt-tracker`                                                                        |
+If the repository does not yet have a `.bytetrue/` directory, use `bt-onboard` first to build the skeleton.
 
-完整的操作手册、退出条件、和其他工作流的关系,各子技能里讲。
+| Scenario                                                                                                                  | Sub-skill                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| wants to interrogate a proposal / "grill me" / "stress-test" / "is this design solid" / "push the plan until it is clear" | `bt-grill`, by default it reads `.bytetrue/` and code context; only explicit `--lite` or `--no-docs` makes it pure conversation |
+| the idea is still fuzzy / "I have an idea but have not thought it through" / "let's talk first"                           | `bt-brainstorm`, which triages into design, feature-brainstorm write-to-disk, roadmap, or `bt-grill`                            |
+| new feature or new capability                                                                                             | `bt-feat`                                                                                                                       |
+| bug, anomaly, or documentation error                                                                                      | `bt-issue`                                                                                                                      |
+| code optimization, refactor, rewrite with unchanged behavior                                                              | `bt-refactor`                                                                                                                   |
+| review the system, scan for bugs, audit the code, or ask what problems can be optimized                                   | `bt-audit`, which produces a findings list and routes fixes to issue, refactor, architecture, or grill workflows                |
+| read code, investigate a question, zoom out / step up one level, or map the module and its callers                        | `bt-explore`, especially `module-overview`; if a long-lived architecture map is needed, continue into `bt-arch`                 |
+| add or update requirement docs                                                                                            | `bt-req`                                                                                                                        |
+| add, update, or inspect architecture docs                                                                                 | `bt-arch`                                                                                                                       |
+| break down a larger demand or do scheduling planning                                                                      | `bt-roadmap`                                                                                                                    |
+| technical choices, constraints, or conventions                                                                            | `bt-decide`                                                                                                                     |
+| pitfall review or experience summary                                                                                      | `bt-learn`                                                                                                                      |
+| reusable programming patterns or library usage                                                                            | `bt-trick`                                                                                                                      |
+| developer guide or user guide                                                                                             | `bt-guide`                                                                                                                      |
+| library API reference                                                                                                     | `bt-libdoc`                                                                                                                     |
+| external tracker / GitHub Issues / GitLab Issues / PRD sync / issue sync / triage incoming issues                         | `bt-tracker`                                                                                                                    |
 
-## 沉淀类四个子技能如何区分
+The detailed operating manual, exit conditions, and relationships to adjacent workflows are explained inside each sub-skill.
 
-learning / trick / decision / explore 都是存档文档类型,区别在记录内容的性质:
+## How the four capture skills differ
 
-- 回顾某次做 X 时发现了 Y —— `bt-learn`(产出 `doc_type: learning`)
-- 以后做 X 就这样做的处方 —— `bt-trick`(产出 `doc_type: trick`)
-- 全项目今后都得遵守的规定 —— `bt-decide`(产出 `doc_type: decision`)
-- 调查了一个问题,留份证据 —— `bt-explore`(产出 `doc_type: explore`)
+`learning`, `trick`, `decision`, and `explore` are all archival document types, but they differ in what kind of thing they record:
 
-四者共用 `.bytetrue/compound/` 目录,靠 frontmatter 的 `doc_type` 字段和文件名中间的类型段(`YYYY-MM-DD-{doc_type}-{slug}.md`)区分。每个子技能只认自己的 `doc_type`,不读写别家产物——**"A 和 B 有什么不同"这种判断由本节负责,子技能里不再重复**。
+- reviewing that while doing X, Y was discovered → `bt-learn`, output `doc_type: learning`
+- prescribing that from now on, X should be done this way → `bt-trick`, output `doc_type: trick`
+- regulating that the whole project must follow X from now on → `bt-decide`, output `doc_type: decision`
+- investigating a question and storing the evidence → `bt-explore`, output `doc_type: explore`
 
-## 愿景档案 vs 结构档案 vs 规划档案 vs 单次动作
+All four share the `.bytetrue/compound/` directory, and are distinguished by the frontmatter `doc_type` field and the type segment in the filename, `YYYY-MM-DD-{doc_type}-{slug}.md`. Each sub-skill recognizes only its own `doc_type` and never reads or writes another sub-skill's output — **questions like "what is the difference between A and B" are answered in this section, and are not repeated inside each sub-skill**.
 
-四类文档各管一段时间尺度,不要混:
+## Vision archive vs structure archive vs planning archive vs one-off actions
 
-- **愿景档案**(requirements)——描述"用户需要什么、系统提供什么能力来满足"。`status` 区分三个时间深度：`draft`（未来愿景）、`current`（现在的能力）、`outdated`（过去的痕迹）。draft req 可独立于实现存在——先把愿景定下来，后续 roadmap 排期和 design 实现才有稳定对齐基准
-- **结构档案**(architecture)——描述"系统现在用什么结构实现"。只记现状,默认在 feature-acceptance 时跟着代码同步;必要时由 bt-arch 主动刷新。**不写"未来会加什么层"**
-- **规划档案**(roadmap)——描述"接下来打算怎么分步实现"。独立于愿景和结构档案,改动不牵连 requirements / architecture。所有条目 done / dropped 后 roadmap 进入 `completed` 状态,作为历史档案留存
-- **单次动作**(feature / issue / refactor)——本次要做的一件具体事情的 spec。动作走完后,相关沉淀提炼进愿景档案、结构档案和沉淀类文档
+These four classes of documents each control a different time scale and must not be mixed:
 
-用户说"我想要一个 X 系统"这种大需求,先走 roadmap 拆成若干子 feature,再一条一条走 feature 流程。直接起 feature 会变成巨型 design 塞不下、拆了又没有追踪抓手。
+- **vision archive**, requirements — describes "what users need and what capability the system provides to satisfy it". The `status` field uses the canonical five-state vocabulary: future vision not started uses `pending`, work underway may use `active`, current capability uses `done` plus `current: true`, and outdated capability uses `archived` plus `validity: outdated`. A draft req can exist independently from implementation — lock down the vision first, so roadmap scheduling and design implementation have a stable alignment target later
+- **structure archive**, architecture — describes "what structure the system currently uses to implement it". It records only current state and is updated alongside code during feature-acceptance by default; when necessary, `bt-arch` refreshes it proactively. **It never records "which layer will be added in the future"**
+- **planning archive**, roadmap — describes "how this larger demand will be implemented step by step next". It stays independent from vision and structure archives. Changing the plan should not force edits to requirements or architecture. When all items are `done`, `dropped`, or `archived`, the roadmap uses `status: done` and remains as historical archive
+- **one-off actions**, feature / issue / refactor / audit — the spec or findings for one concrete thing being done right now. Once the action is complete, the stable parts are extracted into the vision archive, structure archive, follow-up workflows, and capture docs
 
-## feature 和 issue 的阶段不可跳
+When the user says something like "I want an X system", which is a large demand, first use roadmap to split it into sub-features, then run the feature workflow one item at a time. Starting directly with one giant feature would produce an oversized design that does not fit, and even if it is split later there is no stable tracking handle.
 
-feature 走 brainstorm(可选) → design → implement → acceptance,issue 走 report → analyze → fix。每个阶段有退出条件,上一个没满足,下一个不开始。
+## The stages of feature and issue may not be skipped
 
-AI 最常见的问题是一口气铺几百行代码才让人看——等发现问题已经很难中止。阶段间的人工 checkpoint 就是为了早一步中止。每个 checkpoint 具体检查什么,对应子技能里讲。
+Feature goes through brainstorm, optional, then design → implement → acceptance. Issue goes through report → analyze → fix. Each stage has exit conditions, and the next stage must not begin before the previous one satisfies them.
 
-例外两种:issue 根因一眼确定时走快速通道,跳过 analyze 直接 fix;feature 范围小时走 `bt-feat-ff`,写完 spec 直接进实现。
+The most common AI problem is running straight into hundreds of lines of code and only then asking for review — at that point it is already hard to stop. The human checkpoint between stages exists precisely to stop earlier. The detailed checks at each checkpoint are defined inside the corresponding sub-skills.
 
-## 进一步参考
+There are only two exceptions: when an issue's root cause is obvious at a glance, it may use the fast path and skip analyze directly into fix; when a feature is small enough, it may use `bt-feat-ff`, skipping the standard spec flow and going straight into implementation.
 
-- `.bytetrue/reference/shared-conventions.md` — 目录结构、YAML frontmatter 口径、`{slug}-checklist.yaml` 生命周期、收尾 commit 约定、归档类共享规则
-- `.bytetrue/reference/domain-context.md` — canonical terms、domain glossary、`bt-grill` with-docs 形成的术语共识
-- `.bytetrue/reference/project-management.md` — external tracker provider、labels、sync policy、GitHub/GitLab/local 协作规则
-- `.bytetrue/reference/tools.md` — `search-yaml.py` / `validate-yaml.py` 用法
-- `.bytetrue/reference/maintainer-notes.md` — 断点恢复、新增子工作流的登记
+## Further references
 
-目录结构(requirements/、architecture/、roadmap/、features/、issues/、compound/、tools/、reference/)的权威定义在 `shared-conventions.md`。要改目录先改那里——方法是改 `bt-onboard/reference/shared-conventions.md` 这个模板,新项目 onboard 时会带上新版本。
+- `.bytetrue/reference/shared-conventions.md` — directory structure, YAML frontmatter conventions, `{slug}-checklist.yaml` lifecycle, close-out commit conventions, and shared rules for archival skills
+- `.bytetrue/reference/domain-context.md` — canonical terms, domain glossary, and terminology consensus formed by `bt-grill` with docs
+- `.bytetrue/reference/project-management.md` — external tracker semantics, syncable-source/status mapping, labels, and GitHub / GitLab / local collaboration rules
+- `.bytetrue/reference/tools.md` — usage of `search-yaml.py` and `validate-yaml.py`
+- `.bytetrue/reference/config.md` — field semantics for `.bytetrue/config.yaml`
+- `.bytetrue/reference/config.schema.yaml` — machine-readable schema and onboarding defaults for `.bytetrue/config.yaml`
+- `.bytetrue/reference/execution-modes.md` — workflow heaviness and evidence discipline for light / standard / strict-evidence / break-loop modes
+- `.bytetrue/reference/implementation-review.md` — implementation review gate between `bt-feat-impl` and `bt-feat-accept`
+- `.bytetrue/reference/context-manifest.md` — feature-local implement/check JSONL read-set contract
+- `.bytetrue/reference/subagent-handoff.md` — handoff prompt contract for implement / check / research roles
+- `.bytetrue/reference/research-first.md` — evidence-before-decision rule for direction-changing technical or external facts
+- `.bytetrue/reference/worklog-report-feed.md` — lightweight worklog/report-feed for reporting, handoff, recovery, and audit
+- `.bytetrue/reference/maintainer-notes.md` — resume support and registration rules when adding new sub-workflows
 
-## 相关
+The authoritative definition of the directory structure, config.yaml, requirements, architecture, roadmap, features, issues, refactors, audits, compound, brainstorms, worklog, tools, and reference, lives in `.bytetrue/reference/shared-conventions.md`. If the directory structure ever needs to change, change the template at `bt-onboard/reference/shared-conventions.md` first so that new onboarded projects pick up the new version.
 
-- `.bytetrue/attention.md` — ByteTrue 技能启动必读的项目注意事项
-- `.bytetrue/architecture/ARCHITECTURE.md` — 项目架构总入口
+## Related
+
+- `.bytetrue/attention.md` — project notes every ByteTrue skill must read at startup
+- `.bytetrue/architecture/ARCHITECTURE.md` — project architecture entry point

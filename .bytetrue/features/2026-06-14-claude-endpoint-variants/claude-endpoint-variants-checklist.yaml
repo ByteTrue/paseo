@@ -1,0 +1,96 @@
+feature: 2026-06-14-claude-endpoint-variants
+created: 2026-06-14
+
+steps:
+  - action: "protocol/config skeleton: add optional derived-provider metadata and Claude endpoint variant helpers without behavior change"
+    exit_signal: "provider snapshots without the new metadata still parse, UI-managed endpoint config helpers emit the agreed override shape, and typecheck is green for the touched workspaces"
+    status: done
+  - action: "frontend static structure: mount a Claude-only endpoints section and Add/Edit sub-sheet skeleton in the provider details sheet"
+    exit_signal: "opening Claude provider details shows Claude endpoints above Discovered, empty/list states render with project styling, and the footer remains Add model / Diagnostic / Refresh"
+    status: done
+  - action: "interaction logic: implement local form behavior for add/edit/delete, internal id generation, duplicate validation, API key masking, and destructive delete confirmation"
+    exit_signal: "component-level tests or manual evidence cover add mode, edit mode, duplicate id blocking, eye-toggle reveal, blank-field omission, and delete confirmation"
+    status: done
+  - action: "state integration: connect endpoint management to daemon config patching with managed marker filtering"
+    exit_signal: "real daemon config patches create, update, and remove only marked Claude endpoint variants; hand-written unmarked extends=claude overrides are not listed or edited"
+    status: done
+  - action: "provider selection integration: render UI-managed Claude endpoint variants as Claude-like selectable providers"
+    exit_signal: "a saved endpoint appears in provider selection with Claude visual treatment while preserving its own provider id for launch"
+    status: done
+  - action: "verification and docs finish: cover acceptance scenarios, update user/developer docs for the Claude endpoint path, and run required checks"
+    exit_signal: "focused tests for helper/config/snapshot/UI behavior pass, manual visual checks are recorded, docs/custom-providers.md reflects the constrained Claude endpoint path, and npm run typecheck plus npm --workspace-root run lint pass"
+    status: done
+
+checks:
+  - item: "Provider terminology stays intact: Claude endpoint variants are user-facing Claude launch profiles, not generic custom providers or model-level endpoint rows"
+    source: term-contract
+    status: passed
+  - item: "Managed endpoint provider overrides use extends=claude, label, filtered env fields, params.paseoManagedKind=claudeEndpointVariant, and default WebSearch disallow behavior from the approved design"
+    source: term-contract
+    status: passed
+  - item: "Only the six approved env fields are shown or written; ANTHROPIC_MODEL and raw key-value env tables are absent"
+    source: term-contract
+    status: passed
+  - item: "Optional provider snapshot metadata is backward-compatible and sufficient for the app to render Claude-derived variants with Claude visual treatment"
+    source: term-contract
+    status: passed
+  - item: "Claude provider details owns the management flow: Claude endpoints section appears above Discovered, Add endpoint lives inside that section, and global Add provider does not regain a generic custom-provider UI"
+    source: orchestration-skeleton
+    status: passed
+  - item: "Save is local config write only: it does not test URLs, keys, model ids, or add a Test endpoint flow"
+    source: flow-level-constraint
+    status: passed
+  - item: "Blank or whitespace-only endpoint fields are omitted from persisted env rather than written as empty strings"
+    source: flow-level-constraint
+    status: passed
+  - item: "Edit mode keeps Internal ID read-only; create mode auto-generates the id from display name and allows Advanced override before save"
+    source: flow-level-constraint
+    status: passed
+  - item: "Delete uses destructive confirmation and removes the provider override with removeProviders"
+    source: flow-level-constraint
+    status: passed
+  - item: "UI management filters on the managed marker and does not edit or delete hand-written unmarked extends=claude overrides"
+    source: flow-level-constraint
+    status: passed
+  - item: "Mount point agents.providers.{internalId} can be removed to remove persisted endpoint variants"
+    source: mount-point
+    status: passed
+  - item: "Mount point ProviderSnapshotEntry optional metadata can be removed to remove Claude-like rendering hints without changing base provider probing"
+    source: mount-point
+    status: passed
+  - item: "Mount point Claude provider details sheet section can be removed to remove endpoint management from settings"
+    source: mount-point
+    status: passed
+  - item: "Mount point provider selection visual integration can be removed to return variants to generic fallback rendering"
+    source: mount-point
+    status: passed
+  - item: "No Codex, OpenCode, Pi, ACP, command, params, API type, context window, vision, encrypted secret storage, runtime endpoint switching, or endpoint validation feature is introduced"
+    source: scope-guard
+    status: passed
+  - item: "Scenario: opening Claude details with no variants shows a quiet Claude endpoints empty state and Add endpoint action above Discovered"
+    source: acceptance-scenario
+    status: passed
+  - item: "Scenario: adding Claude via DeepSeek with all six fields creates the agreed provider override and makes a Claude-like provider selectable"
+    source: acceptance-scenario
+    status: passed
+  - item: "Scenario: adding with partial or all blank env fields omits blank env keys and still creates the named variant"
+    source: acceptance-scenario
+    status: passed
+  - item: "Scenario: editing an endpoint preloads current values, masks API key by default, supports eye-toggle reveal, and updates the same provider id"
+    source: acceptance-scenario
+    status: passed
+  - item: "Scenario: duplicate internal id is blocked with inline validation"
+    source: acceptance-scenario
+    status: passed
+  - item: "Scenario: search in Claude details matches endpoints by label, internal id, and base URL as well as model rows"
+    source: acceptance-scenario
+    status: passed
+  - item: "Scenario: selecting a saved endpoint for agent creation uses the variant provider id and routes through the Claude adapter with merged env"
+    source: acceptance-scenario
+    status: passed
+  - item: "TDD seam covers config patch building, marker filtering, provider snapshot metadata, and Claude-like icon/selection rendering"
+    source: acceptance-scenario
+    status: passed
+  - item: "Behavior delta ADDED/MODIFIED/REMOVED entries from section 3.2 are observable or reverse-checked"
+    source: behavior-delta
+    status: passed

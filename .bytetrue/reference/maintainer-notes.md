@@ -1,50 +1,60 @@
-# ByteTrue 维护者说明
+# ByteTrue Maintainer Notes
 
-本文件由 `bt-onboard` 复制到项目的 `.bytetrue/reference/maintainer-notes.md`。维护 ByteTrue 技能家族时需要反复查阅、但不适合放在各子技能正文里的说明。
-
----
-
-## 1. 断点恢复
-
-AI 对话随时可能中断（token 超限、网络断开、用户换设备）。各阶段发现自己不是从零开始时，必须优先检查已有产物的完成度，从上次停下的地方继续：
-
-- **brainstorm**：如 `{slug}-brainstorm.md` 已有部分内容，读取后问用户"上次聊到 X，要接着聊还是推翻重来？"
-- **design**：如 `{slug}-design.md` 已有部分节，逐节检查完成度，补齐缺失节，不重写已完成节
-- **implement**：`{slug}-checklist.yaml` 中已 `done` 的步骤不重做，从第一个 `pending` 步骤开始
-- **acceptance**：如 `{slug}-acceptance.md` 已有部分节，检查哪些节已填写（有实质 checklist 勾选），从下一个未完成节继续
-- **issue-analyze**：如 `{slug}-analysis.md` 已存在，检查 5 节是否都有内容，缺失的补做，已有的不重写
-- **issue-fix**：如代码已改但 `{slug}-fix-note.md` 不存在，直接进入验证 + 写 fix-note 环节
-
-恢复时先向用户简短汇报："检测到上次工作到 X 阶段，我从 Y 继续"。
+This file is copied by `bt-onboard` into the project as `.bytetrue/reference/maintainer-notes.md`. It holds notes that need to be checked repeatedly while maintaining the ByteTrue skill family, but are not suitable to place inside each sub-skill body.
 
 ---
 
-## 2. 扩展点
+## 1. Resume Support
 
-### 新增子工作流
+AI conversations can be interrupted at any time, token limits, network failures, or device switches. When any stage discovers that it is not starting from zero, it must first inspect the completeness of the existing artifacts and continue from where the previous run stopped:
 
-新工作流定型后，在 `bt-onboard/reference/system-overview.md` 的"技能分成四部分"和"场景路由"表里加一段索引，并登记新的目录位置。
+- **brainstorm**: if `{slug}-brainstorm.md` already contains partial content, read it and ask the user "last time we got to X; do we continue from there or overturn it and restart?"
+- **design**: if `{slug}-design.md` already has some sections, inspect the completion of each section, fill the missing ones, and do not rewrite completed ones
+- **implement**: do not redo any step in `{slug}-checklist.yaml` that is already `done`; continue from the first `pending` step
+- **acceptance**: if `{slug}-acceptance.md` already has some sections, inspect which ones are truly filled, meaning they contain substantive checklist marks, and continue from the next unfinished section
+- **issue-analyze**: if `{slug}-analysis.md` already exists, inspect whether all 5 sections have content; fill the missing ones and do not rewrite the existing ones
+- **issue-fix**: if the code is already changed but `{slug}-fix-note.md` does not exist, go directly into verification plus the fix-note writing step
 
-### 跨阶段新约束
-
-如果发现某条规则适用于所有阶段（例如所有 spec doc 都必须补某个字段），优先写进共享 reference（`shared-conventions.md` 或 `system-overview.md`），不要只改一个子技能。
-
-### 新模板 / 新产物类型
-
-如果引入新的 spec 产物（例如风险评估表、回滚预案），先在 `shared-conventions.md` 登记路径，再在对应阶段技能里引用。
-
-### 共享术语表
-
-如果 ByteTrue 自己形成了稳定共享术语，应优先沉淀成共享 reference，而不是散落在多个子技能里重复定义。
-
-### 跨工作流状态一览
-
-目前查看"项目当前有几个 feature 在进行中、几个 issue 未关闭"仍需要手动查询。未来如要补 `status.py` 或 `.bytetrue/STATUS.md`，先在 `shared-conventions.md` 登记方向，再实现。
+When resuming, first give the user a brief report: "I detected that the previous work had reached stage X, and I am continuing from Y."
 
 ---
 
-## 3. 维护规则
+## 2. Extension Points
 
-- 每次扩展都要同步更新 `system-overview.md` 索引和相关子技能
-- 不允许只在某个子技能里加东西而不在 `system-overview.md` 登记
-- 共享说明优先放 `.bytetrue/reference/`，不要散落在各子技能里
+### Adding a new sub-workflow
+
+After a new workflow is stabilized, add one index entry into the "skills split into four parts" and "scenario routing" sections of `bt-onboard/reference/system-overview.md`, and register its directory location.
+
+### New cross-stage constraints
+
+If you discover a rule that applies across all stages, for example every spec doc must include a certain field, write it into shared references first, `.bytetrue/reference/shared-conventions.md` or `.bytetrue/reference/system-overview.md`, rather than changing only one sub-skill.
+
+### New templates / new artifact types
+
+If a new spec artifact is introduced, for example a risk-assessment table or rollback plan, register the path in `.bytetrue/reference/shared-conventions.md` first, then reference it from the corresponding stage skill.
+
+### Shared terminology table
+
+If ByteTrue itself develops a stable shared terminology set, capture it in shared reference first rather than repeating definitions across multiple sub-skills.
+
+### Cross-workflow status overview
+
+At the moment, checking "how many features are currently in progress" or "how many issues remain open" still requires manual querying. If a future `status.py` or `.bytetrue/STATUS.md` is added, register the direction in `.bytetrue/reference/shared-conventions.md` first, then implement it.
+
+---
+
+## 3. Maintenance Rules
+
+- every extension must update the index in `.bytetrue/reference/system-overview.md` and the related sub-skills in sync
+- it is not allowed to add something only in one sub-skill without registering it in `.bytetrue/reference/system-overview.md`
+- shared explanations should live under `.bytetrue/reference/` first, not be scattered across sub-skills
+
+## 4. Reference Parity Audit
+
+When changing `skills/bt-onboard/reference/`, audit it against the current project `.bytetrue/reference/` before acceptance:
+
+- **managed identical**: shared contract files should match current and onboard copies exactly, for example execution modes, implementation review, context manifest, subagent handoff, research-first, worklog report-feed, and the syncable-source/status contract in `project-management.md`.
+- **managed localized/current-specific**: the same contract may be expressed differently for project readability, for example current Chinese system overview versus onboard English template.
+- **project-owned / hybrid**: `domain-context.md` is project-owned and must not be overwritten without explicit confirmation. `project-management.md` is hybrid: package-managed tracker semantics should refresh from the skill package, while project-specific external label names and status-sync choices should be preserved or reapplied after confirmation.
+
+A filename mismatch is usually drift. A content mismatch is acceptable only when it falls into localized/current-specific, project-owned, or the project-owned portions of a hybrid reference.

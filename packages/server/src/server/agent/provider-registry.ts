@@ -63,6 +63,7 @@ export interface ProviderDefinition extends AgentProviderDefinition {
    */
   derivedFromProviderId: string | null;
   canRemove: boolean;
+  managedKind?: string;
   createClient: (logger: Logger) => AgentClient;
   resolveCreateConfig: (input: ResolveAgentCreateConfigInput) => ResolveAgentCreateConfigResult;
   isCreateConfigUnattended: (input: AgentCreateConfigUnattendedInput) => boolean;
@@ -105,9 +106,19 @@ interface ResolvedProvider {
   derivedFromProviderId: string | null;
   canRemove: boolean;
   providerParams?: unknown;
+  managedKind?: string;
   createBaseClient: (logger: Logger) => AgentClient;
 }
 
+const MANAGED_KIND_PARAM_KEY = "paseoManagedKind";
+
+function readManagedKind(providerParams: unknown): string | undefined {
+  if (!providerParams || typeof providerParams !== "object" || Array.isArray(providerParams)) {
+    return undefined;
+  }
+  const value = (providerParams as Record<string, unknown>)[MANAGED_KIND_PARAM_KEY];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
 const PROVIDER_CLIENT_FACTORIES: Record<string, ProviderClientFactory> = {
   claude: (logger, runtimeSettings) =>
     new ClaudeAgentClient({
@@ -466,6 +477,7 @@ function createRegistryEntry(
     enabled: resolved.enabled,
     derivedFromProviderId: resolved.derivedFromProviderId,
     canRemove: resolved.canRemove,
+    managedKind: resolved.managedKind,
     createClient: (providerLogger: Logger) =>
       createResolvedProviderClient(providerLogger, provider, resolved),
     resolveCreateConfig: modelClient.resolveCreateConfig ?? resolveDefaultAgentCreateConfig,
@@ -548,6 +560,7 @@ function buildResolvedBuiltinProviders(
       derivedFromProviderId: null,
       canRemove: false,
       providerParams: override?.params,
+      managedKind: readManagedKind(override?.params),
       createBaseClient: (logger) =>
         factory(logger, mergedRuntimeSettings, {
           workspaceGitService: options.workspaceGitService,
@@ -598,6 +611,7 @@ function addDerivedProviders(
         enabled: override.enabled !== false,
         derivedFromProviderId: null,
         canRemove: true,
+        managedKind: readManagedKind(override.params),
         providerParams: override.params,
         createBaseClient: (logger) =>
           providerId === "cursor"
@@ -644,6 +658,7 @@ function addDerivedProviders(
       enabled: override.enabled !== false,
       derivedFromProviderId: baseProviderId,
       canRemove: true,
+      managedKind: readManagedKind(override.params),
       providerParams,
       createBaseClient: (logger) =>
         baseFactory(logger, mergedRuntimeSettings, {

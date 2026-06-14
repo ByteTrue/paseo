@@ -106,6 +106,8 @@ export interface ProviderSnapshotEntry {
   description?: string;
   defaultModeId?: string | null;
   canRemove?: boolean;
+  derivedFromProviderId?: AgentProvider | null;
+  managedKind?: string;
   cacheState?: "live" | "cached";
   cacheGeneratedAt?: string;
   lastRefreshError?: string;

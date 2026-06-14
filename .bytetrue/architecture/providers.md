@@ -48,6 +48,9 @@ Registry/config replacement may update visible metadata such as label, descripti
 
 Boundary tests should assert observable behavior: cold reads may call provider availability/model/mode discovery for that cwd; warm reads and registry replacement must not; explicit workspace refreshes affect only one cwd; settings refresh wipes all scopes but immediately refreshes only home.
 
+Provider snapshot entries may include optional derived-provider metadata:
+`derivedFromProviderId` identifies the built-in provider a derived provider is backed by, and `managedKind` carries the UI-managed subtype such as `claudeEndpointVariant`. These fields are presentation and management hints for clients; they do not change snapshot probing, cache warm/cold semantics, or provider process spawning. Clients use `derivedFromProviderId` to render a Claude endpoint variant with Claude visual treatment while still launching the variant's own provider id.
+
 ---
 
 ## ACP Provider Checklist

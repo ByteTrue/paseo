@@ -42,7 +42,6 @@ import { settingsStyles } from "@/styles/settings";
 import { buildProviderDefinitions } from "@/utils/provider-definitions";
 import { ChevronRight, MoreVertical, Trash2 } from "lucide-react-native";
 import { confirmDialog } from "@/utils/confirm-dialog";
-import { CustomProviderForm } from "@/screens/settings/custom-provider-form";
 
 type ProviderDefinition = ReturnType<typeof buildProviderDefinitions>[number];
 type ProviderEntry = NonNullable<ReturnType<typeof useProvidersSnapshot>["entries"]>[number];
@@ -483,20 +482,8 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
   const openProviderSettings = useProviderSettingsStore((state) => state.open);
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null);
   const [installingProviderId, setInstallingProviderId] = useState<string | null>(null);
-  const [showCustomForm, setShowCustomForm] = useState(false);
-  const [isCustomFormSubmitting, setIsCustomFormSubmitting] = useState(false);
 
   const providerDefinitions = useMemo(() => buildProviderDefinitions(entries), [entries]);
-  const existingProviderIds = useMemo(() => {
-    const ids = new Set(providerDefinitions.map((def) => def.id));
-    const configProviders = config?.providers;
-    if (configProviders) {
-      for (const key of Object.keys(configProviders)) {
-        ids.add(key);
-      }
-    }
-    return [...ids];
-  }, [providerDefinitions, config?.providers]);
   const hasServer = serverId.length > 0;
 
   const handleOpenProviderSettings = useCallback(
@@ -571,31 +558,6 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
     [installingProviderId, patchConfig, refresh],
   );
 
-  const handleCustomFormSubmit = useCallback(
-    async (patch: MutableDaemonConfigPatch) => {
-      setIsCustomFormSubmitting(true);
-      try {
-        await patchConfig(patch);
-        const providerIds = Object.keys(patch.providers ?? {});
-        if (providerIds.length > 0) {
-          await refresh(providerIds);
-        }
-        setShowCustomForm(false);
-      } finally {
-        setIsCustomFormSubmitting(false);
-      }
-    },
-    [patchConfig, refresh],
-  );
-
-  const handleCustomFormCancel = useCallback(() => {
-    setShowCustomForm(false);
-  }, []);
-
-  const handleOpenCustomForm = useCallback(() => {
-    setShowCustomForm(true);
-  }, []);
-
   return (
     <>
       {hasServer && isConnected ? (
@@ -654,24 +616,6 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
           testID="host-page-add-provider-card"
           style={styles.addProviderSection}
         >
-          {!showCustomForm ? (
-            <Pressable
-              onPress={handleOpenCustomForm}
-              style={styles.addCustomButton}
-              accessibilityRole="button"
-              accessibilityLabel="Add custom provider"
-              testID="add-custom-provider-button"
-            >
-              <Text style={styles.addCustomButtonText}>Add custom provider</Text>
-            </Pressable>
-          ) : (
-            <CustomProviderForm
-              existingProviderIds={existingProviderIds}
-              isSubmitting={isCustomFormSubmitting}
-              onSubmit={handleCustomFormSubmit}
-              onCancel={handleCustomFormCancel}
-            />
-          )}
           <ProviderCatalogList
             serverId={serverId}
             installingProviderId={installingProviderId}
@@ -689,20 +633,6 @@ const styles = StyleSheet.create((theme) => ({
   },
   addProviderSection: {
     marginTop: theme.spacing[4],
-  },
-  addCustomButton: {
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderStyle: "dashed",
-    alignItems: "center",
-    marginBottom: theme.spacing[3],
-  },
-  addCustomButtonText: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
   },
   emptyCard: {
     padding: theme.spacing[4],

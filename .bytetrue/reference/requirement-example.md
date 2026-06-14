@@ -1,88 +1,89 @@
 ---
 doc_type: requirement-example
-description: 一份好的 requirement doc 长什么样——供 bt-req 起草时参考，也供项目成员扫一眼对齐风格
+description: What a good requirement doc looks like — for `bt-req` to reference while drafting, and for project members to glance at when aligning style
 ---
 
-# requirement 文档示例
+# requirement document example
 
-下面这份示例取自 ByteTrue 自己的能力（修 bug 时的探索分析流），用来展示一份好的 requirement doc 的**语气、结构、颗粒度**。新项目做 onboard 时随包落盘，之后写自己的 requirement 可以直接照着改。
-
----
-
-## 写作要点速查
-
-- **标题直接平铺**说这能力是什么，不玩比喻、不起花哨名字。
-- **用户故事顶在最前面**，每条要能想象出一个具体处境。
-- **为什么需要 / 怎么解决 各一段短的**，不上课、不展开。
-- **边界用列表**，至少写一条"它不管什么"。
-- **不写实现细节**——"通过 X 接口调用 Y 服务"这种挪到 architecture doc。
-- **frontmatter 的 `pitch`** 要去技术化、一句话、读者没上下文也能看懂，以后当宣传词用。
+The example below is taken from ByteTrue's own capability, the exploration-and-analysis flow used before fixing bugs. Its purpose is to show the **tone, structure, and granularity** of a good requirement doc. When a new project is onboarded, it is written to disk together with the package, and later requirement docs for the project can directly use it as a model.
 
 ---
 
-## 示例正文
+## Quick writing checklist
+
+- **The title says directly** what the capability is. No metaphor, no fancy naming.
+- **User stories come first**, and each one should make it easy to imagine a concrete situation.
+- **Why it is needed / How it solves it each get one short paragraph**, no lecturing and no expansion.
+- **Boundaries use a list**, and must include at least one item saying what it does not cover.
+- **Do not write implementation details** — phrases like "through interface X calling service Y" belong in the architecture doc.
+- **The `pitch` field in frontmatter** must be de-technicalized, one sentence, and understandable even without context, because it should later work as promotional copy.
+
+---
+
+## Example body
 
 ```markdown
 ---
 doc_type: requirement
 slug: issue-flow
-pitch: 修 bug 时先让 AI 探索和分析，再动手改
-status: current
+pitch: Let AI explore and analyze first before editing code when fixing bugs
+status: done
+current: true
 last_reviewed: 2026-04-21
 implemented_by:
   - arch-bt-issue
 tags: [debug, ai-assist]
 ---
 
-# 修 bug 时先探索和分析
+# Explore and analyze first when fixing bugs
 
-## 用户故事
+## User Stories
 
-- 作为一个刚接手别人代码的人，我希望把报错直接丢给 AI，它告诉我根因在哪，而不是自己翻三个文件摸调用链。
-- 作为一个被线上问题打断的开发，我希望 AI 帮我收窄嫌疑范围，而不是自己从 git log 一条条比对。
-- 作为一个只记得"点那个按钮就白屏"的人，我希望 AI 反过来问我几个问题把现场补清楚，而不是让我自己想该给它什么信息。
+- As someone who just took over someone else's code, I want to throw the error directly to AI and have it tell me where the root cause is, instead of manually opening three files and following the call chain myself.
+- As a developer interrupted by a production problem, I want the AI to narrow the suspicion range for me, instead of forcing me to compare git log entries one by one.
+- As someone who only remembers "clicking that button made the page go blank", I want the AI to ask me a few reverse questions to reconstruct the scene, instead of making me guess what information I should provide.
 
-## 为什么需要
+## Why It Is Needed
 
-修 bug 的难点不在改代码，在定位。线索通常零碎（一段报错、一个截图、一句口述），从这点信息摸到真正的根因，往往要先自己耗掉半小时。对不熟的模块、对新接手的人，这段成本更高。
+The hard part of fixing a bug is not editing the code, it is locating it. The clues are usually fragmented, one error line, one screenshot, one sentence of verbal description. Tracing those clues to the real root cause often costs half an hour before any code is even changed. That cost is higher for unfamiliar modules or for someone new to the codebase.
 
-## 怎么解决
+## How It Solves It
 
-先让 AI 读现场——日志、代码、git 历史——交叉验证之后讲清楚"哪里坏了、为什么坏、改动会影响什么"。人确认过再动手改，改完验证。
+The AI reads the scene first, logs, code, and git history, cross-validates them, then explains clearly where it is broken, why it is broken, and what the fix will affect. Only after a human confirms that analysis does the actual edit happen, followed by verification.
 
-## 边界
+## Boundaries
 
-- 不主动扫 bug，得你先感知到异常给它入口。
-- 线索实在不够时它会反问你补现场，而不是瞎猜。
-- 不处理"还没想清楚要做什么"——那是需求 / 设计的事。
+- It does not proactively scan for bugs; you still have to notice an anomaly and give it an entry point first.
+- If the clues are truly insufficient, it will ask you for more scene information instead of guessing blindly.
+- It does not handle "we still have not figured out what we want to build" — that belongs to requirement and design work.
 ```
 
 ---
 
-## 反面样例（不要这样写）
+## Anti-examples, do not write it like this
 
-这几种写法 AI 很容易默认写出来，都是典型"翻车"：
+These are common ways the AI tends to fail by default:
 
-**语气像在上课**
+**A lecturing tone**
 
-> 本能力旨在通过智能化的探索与分析机制，为开发者提供高效的缺陷定位解决方案……
+> This capability aims to provide developers with an efficient defect-localization solution through an intelligent exploration and analysis mechanism...
 
-改成"修 bug 的难点不在改代码，在定位"。
+Rewrite it as "The hard part of fixing a bug is not editing the code, it is locating it."
 
-**标题玩比喻**
+**A metaphorical title**
 
-> 让 AI 当你修 bug 时的第一个读者
+> Let AI be your first reader while fixing bugs
 
-改成"修 bug 时先探索和分析"。
+Rewrite it as "Explore and analyze first when fixing bugs."
 
-**用户故事太抽象**
+**User stories that are too abstract**
 
-> 作为用户，我希望系统好用。
+> As a user, I hope the system is easy to use.
 
-删掉。用户故事必须能想象出具体处境。
+Delete it. A user story must make a concrete situation imaginable.
 
-**把实现细节塞进来**
+**Stuffing implementation details into it**
 
-> 通过调用代码检索服务和 Git 日志分析模块，对报错日志进行上下文推理……
+> Through the code-retrieval service and the Git-log analysis module, error logs are reasoned about in context...
 
-这是 architecture doc 的事，从 requirement 里删掉。
+That belongs to the architecture doc. Delete it from the requirement doc.
