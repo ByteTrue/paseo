@@ -18,9 +18,9 @@ This is not a merge-upstream workflow. The sync branch is an upstream review cur
 - `upstream/main` is the upstream project.
 - The **cursor** (`COMMIT1`) is the last upstream commit reviewed from the previous sync. It is recorded as a `cursor: <hash>` line in the body of the most recent merged sync PR; the PR title does not have to start with `Upstream sync:`.
 - The sync target (`COMMIT2`) is the current `upstream/main` commit immediately after fetch. Freeze it at the start; if upstream advances mid-run, leave those newer commits for the next sync.
-- New upstream work is the closed range boundary `COMMIT1..COMMIT2`, not a diff from fork `main`. Every commit in that range must get an explicit review decision before any final cherry-pick.
-- Reusable upstream commits are cherry-picked onto a separate fork branch such as `reuse-upstream-YYYYMMDD` only after both gates pass: the agent's review ledger is complete, and the user explicitly approves which commits to include.
-- After merge, the PR body records `cursor: COMMIT2`, because the cursor means "last reviewed upstream commit", not "last cherry-picked commit". Skipped commits are covered only if they were reviewed and documented.
+- New upstream work is the closed range boundary `COMMIT1..COMMIT2`, not a diff from fork `main`. **This range is indivisible for review: every commit in `git log --reverse COMMIT1..COMMIT2` must appear in the user-facing summary with hash, subject, recommended decision, and reason. No commit may be silently omitted because it is noisy, boring, huge, conflicting, or likely to be skipped.**
+- Reusable upstream commits are cherry-picked onto a separate fork branch such as `reuse-upstream-YYYYMMDD` only after both gates pass: the agent's complete whole-range review ledger is done, and the user explicitly approves which commits to include.
+- After merge, the PR body records `cursor: COMMIT2`, because the cursor means "last reviewed upstream commit", not "last cherry-picked commit". Skipped or deferred commits are covered only if they were included in the user-facing whole-range summary and documented with a reason.
 
 ## Fork Invariants
 
@@ -61,10 +61,10 @@ Preserve these unless the user explicitly changes strategy:
      LAST_PR_BODY=$(echo "$LAST_PR" | jq -r '.body')
      echo "Cursor source PR #$LAST_PR_NUMBER: $LAST_PR_TITLE"
 
-    # Extract the last commit-looking hash from PR body lines that mention "cursor".
-    # This handles both "cursor: <hash>" and prose like "cursor advanced → `<hash>`".
-    # Uses git rev-parse below to resolve short hashes to full 40-char form.
-    CURSOR_FRAGMENT=$(echo "$LAST_PR_BODY" | grep -i 'cursor' | grep -oE '[0-9a-f]{7,40}' | tail -1)
+     # Extract the last commit-looking hash from PR body lines that mention "cursor".
+     # This handles both "cursor: <hash>" and prose like "cursor advanced → `<hash>`".
+     # Uses git rev-parse below to resolve short hashes to full 40-char form.
+     CURSOR_FRAGMENT=$(echo "$LAST_PR_BODY" | grep -i 'cursor' | grep -oE '[0-9a-f]{7,40}' | tail -1)
      if [ -z "$CURSOR_FRAGMENT" ]; then
        echo "ERROR: could not find cursor hash in last sync PR body"
        exit 1
@@ -83,18 +83,19 @@ Preserve these unless the user explicitly changes strategy:
    git log --reverse --format='%H %s' "$COMMIT1".."$COMMIT2" | tee /tmp/paseo-upstream-range.txt
    git diff --stat "$COMMIT1".."$COMMIT2"
    ```
-   The range file is the review checklist. Every hash in it must end as `reuse`, `rewrite`, or `skip`.
-4. Apply a mechanical pre-filter for commits that are not useful to the fork. Still record each skipped commit and the reason; do not make invisible skips.
+   The range file is the authoritative review checklist. Every hash in it must end as `reuse`, `rewrite`, `defer-for-dedicated-sync`, or `skip`, and every hash must be shown to the user before approval.
+4. Apply a mechanical pre-filter for commits that are not useful to the fork. This pre-filter only proposes decisions; it does not remove commits from the review ledger or the user-facing summary. Still record each skipped/deferred commit and the reason; do not make invisible skips.
    - Skip upstream version bumps, upstream changelog-only commits, upstream Nix hash-only commits, release tags, and pure upstream branding/metadata churn.
    - Skip native iOS/Android app-surface work by default: `ios/`, `android/`, EAS, TestFlight/App Store, Android APK release assets, native-only dependencies, and phone-store release automation. This does not mean skipping shared web renderer, mobile web/PWA, responsive layout, desktop, CLI, server, or protocol fixes.
    - Skip commits whose purpose conflicts with ByteTrue fork strategy unless the user explicitly changes the strategy.
+   - Do **not** mark a strategically aligned upstream feature as `skip` merely because it is large, cross-cutting, or conflict-prone. Mark it `rewrite` or `defer-for-dedicated-sync` in the rationale, include it in the user summary, and let the user decide whether it belongs in this sync PR or a follow-up sync PR.
    - Mark mixed commits as `rewrite` when they contain reusable server/web/desktop/CLI fixes plus unsupported or upstream-only pieces.
-5. Complete a pre-pick review ledger before asking for approval. For each non-mechanical candidate, inspect the patch and fill this shape in the working notes or PR draft:
+5. Complete a pre-pick review ledger for **every commit in the range** before asking for approval. The ledger must include mechanical skips, release/hash commits, huge feature stacks, conflict-prone commits, and commits the agent recommends deferring. Fill this shape in the working notes or PR draft:
 
    ```markdown
-   | Commit | Decision               | Rationale | Conflict/Rewrite Plan | Bug/Compat Risk | Required Validation |
-   | ------ | ---------------------- | --------- | --------------------- | --------------- | ------------------- |
-   | <hash> | reuse / rewrite / skip | ...       | ...                   | ...             | ...                 |
+   | Commit | Decision                                          | Rationale | Conflict/Rewrite Plan | Bug/Compat Risk | Required Validation |
+   | ------ | ------------------------------------------------- | --------- | --------------------- | --------------- | ------------------- |
+   | <hash> | reuse / rewrite / defer-for-dedicated-sync / skip | ...       | ...                   | ...             | ...                 |
    ```
 
    Review dimensions:
@@ -106,12 +107,14 @@ Preserve these unless the user explicitly changes strategy:
 
    At this point the ledger is only the agent's recommendation. Do not run a scratch replay, create a final branch, or cherry-pick any reviewed commit yet.
 
-6. Present the whole-range review summary to the user and wait for an explicit selection before continuing. The summary must include:
+6. Present the whole-range review summary to the user and wait for an explicit selection before continuing. This is a mandatory stop point. The summary must include:
    - frozen range `COMMIT1..COMMIT2` and total commit count;
+   - an upstream-order table containing **all commits in the range**, with no omissions: commit hash, subject, touched area/theme, recommended decision, and one-line reason;
    - commits recommended for `reuse` / `rewrite`, grouped by theme, with one-line value and risk;
-   - commits recommended for `skip`, grouped by reason, including strategic skips such as native iOS/Android app-surface work;
-   - any commits that failed conflict probes or are better deferred as separate features/bugfixes;
-   - the exact ordered `APPROVED_COMMITS` list the agent proposes to cherry-pick or rewrite.
+   - commits recommended for `skip`, grouped by reason, including mechanical skips and strategic skips such as native iOS/Android app-surface work;
+   - strategically aligned but large/conflict-prone feature stacks recommended as `defer-for-dedicated-sync`, with their dependency chain and why they should be separate rather than discarded;
+   - any commits that failed conflict probes and need a revised rewrite plan;
+   - the exact ordered `APPROVED_COMMITS` list the agent proposes to cherry-pick or rewrite for this PR, plus any follow-up sync PRs the agent recommends.
 
    Stop and ask the user to choose one of:
    - approve the proposed `APPROVED_COMMITS` list;
@@ -204,6 +207,7 @@ EOF
 
 - Do not `git merge upstream/main` into fork main. That makes the diff enormous and mixes fork-only changes with upstream review.
 - Never final-cherry-pick first and review afterward. The point of this workflow is `discover range → filter → review every commit → summarize everything → user selects approved commits → cherry-pick approved commits`.
+- Never summarize only the commits the agent wants to pick. The pre-approval summary must cover **all** commits from `COMMIT1..COMMIT2`, including release/hash commits, conflicts, large feature stacks, and commits recommended for skip/defer.
 - Never advance the cursor to a commit that was not reviewed. Conversely, a reviewed-and-skipped commit is covered by the cursor only if the PR body records the skip reason.
 - Never fetch or push upstream tags as part of sync. Use explicit branch refspecs plus `--no-tags`, keep `remote.upstream.tagOpt=--no-tags`, and never run `git push --tags origin`; upstream tags like `v0.2.0-rc.1` can pollute the fork release namespace and confuse release prep.
 - Clean CI can expose missing workspace build steps that local dirty `dist/` directories hide.
