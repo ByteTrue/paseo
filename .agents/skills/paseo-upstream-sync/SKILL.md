@@ -19,7 +19,7 @@ This is not a merge-upstream workflow. The sync branch is an upstream review cur
 - The **cursor** (`COMMIT1`) is the last upstream commit reviewed from the previous sync. It is recorded as a `cursor: <hash>` line in the body of the most recent merged sync PR; the PR title does not have to start with `Upstream sync:`.
 - The sync target (`COMMIT2`) is the current `upstream/main` commit immediately after fetch. Freeze it at the start; if upstream advances mid-run, leave those newer commits for the next sync.
 - New upstream work is the closed range boundary `COMMIT1..COMMIT2`, not a diff from fork `main`. Every commit in that range must get an explicit review decision before any final cherry-pick.
-- Reusable upstream commits are cherry-picked onto a separate fork branch such as `reuse-upstream-YYYYMMDD` only after the review gate passes.
+- Reusable upstream commits are cherry-picked onto a separate fork branch such as `reuse-upstream-YYYYMMDD` only after both gates pass: the agent's review ledger is complete, and the user explicitly approves which commits to include.
 - After merge, the PR body records `cursor: COMMIT2`, because the cursor means "last reviewed upstream commit", not "last cherry-picked commit". Skipped commits are covered only if they were reviewed and documented.
 
 ## Fork Invariants
@@ -89,7 +89,7 @@ Preserve these unless the user explicitly changes strategy:
    - Skip native iOS/Android app-surface work by default: `ios/`, `android/`, EAS, TestFlight/App Store, Android APK release assets, native-only dependencies, and phone-store release automation. This does not mean skipping shared web renderer, mobile web/PWA, responsive layout, desktop, CLI, server, or protocol fixes.
    - Skip commits whose purpose conflicts with ByteTrue fork strategy unless the user explicitly changes the strategy.
    - Mark mixed commits as `rewrite` when they contain reusable server/web/desktop/CLI fixes plus unsupported or upstream-only pieces.
-5. Complete a pre-pick review ledger before final cherry-picking. For each non-mechanical candidate, inspect the patch and fill this shape in the working notes or PR draft:
+5. Complete a pre-pick review ledger before asking for approval. For each non-mechanical candidate, inspect the patch and fill this shape in the working notes or PR draft:
 
    ```markdown
    | Commit | Decision               | Rationale | Conflict/Rewrite Plan | Bug/Compat Risk | Required Validation |
@@ -104,13 +104,28 @@ Preserve these unless the user explicitly changes strategy:
    - **Fork invariants:** preserve `@bytetrue` package scope, ByteTrue repository metadata, hosted URL/relay defaults, release workflow, and daemon pairing behavior.
    - **Strategy fit:** reject work that reintroduces maintained native mobile app release surfaces, upstream-only hosting assumptions, or product direction the fork has intentionally removed.
 
-   Do not run the final cherry-pick sequence until this ledger is complete and internally consistent. A dry-run/scratch cherry-pick is allowed only as a conflict probe after the review decisions are written.
+   At this point the ledger is only the agent's recommendation. Do not run a scratch replay, create a final branch, or cherry-pick any reviewed commit yet.
 
-6. If the candidate set is large or conflict-prone, run a scratch replay before creating the final PR branch:
+6. Present the whole-range review summary to the user and wait for an explicit selection before continuing. The summary must include:
+   - frozen range `COMMIT1..COMMIT2` and total commit count;
+   - commits recommended for `reuse` / `rewrite`, grouped by theme, with one-line value and risk;
+   - commits recommended for `skip`, grouped by reason, including strategic skips such as native iOS/Android app-surface work;
+   - any commits that failed conflict probes or are better deferred as separate features/bugfixes;
+   - the exact ordered `APPROVED_COMMITS` list the agent proposes to cherry-pick or rewrite.
+
+   Stop and ask the user to choose one of:
+   - approve the proposed `APPROVED_COMMITS` list;
+   - approve only a subset;
+   - change one or more decisions;
+   - approve zero code changes and decide whether to leave the cursor unchanged or create an explicit empty cursor PR.
+
+   Do not infer approval from silence, from the agent's own confidence, or from a completed ledger. The user must explicitly approve the list or subset before any replay/cherry-pick. If later conflict probing changes the list or rewrite plan, return to this step for approval again.
+
+7. If the approved candidate set is large or conflict-prone, run a scratch replay before creating the final PR branch:
    ```bash
    git switch -c sync-review-dryrun main
-   # Replay only commits marked reuse/rewrite-as-cherry-pick, in upstream order.
-   for commit in <approved-commits-in-upstream-order>; do
+   # Replay only commits in APPROVED_COMMITS, in upstream order.
+   for commit in <APPROVED_COMMITS-in-upstream-order>; do
      git cherry-pick -x "$commit" || {
        echo "scratch replay conflict at $commit"
        git cherry-pick --abort || true
@@ -120,35 +135,36 @@ Preserve these unless the user explicitly changes strategy:
    git switch main
    git branch -D sync-review-dryrun
    ```
-   If the scratch replay conflicts, abort/reset the scratch branch, return to `main`, and update the review ledger before continuing. Do not continue as if the review passed.
-   If the ledger approves zero code changes, stop before creating a final branch. Report the skip decisions and ask whether to leave the cursor unchanged or create an explicit empty cursor PR (`git commit --allow-empty`) whose PR body records the reviewed range and skip reasons. Never advance the cursor silently.
-7. Create the candidate branch from fork `main`:
+   If the scratch replay conflicts, abort/reset the scratch branch, return to `main`, update the review ledger, and go back to step 6 for user approval of the changed plan. Do not continue as if the review passed.
+   If the user approved zero code changes, stop before creating a final branch unless the user explicitly chose an empty cursor PR (`git commit --allow-empty`) whose PR body records the reviewed range and skip reasons. Never advance the cursor silently.
+8. Create the candidate branch from fork `main`:
    ```bash
    git switch -c reuse-upstream-YYYYMMDD main
    ```
-8. Cherry-pick or rewrite only the reviewed-and-approved commits in upstream order:
+9. Cherry-pick or rewrite only the user-approved commits in upstream order:
    ```bash
    git cherry-pick -x <commit>
    ```
-   Use the review ledger as the source of truth. Do not opportunistically add unreviewed commits while resolving conflicts.
-9. Resolve conflicts by taking upstream behavior only where it fits the fork, then reapply fork invariants. Common fixes:
-   - Replace `@getpaseo/` imports with `@bytetrue/`.
-   - Preserve `relay.paseo.zijieapi.de5.net:443` and `https://paseo.zijieapi.de5.net` in runtime defaults and daemon pairing tests.
-   - Keep fork release scripts and `publish-npm.yml` intact.
-   - Preserve the active lean-client strategy: browser web/mobile web PWA, Electron desktop, and CLI are maintained; native Android/iOS release surfaces are not.
-   - If protocol, client, or server message shapes changed and typecheck reports missing fields or stale exports, run `npm run build:server` before patching consumers. Cross-workspace `dist/` declarations can be stale even when source is correct.
-   - If client imports relay runtime code, ensure `build:client` builds relay before client.
-10. Refresh dependencies when package manifests changed:
+   Use `APPROVED_COMMITS` and the review ledger as the source of truth. Do not opportunistically add unapproved commits while resolving conflicts.
+10. Resolve conflicts by taking upstream behavior only where it fits the fork, then reapply fork invariants. Common fixes:
+    - Replace `@getpaseo/` imports with `@bytetrue/`.
+    - Preserve `relay.paseo.zijieapi.de5.net:443` and `https://paseo.zijieapi.de5.net` in runtime defaults and daemon pairing tests.
+    - Keep fork release scripts and `publish-npm.yml` intact.
+    - Preserve the active lean-client strategy: browser web/mobile web PWA, Electron desktop, and CLI are maintained; native Android/iOS release surfaces are not.
+    - If protocol, client, or server message shapes changed and typecheck reports missing fields or stale exports, run `npm run build:server` before patching consumers. Cross-workspace `dist/` declarations can be stale even when source is correct.
+    - If client imports relay runtime code, ensure `build:client` builds relay before client.
+
+11. Refresh dependencies when package manifests changed:
     ```bash
     npm install --ignore-scripts --include-workspace-root
     ```
-11. Verify fork invariants:
+12. Verify fork invariants:
     ```bash
     /usr/bin/grep -R "@getpaseo/" -n package.json package-lock.json packages/*/src scripts .github nix flake.nix || true
     /usr/bin/grep -R "relay\.paseo\.sh\|https://app\.paseo\.sh" -n packages/*/src scripts .github || true
     ```
     Review hits; tests and docs may intentionally mention upstream GitHub URLs, but runtime package imports and app/relay defaults must stay forked.
-12. Run validation:
+13. Run validation:
     ```bash
     npm run format:check
     npm --workspace-root run lint
@@ -157,7 +173,7 @@ Preserve these unless the user explicitly changes strategy:
     npm run test:unit --workspace=@bytetrue/server -- src/server/bootstrap.smoke.test.ts
     ```
     Add any targeted tests promised by the review ledger. Do not run the full test suite locally.
-13. Push the candidate branch and open a PR to `ByteTrue/paseo:main`. Include the frozen range, the review summary, and `cursor: $COMMIT2` in the PR body:
+14. Push the candidate branch and open a PR to `ByteTrue/paseo:main`. Include the frozen range, the review summary, the user-approved commit list, and `cursor: $COMMIT2` in the PR body:
 
 ```bash
 git push origin reuse-upstream-YYYYMMDD
@@ -168,6 +184,7 @@ range: $COMMIT1..$COMMIT2
 cursor: $COMMIT2
 
 review:
+- user-approved: <APPROVED_COMMITS>
 - reused: <hashes>
 - rewritten: <hashes and notes>
 - skipped: <hashes and reasons>
@@ -175,9 +192,9 @@ EOF
   )"
 ```
 
-14. Wait for CI. If CI fails, use job logs, reproduce locally with a clean clone and Node 22 when needed, patch the candidate branch, and rerun checks.
-15. Merge the PR only after CI is green.
-16. The merged PR body is the next run's cursor source. It must contain:
+15. Wait for CI. If CI fails, use job logs, reproduce locally with a clean clone and Node 22 when needed, patch the candidate branch, and rerun checks.
+16. Merge the PR only after CI is green.
+17. The merged PR body is the next run's cursor source. It must contain:
     ```
     cursor: <COMMIT2 / last reviewed upstream hash>
     ```
@@ -186,7 +203,7 @@ EOF
 ## Pitfalls
 
 - Do not `git merge upstream/main` into fork main. That makes the diff enormous and mixes fork-only changes with upstream review.
-- Never final-cherry-pick first and review afterward. The point of this workflow is `discover range → filter → review every commit → cherry-pick approved commits`.
+- Never final-cherry-pick first and review afterward. The point of this workflow is `discover range → filter → review every commit → summarize everything → user selects approved commits → cherry-pick approved commits`.
 - Never advance the cursor to a commit that was not reviewed. Conversely, a reviewed-and-skipped commit is covered by the cursor only if the PR body records the skip reason.
 - Never fetch or push upstream tags as part of sync. Use explicit branch refspecs plus `--no-tags`, keep `remote.upstream.tagOpt=--no-tags`, and never run `git push --tags origin`; upstream tags like `v0.2.0-rc.1` can pollute the fork release namespace and confuse release prep.
 - Clean CI can expose missing workspace build steps that local dirty `dist/` directories hide.
