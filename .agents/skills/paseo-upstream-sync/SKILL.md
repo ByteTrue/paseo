@@ -16,7 +16,7 @@ This is not a merge-upstream workflow. The sync branch is an upstream review cur
 
 - `origin/main` is the ByteTrue fork main branch.
 - `upstream/main` is the upstream project.
-- The **cursor** (`COMMIT1`) is the last upstream commit reviewed from the previous sync. It is recorded in the body of the most recent merged "Upstream sync:" PR (e.g. `cursor: abc123`).
+- The **cursor** (`COMMIT1`) is the last upstream commit reviewed from the previous sync. It is recorded as a `cursor: <hash>` line in the body of the most recent merged sync PR; the PR title does not have to start with `Upstream sync:`.
 - The sync target (`COMMIT2`) is the current `upstream/main` commit immediately after fetch. Freeze it at the start; if upstream advances mid-run, leave those newer commits for the next sync.
 - New upstream work is the closed range boundary `COMMIT1..COMMIT2`, not a diff from fork `main`. Every commit in that range must get an explicit review decision before any final cherry-pick.
 - Reusable upstream commits are cherry-picked onto a separate fork branch such as `reuse-upstream-YYYYMMDD` only after the review gate passes.
@@ -50,10 +50,10 @@ Preserve these unless the user explicitly changes strategy:
 
    ```bash
    LAST_PR=$(gh pr list --repo ByteTrue/paseo --state merged --limit 100 --json number,title,body,mergedAt \
-     -q '[.[] | select(.title | startswith("Upstream sync:"))] | sort_by(.mergedAt) | last')
+     -q '[.[] | select((.body // "") | test("(?i)cursor[^\\n]{0,120}[0-9a-f]{7,40}"))] | sort_by(.mergedAt) | last')
    COMMIT2=$(git rev-parse --verify upstream/main)
    if [ -z "$LAST_PR" ] || [ "$LAST_PR" = "null" ]; then
-     echo "No previous Upstream sync PR found; using fork/upstream merge-base"
+     echo "No previous cursor-bearing sync PR found; using fork/upstream merge-base"
      COMMIT1=$(git merge-base origin/main upstream/main)
    else
      LAST_PR_NUMBER=$(echo "$LAST_PR" | jq -r '.number')
