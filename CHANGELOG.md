@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.1.95 - 2026-06-15
+
+### Added
+
+- Claude provider settings can save multiple named Claude-compatible endpoints ([#21](https://github.com/ByteTrue/paseo/pull/21))
+
+### Changed
+
+- Web clients open workspace service links in your browser instead of the limited in-app preview ([#19](https://github.com/ByteTrue/paseo/pull/19))
+- Non-Claude custom providers are configured through config files again while the in-app flow focuses on Claude endpoints ([#21](https://github.com/ByteTrue/paseo/pull/21))
+
+### Improved
+
+- macOS updates now download the DMG installer and open it from Paseo ([#20](https://github.com/ByteTrue/paseo/pull/20))
+- ACP provider catalog entries were refreshed to current package versions
+
+### Fixed
+
+- Terminal TUIs now respond to wheel and trackpad scrolling
+- Quitting desktop no longer leaves OpenCode provider processes running after the local daemon stops ([#18](https://github.com/ByteTrue/paseo/pull/18))
+- Pairing a remote host from desktop now generates the selected host's pairing link ([#19](https://github.com/ByteTrue/paseo/pull/19))
+- Pi agents no longer restart the host daemon when extension commands time out ([#21](https://github.com/ByteTrue/paseo/pull/21))
+- Settings model dropdowns stay within the window on smaller screens ([#21](https://github.com/ByteTrue/paseo/pull/21))
+
 ## 0.1.94 - 2026-06-12
 
 ### Added
