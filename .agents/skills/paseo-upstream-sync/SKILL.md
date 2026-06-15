@@ -61,10 +61,10 @@ Preserve these unless the user explicitly changes strategy:
      LAST_PR_BODY=$(echo "$LAST_PR" | jq -r '.body')
      echo "Cursor source PR #$LAST_PR_NUMBER: $LAST_PR_TITLE"
 
-     # Extract the commit hash that follows "cursor" in the PR body.
-     # Matches both "cursor: <hash>" (full) and "cursor advanced → <hash>" (short).
-     # Uses git rev-parse to resolve short hashes to full 40-char form.
-     CURSOR_FRAGMENT=$(echo "$LAST_PR_BODY" | grep -oE 'cursor[^0-9a-f]*[0-9a-f]{7,40}' | grep -oE '[0-9a-f]{7,40}$' | head -1)
+    # Extract the last commit-looking hash from PR body lines that mention "cursor".
+    # This handles both "cursor: <hash>" and prose like "cursor advanced → `<hash>`".
+    # Uses git rev-parse below to resolve short hashes to full 40-char form.
+    CURSOR_FRAGMENT=$(echo "$LAST_PR_BODY" | grep -i 'cursor' | grep -oE '[0-9a-f]{7,40}' | tail -1)
      if [ -z "$CURSOR_FRAGMENT" ]; then
        echo "ERROR: could not find cursor hash in last sync PR body"
        exit 1
