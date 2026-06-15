@@ -109,11 +109,12 @@ Preserve these unless the user explicitly changes strategy:
 
 6. Present the whole-range review summary to the user and wait for an explicit selection before continuing. This is a mandatory stop point. The summary must include:
    - frozen range `COMMIT1..COMMIT2` and total commit count;
-   - an upstream-order table containing **all commits in the range**, with no omissions: commit hash, subject, touched area/theme, recommended decision, and one-line reason;
-   - commits recommended for `reuse` / `rewrite`, grouped by theme, with one-line value and risk;
-   - commits recommended for `skip`, grouped by reason, including mechanical skips and strategic skips such as native iOS/Android app-surface work;
-   - strategically aligned but large/conflict-prone feature stacks recommended as `defer-for-dedicated-sync`, with their dependency chain and why they should be separate rather than discarded;
-   - any commits that failed conflict probes and need a revised rewrite plan;
+   - a grouped feature summary, not a raw one-row-per-commit dump. Group related commits into feature/bugfix/release-maintenance groups, and for each group list **all included commit hashes** so coverage is auditable;
+   - a coverage check proving every hash from `/tmp/paseo-upstream-range.txt` appears in exactly one summary group (`reuse`, `rewrite`, `defer-for-dedicated-sync`, or `skip`). No hash may be left only in a private scratch file;
+   - groups recommended for `reuse` / `rewrite`, with feature value, included commit hashes, touched areas, conflict risk, and validation plan;
+   - groups recommended for `skip`, with included commit hashes and reason, including mechanical skips and strategic skips such as native iOS/Android app-surface work;
+   - strategically aligned but large/conflict-prone feature groups recommended as `defer-for-dedicated-sync`, with dependency chain and why they should be separate rather than discarded;
+   - any groups that failed conflict probes and need a revised rewrite plan;
    - the exact ordered `APPROVED_COMMITS` list the agent proposes to cherry-pick or rewrite for this PR, plus any follow-up sync PRs the agent recommends.
 
    Stop and ask the user to choose one of:
