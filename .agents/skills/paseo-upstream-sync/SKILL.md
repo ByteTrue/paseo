@@ -47,28 +47,37 @@ Preserve these unless the user explicitly changes strategy:
    git pull --ff-only origin main
    ```
 2. Resolve and freeze the sync range (`COMMIT1..COMMIT2`):
+
    ```bash
-   LAST_PR=$(gh pr list --repo ByteTrue/paseo --search "Upstream sync:" --state merged --limit 1 --json body -q '.[0].body')
-   # Extract the commit hash that follows "cursor" in the PR body.
-   # Matches both "cursor: <hash>" (full) and "cursor advanced → <hash>" (short).
-   # Uses git rev-parse to resolve short hashes to full 40-char form.
-   CURSOR_FRAGMENT=$(echo "$LAST_PR" | grep -oE 'cursor[^0-9a-f]*[0-9a-f]{7,40}' | grep -oE '[0-9a-f]{7,40}$' | head -1)
-   if [ -z "$CURSOR_FRAGMENT" ]; then
-     echo "ERROR: could not find cursor hash in last sync PR body"
-     exit 1
-   fi
-   COMMIT1=$(git rev-parse --verify "$CURSOR_FRAGMENT")
+   LAST_PR=$(gh pr list --repo ByteTrue/paseo --state merged --limit 100 --json number,title,body,mergedAt \
+     -q '[.[] | select(.title | startswith("Upstream sync:"))] | sort_by(.mergedAt) | last')
    COMMIT2=$(git rev-parse --verify upstream/main)
+   if [ -z "$LAST_PR" ] || [ "$LAST_PR" = "null" ]; then
+     echo "No previous Upstream sync PR found; using fork/upstream merge-base"
+     COMMIT1=$(git merge-base origin/main upstream/main)
+   else
+     LAST_PR_NUMBER=$(echo "$LAST_PR" | jq -r '.number')
+     LAST_PR_TITLE=$(echo "$LAST_PR" | jq -r '.title')
+     LAST_PR_BODY=$(echo "$LAST_PR" | jq -r '.body')
+     echo "Cursor source PR #$LAST_PR_NUMBER: $LAST_PR_TITLE"
+
+     # Extract the commit hash that follows "cursor" in the PR body.
+     # Matches both "cursor: <hash>" (full) and "cursor advanced → <hash>" (short).
+     # Uses git rev-parse to resolve short hashes to full 40-char form.
+     CURSOR_FRAGMENT=$(echo "$LAST_PR_BODY" | grep -oE 'cursor[^0-9a-f]*[0-9a-f]{7,40}' | grep -oE '[0-9a-f]{7,40}$' | head -1)
+     if [ -z "$CURSOR_FRAGMENT" ]; then
+       echo "ERROR: could not find cursor hash in last sync PR body"
+       exit 1
+     fi
+     COMMIT1=$(git rev-parse --verify "$CURSOR_FRAGMENT")
+   fi
    echo "Last reviewed upstream commit (COMMIT1): $COMMIT1"
    echo "Frozen upstream target      (COMMIT2): $COMMIT2"
    git rev-list --left-right --count "$COMMIT1"..."$COMMIT2"
    ```
-   If no previous sync PR exists (first sync), use the fork/upstream merge-base instead:
-   ```bash
-   COMMIT1=$(git merge-base origin/main upstream/main)
-   COMMIT2=$(git rev-parse --verify upstream/main)
-   ```
+
    Do not silently widen the range after this point. If `upstream/main` advances during the sync, the new commits belong to the next run.
+
 3. Materialize the full upstream range before filtering:
    ```bash
    git log --reverse --format='%H %s' "$COMMIT1".."$COMMIT2" | tee /tmp/paseo-upstream-range.txt
